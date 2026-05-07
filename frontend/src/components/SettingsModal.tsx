@@ -1,5 +1,6 @@
 import {
   ChevronRight,
+  Download,
   Github,
   Hash,
   HelpCircle,
@@ -124,6 +125,29 @@ export default function SettingsModal() {
 function AccountTab() {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
+  const [exporting, setExporting] = useState(false);
+
+  const onExport = async () => {
+    setExporting(true);
+    try {
+      const token = localStorage.getItem("mindshift.token");
+      const res = await fetch(api.exportMarkdownUrl(), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mindshift-export-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <section className="space-y-5">
@@ -148,6 +172,32 @@ function AccountTab() {
           >
             <LogOut className="h-3 w-3" />
             {t("auth.signOut")}
+          </button>
+        </div>
+      </div>
+
+      {/* Data export */}
+      <div className="rounded-xl border border-ink-700 bg-ink-900/30 p-5">
+        <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+          {t("settings.export.heading")}
+        </h3>
+        <div className="flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-ink-100">
+              {t("settings.export.title")}
+            </p>
+            <p className="mt-0.5 text-xs text-ink-400">
+              {t("settings.export.body")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void onExport()}
+            disabled={exporting}
+            className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-200 transition hover:border-ink-500 hover:bg-ink-700/40 disabled:opacity-50"
+          >
+            <Download className="h-3 w-3" />
+            {exporting ? t("common.loading") : t("settings.export.action")}
           </button>
         </div>
       </div>

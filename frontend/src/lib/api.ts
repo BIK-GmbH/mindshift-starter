@@ -195,6 +195,7 @@ export const api = {
     }),
   deleteChatSession: (id: string) =>
     request<void>(`/api/chat/sessions/${id}`, { method: "DELETE" }),
+  exportMarkdownUrl: () => `${BASE_URL}/api/export/markdown`,
   reviewQueue: (limit = 20) => request<ReviewQueueItem[]>(`/api/review/queue?limit=${limit}`),
   reviewStats: () => request<ReviewStats>("/api/review/stats"),
   submitReviewAnswer: (questionId: string, rating: ReviewRating) =>

@@ -84,6 +84,12 @@
       "tags": "Tags",
       "about": "Über"
     },
+    "export": {
+      "heading": "Daten",
+      "title": "Knowledge Base exportieren",
+      "body": "Alle Cards als Markdown-Dateien herunterladen, sortiert nach Tag-Hierarchie (ZIP).",
+      "action": "Exportieren"
+    },
     "tags": {
       "subtitle": "Verwalte deine Tag-Hierarchie. Umbenennen, verschieben oder löschen.",
       "add": "Anlegen",

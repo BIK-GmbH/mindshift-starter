@@ -7,6 +7,8 @@ When a new session starts, read this first to know where to pick up.
 
 ## Active sprint — Recall-pattern follow-ups
 
+**Status:** all 6 phases complete (commits `5f03ac2`, `d39b1d4`, `f6922a2`, `f45fc73`, `0566f26`, plus the export commit at HEAD).
+
 Goal: bring the rest of the app up to the Recall-style shell that
 `fb2d44c` introduced. Six phases, in order. Each phase ends with a
 commit + push and a verified browser test.
@@ -18,7 +20,7 @@ commit + push and a verified browser test.
 | 3 | ✅ | **Chat conversation history** — backend `chat_sessions` + `chat_messages` tables (migration 0005), CRUD endpoints under `/api/chat/sessions`, persistence wired into both `/api/chat` and `/api/cards/{id}/chat`. ChatPage now has a Recall-style sidebar grouping sessions by day; click loads a conversation, delete removes it. |
 | 4 | ✅ | **Tag manager** — new "Tags" tab in the settings modal. Lists all tags hierarchically with card-counts; supports add (form), rename (prompt), parent-reparent (select with cycle prevention), and delete (confirm). |
 | 5 | ✅ | **Bulk re-tag** — `app.scripts.retag_existing` re-runs the AI tagging on completed cards. Supports `--user-email`, `--limit`, `--dry-run`, `--replace`. Reuses the hierarchical-tag prompt + user's existing top-level tags as context. |
-| 6 | 🟡 | **KB Markdown export** — `/api/export/markdown` endpoint that streams a ZIP of one Markdown file per card, organised in folders matching the tag hierarchy. Frontend trigger in Settings → Account → Export. |
+| 6 | ✅ | **KB Markdown export** — `GET /api/export/markdown` streams a ZIP of one Markdown file per card (TL;DR + key takeaways + summary + notes + transcript), organised in folders that mirror the tag hierarchy. Untagged cards land in `_untagged/`. Frontend trigger in Settings → Account → DATA → Export. |
 
 ## Working agreement
 

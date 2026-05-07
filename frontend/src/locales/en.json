@@ -84,6 +84,12 @@
       "tags": "Tags",
       "about": "About"
     },
+    "export": {
+      "heading": "Data",
+      "title": "Export knowledge base",
+      "body": "Download all your cards as Markdown files, organised by tag hierarchy (ZIP).",
+      "action": "Export"
+    },
     "tags": {
       "subtitle": "Manage your tag hierarchy. Rename, move, or delete tags here.",
       "add": "Add",
