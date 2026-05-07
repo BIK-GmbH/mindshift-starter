@@ -1,0 +1,107 @@
+{
+  "app": {
+    "name": "Mindshift",
+    "tagline": "Your personal AI knowledge base"
+  },
+  "nav": {
+    "library": "Library",
+    "chat": "Chat",
+    "review": "Review",
+    "search": "Search",
+    "settings": "Settings"
+  },
+  "library": {
+    "empty": {
+      "title": "No knowledge cards yet",
+      "body": "Add a YouTube video to get started."
+    },
+    "addContent": "Add content",
+    "search": "Search library"
+  },
+  "addContent": {
+    "youtube": "YouTube",
+    "article": "Article",
+    "pdf": "PDF",
+    "choosePdf": "Choose PDF",
+    "pickFile": "Please pick a file"
+  },
+  "card": {
+    "summary": "Summary",
+    "transcript": "Transcript",
+    "notes": "Notes",
+    "quiz": "Quiz",
+    "chat": "Chat",
+    "tags": "Tags",
+    "status": {
+      "queued": "Queued",
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed"
+    }
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "email": "Email",
+    "password": "Password",
+    "displayName": "Display name",
+    "signOut": "Sign out"
+  },
+  "review": {
+    "subtitle": "Practice due quiz questions with spaced repetition.",
+    "reveal": "Show answer",
+    "rating": {
+      "again": "Again",
+      "hard": "Hard",
+      "good": "Good",
+      "easy": "Easy"
+    },
+    "stage": {
+      "new": "New",
+      "learning": "Learning",
+      "practiced": "Practiced",
+      "confident": "Confident",
+      "mastered": "Mastered"
+    },
+    "stats": {
+      "due": "Due",
+      "new": "New",
+      "learning": "Learning",
+      "practiced": "Practiced",
+      "confident": "Confident",
+      "mastered": "Mastered",
+      "total": "Total"
+    },
+    "done": {
+      "title": "You're done.",
+      "body": "No questions are due right now. Come back later.",
+      "refresh": "Check again"
+    }
+  },
+  "chat": {
+    "send": "Send",
+    "placeholder": "Ask a question…",
+    "placeholderCard": "Ask something about this card…",
+    "placeholderKb": "Ask something about your knowledge base…",
+    "kbSubtitle": "Ask questions across all your cards.",
+    "kbEmpty": "Ask a question — answers come with citations.",
+    "cardEmpty": "Ask a question about this card's content."
+  },
+  "search": {
+    "subtitle": "Ask a question — semantically or by keyword.",
+    "semantic": "Semantic",
+    "keyword": "Keyword",
+    "placeholderSemantic": "e.g. \"How do I remember things long term?\"",
+    "placeholderKeyword": "Keyword in title, summary, notes",
+    "run": "Search",
+    "hint": "Type something and press Enter.",
+    "empty": "No results."
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "loading": "Loading…",
+    "error": "Something went wrong."
+  }
+}

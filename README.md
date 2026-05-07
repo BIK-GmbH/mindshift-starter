@@ -8,8 +8,36 @@
 
 | Pfad | Inhalt |
 |---|---|
-| `docs/PRD.de.md` | Vollständiges Product Requirements Document (deutsch) |
-| `docs/PRD.md`    | English version |
+| `docs/PRD.de.md`     | Vollständiges Product Requirements Document (deutsch) |
+| `docs/PRD.md`        | English version |
+| `backend/`           | FastAPI + SQLAlchemy + Alembic |
+| `frontend/`          | React + Vite + Tailwind + i18n (DE/EN) |
+| `scripts/start.sh`   | Startet Postgres (Docker), Backend, Frontend |
+| `scripts/stop.sh`    | Stoppt alle lokalen Services |
+| `docker-compose.yml` | Lokaler Postgres |
+
+## Schnellstart lokal
+
+```bash
+cp .env.example .env
+# OPENAI_API_KEY in .env eintragen
+./scripts/start.sh
+```
+
+- Frontend: http://localhost:5173
+- Backend:  http://localhost:8001  (Health: `/api/health`)
+- Logs:     `.runtime/logs/{backend,frontend}.log`
+- Stop:     `./scripts/stop.sh`
+
+Beim ersten Start im Frontend einen Account anlegen (Sign up), dann eine YouTube-URL einfügen — die Card durchläuft `queued → processing → completed` und zeigt Summary, Key Takeaways, Tags, Quiz und Transkript.
+
+## Railway-Deployment
+
+Drei Services anlegen:
+
+1. **postgres** — Managed Postgres (gibt `DATABASE_URL` aus)
+2. **backend** — Root: `backend/`, Env: `DATABASE_URL`, `OPENAI_API_KEY`, `JWT_SECRET`, `FRONTEND_ORIGIN`
+3. **frontend** — Root: `frontend/`, Build-Arg/Env: `VITE_API_BASE_URL` (Backend-URL)
 
 Die PRD enthält:
 - Produktzusammenfassung + Research-Notizen

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: mindshift-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mindshift
+      POSTGRES_PASSWORD: mindshift
+      POSTGRES_DB: mindshift
+    ports:
+      - "5433:5432"
+    volumes:
+      - mindshift-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mindshift -d mindshift"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mindshift-pgdata:

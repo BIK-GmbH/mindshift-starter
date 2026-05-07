@@ -1,0 +1,288 @@
+from uuid import UUID
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_user
+from app.db.session import get_db
+from app.models.card import Card
+from app.models.job import Job
+from app.models.quiz import QuizQuestion
+from app.models.source import Source
+from app.models.transcript import Transcript
+from app.models.user import User
+from app.schemas.card import (
+    CardListItem,
+    CardOut,
+    CardUpdate,
+    FromUrlRequest,
+    FromYouTubeRequest,
+    IngestionResponse,
+    JobOut,
+    NotesUpdate,
+    QuizQuestionOut,
+)
+from app.services.ingestion import process_article_card, process_pdf_card, process_youtube_card
+from app.services.youtube import extract_video_id
+
+MAX_PDF_BYTES = 25 * 1024 * 1024
+
+router = APIRouter(prefix="/cards", tags=["cards"])
+
+
+@router.post("/from-youtube", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
+def create_card_from_youtube(
+    payload: FromYouTubeRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> IngestionResponse:
+    url = str(payload.url)
+    video_id = extract_video_id(url)
+    if video_id is None:
+        raise HTTPException(status_code=400, detail="Could not parse YouTube video ID from URL")
+
+    source = Source(
+        source_type="youtube",
+        url=url,
+        canonical_url=f"https://www.youtube.com/watch?v={video_id}",
+        external_id=video_id,
+    )
+    db.add(source)
+    db.flush()
+
+    card = Card(
+        user_id=current_user.id,
+        source_id=source.id,
+        title=f"YouTube {video_id}",
+        source_type="youtube",
+        status="queued",
+    )
+    db.add(card)
+    db.flush()
+
+    job = Job(card_id=card.id, job_type="youtube_ingest", status="queued")
+    db.add(job)
+    db.commit()
+    db.refresh(card)
+    db.refresh(job)
+
+    background_tasks.add_task(process_youtube_card, card.id, job.id, video_id)
+
+    return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
+
+
+@router.post("/from-url", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
+def create_card_from_url(
+    payload: FromUrlRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> IngestionResponse:
+    url = str(payload.url)
+    source = Source(source_type="article", url=url, canonical_url=url)
+    db.add(source)
+    db.flush()
+
+    card = Card(
+        user_id=current_user.id,
+        source_id=source.id,
+        title=url,
+        source_type="article",
+        status="queued",
+    )
+    db.add(card)
+    db.flush()
+
+    job = Job(card_id=card.id, job_type="article_ingest", status="queued")
+    db.add(job)
+    db.commit()
+    db.refresh(card)
+    db.refresh(job)
+
+    background_tasks.add_task(process_article_card, card.id, job.id, url)
+    return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
+
+
+@router.post("/from-pdf", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
+async def create_card_from_pdf(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    title: str | None = Form(default=None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> IngestionResponse:
+    if file.content_type not in {"application/pdf", "application/x-pdf"}:
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(content) > MAX_PDF_BYTES:
+        raise HTTPException(status_code=413, detail="PDF exceeds 25 MB limit")
+
+    filename = file.filename or "document.pdf"
+    source = Source(
+        source_type="pdf",
+        url=f"upload://{filename}",
+        external_id=filename,
+        metadata_json={"size_bytes": len(content), "content_type": file.content_type},
+    )
+    db.add(source)
+    db.flush()
+
+    card = Card(
+        user_id=current_user.id,
+        source_id=source.id,
+        title=(title or filename).strip() or filename,
+        source_type="pdf",
+        status="queued",
+    )
+    db.add(card)
+    db.flush()
+
+    job = Job(card_id=card.id, job_type="pdf_ingest", status="queued")
+    db.add(job)
+    db.commit()
+    db.refresh(card)
+    db.refresh(job)
+
+    background_tasks.add_task(process_pdf_card, card.id, job.id, content, filename)
+    return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
+
+
+@router.get("", response_model=list[CardListItem])
+def list_cards(
+    q: str | None = Query(default=None, description="Keyword search over title/summary/notes"),
+    status_filter: str | None = Query(default=None, alias="status"),
+    tag: str | None = Query(default=None),
+    source_type: str | None = Query(default=None),
+    sort: str = Query(default="newest", pattern="^(newest|oldest|title)$"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Card]:
+    stmt = select(Card).where(Card.user_id == current_user.id)
+    if status_filter:
+        stmt = stmt.where(Card.status == status_filter)
+    if source_type:
+        stmt = stmt.where(Card.source_type == source_type)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                Card.title.ilike(like),
+                Card.concise_summary_md.ilike(like),
+                Card.detailed_summary_md.ilike(like),
+                Card.notes_md.ilike(like),
+            )
+        )
+    if tag:
+        from app.models.tag import CardTag, Tag
+
+        stmt = stmt.join(CardTag, CardTag.card_id == Card.id).join(Tag, Tag.id == CardTag.tag_id).where(
+            Tag.name == tag.lower()
+        )
+
+    order = {
+        "newest": Card.created_at.desc(),
+        "oldest": Card.created_at.asc(),
+        "title": Card.title.asc(),
+    }[sort]
+    stmt = stmt.order_by(order)
+    return list(db.execute(stmt).scalars().all())
+
+
+@router.get("/{card_id}", response_model=CardOut)
+def get_card(
+    card_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Card:
+    card = _get_owned_card(db, card_id, current_user.id)
+    return card
+
+
+@router.patch("/{card_id}", response_model=CardOut)
+def update_card(
+    card_id: UUID,
+    payload: CardUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Card:
+    card = _get_owned_card(db, card_id, current_user.id)
+    if payload.title is not None:
+        card.title = payload.title
+    if payload.notes_md is not None:
+        card.notes_md = payload.notes_md
+    db.commit()
+    db.refresh(card)
+    return card
+
+
+@router.patch("/{card_id}/notes", response_model=CardOut)
+def update_notes(
+    card_id: UUID,
+    payload: NotesUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Card:
+    card = _get_owned_card(db, card_id, current_user.id)
+    card.notes_md = payload.notes_md
+    db.commit()
+    db.refresh(card)
+    return card
+
+
+@router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_card(
+    card_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    card = _get_owned_card(db, card_id, current_user.id)
+    db.delete(card)
+    db.commit()
+
+
+@router.get("/{card_id}/transcript")
+def get_transcript(
+    card_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    card = _get_owned_card(db, card_id, current_user.id)
+    transcript = db.execute(
+        select(Transcript).where(Transcript.card_id == card.id).order_by(Transcript.created_at.desc())
+    ).scalar_one_or_none()
+    if transcript is None:
+        raise HTTPException(status_code=404, detail="No transcript available")
+    return {
+        "card_id": str(card.id),
+        "language": transcript.language,
+        "provider": transcript.provider,
+        "text": transcript.text,
+    }
+
+
+@router.get("/{card_id}/quiz", response_model=list[QuizQuestionOut])
+def list_quiz_questions(
+    card_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[QuizQuestion]:
+    card = _get_owned_card(db, card_id, current_user.id)
+    return list(
+        db.execute(
+            select(QuizQuestion)
+            .where(QuizQuestion.card_id == card.id)
+            .order_by(QuizQuestion.created_at.asc())
+        ).scalars().all()
+    )
+
+
+def _get_owned_card(db: Session, card_id: UUID, user_id: UUID) -> Card:
+    card = db.get(Card, card_id)
+    if card is None or card.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Card not found")
+    return card

@@ -1,0 +1,107 @@
+{
+  "app": {
+    "name": "Mindshift",
+    "tagline": "Deine persönliche AI Knowledge Base"
+  },
+  "nav": {
+    "library": "Bibliothek",
+    "chat": "Chat",
+    "review": "Wiederholung",
+    "search": "Suche",
+    "settings": "Einstellungen"
+  },
+  "library": {
+    "empty": {
+      "title": "Noch keine Knowledge Cards",
+      "body": "Füge ein YouTube-Video hinzu, um loszulegen."
+    },
+    "addContent": "Inhalt hinzufügen",
+    "search": "Bibliothek durchsuchen"
+  },
+  "addContent": {
+    "youtube": "YouTube",
+    "article": "Artikel",
+    "pdf": "PDF",
+    "choosePdf": "PDF auswählen",
+    "pickFile": "Bitte eine Datei auswählen"
+  },
+  "card": {
+    "summary": "Zusammenfassung",
+    "transcript": "Transkript",
+    "notes": "Notizen",
+    "quiz": "Quiz",
+    "chat": "Chat",
+    "tags": "Tags",
+    "status": {
+      "queued": "Wartet",
+      "processing": "Wird verarbeitet",
+      "completed": "Fertig",
+      "failed": "Fehlgeschlagen"
+    }
+  },
+  "auth": {
+    "signIn": "Anmelden",
+    "signUp": "Registrieren",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "displayName": "Anzeigename",
+    "signOut": "Abmelden"
+  },
+  "review": {
+    "subtitle": "Wiederhole fällige Quiz-Fragen mit Spaced Repetition.",
+    "reveal": "Antwort anzeigen",
+    "rating": {
+      "again": "Nochmal",
+      "hard": "Schwer",
+      "good": "Gut",
+      "easy": "Einfach"
+    },
+    "stage": {
+      "new": "Neu",
+      "learning": "Lernen",
+      "practiced": "Geübt",
+      "confident": "Sicher",
+      "mastered": "Beherrscht"
+    },
+    "stats": {
+      "due": "Fällig",
+      "new": "Neu",
+      "learning": "Lernen",
+      "practiced": "Geübt",
+      "confident": "Sicher",
+      "mastered": "Beherrscht",
+      "total": "Gesamt"
+    },
+    "done": {
+      "title": "Du bist durch.",
+      "body": "Aktuell sind keine Fragen fällig. Komm später wieder.",
+      "refresh": "Neu prüfen"
+    }
+  },
+  "chat": {
+    "send": "Senden",
+    "placeholder": "Frage eingeben…",
+    "placeholderCard": "Frage etwas zu dieser Card…",
+    "placeholderKb": "Frage etwas zu deiner Knowledge Base…",
+    "kbSubtitle": "Stelle Fragen über alle deine Cards.",
+    "kbEmpty": "Stelle eine Frage – Antworten kommen mit Quellenangaben.",
+    "cardEmpty": "Stelle eine Frage zum Inhalt dieser Card."
+  },
+  "search": {
+    "subtitle": "Stelle eine Frage – semantisch oder per Keyword.",
+    "semantic": "Semantisch",
+    "keyword": "Keyword",
+    "placeholderSemantic": "z. B. „Wie merke ich mir Dinge langfristig?\"",
+    "placeholderKeyword": "Keyword in Titel, Summary, Notizen",
+    "run": "Suchen",
+    "hint": "Tippe etwas ein und drücke Enter.",
+    "empty": "Keine Treffer."
+  },
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "loading": "Wird geladen…",
+    "error": "Etwas ist schiefgelaufen."
+  }
+}

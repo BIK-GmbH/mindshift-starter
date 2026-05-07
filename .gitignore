@@ -1,13 +1,37 @@
-.DS_Store
-node_modules/
-__pycache__/
-*.pyc
-.venv/
+# Env
 .env
 .env.local
+*.env.local
+
+# Runtime
+.runtime/
+*.pid
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
 dist/
 build/
+.vite/
+.turbo/
+
+# OS / Editors
+.DS_Store
 .idea/
 .vscode/*
 !.vscode/extensions.json
+*.swp
+
+# Claude
 .claude/local/
+*.tsbuildinfo
