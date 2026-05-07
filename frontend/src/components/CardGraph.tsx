@@ -98,13 +98,59 @@ export default function CardGraph({ rootCardId, rootTitle, rootSourceType }: Pro
     [],
   );
 
-  // Auto-expand root on mount
+  const [depth, setDepth] = useState(1);
+
+  // Auto-expand root on mount and BFS-expand to the chosen depth.
   const initialised = useRef(false);
+  const expandToDepth = useCallback(
+    async (targetDepth: number) => {
+      // Snapshot of nodes that already exist before this round.
+      const seedExpand = async (id: string) => {
+        await expandNode(id);
+      };
+      await seedExpand(rootCardId);
+      if (targetDepth <= 1) return;
+
+      let frontier = new Set<string>([rootCardId]);
+      let visited = new Set<string>([rootCardId]);
+      for (let d = 1; d < targetDepth; d++) {
+        // Snapshot current node ids minus already-visited as the next frontier.
+        const newFrontier = new Set<string>();
+        const snapshot = Array.from(nodesRef.current.keys());
+        for (const id of snapshot) {
+          if (frontier.has(id) || visited.has(id)) continue;
+          newFrontier.add(id);
+        }
+        for (const id of frontier) visited.add(id);
+        for (const id of newFrontier) {
+          const node = nodesRef.current.get(id);
+          if (!node || node.expanded) continue;
+          await expandNode(id);
+        }
+        frontier = newFrontier;
+        if (frontier.size === 0) break;
+      }
+    },
+    [expandNode, rootCardId],
+  );
+
+  // Keep a ref to the latest nodes Map so the BFS can read fresh state.
+  const nodesRef = useRef(nodes);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
   useEffect(() => {
     if (initialised.current) return;
     initialised.current = true;
-    void expandNode(rootCardId);
-  }, [expandNode, rootCardId]);
+    void expandToDepth(depth);
+  }, [expandToDepth, depth]);
+
+  const onDepthChange = (newDepth: number) => {
+    if (newDepth === depth) return;
+    setDepth(newDepth);
+    if (newDepth > depth) void expandToDepth(newDepth);
+  };
 
   const data = useMemo(
     () => ({ nodes: Array.from(nodes.values()), links }),
@@ -121,28 +167,46 @@ export default function CardGraph({ rootCardId, rootTitle, rootSourceType }: Pro
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="flex items-center justify-between text-xs text-ink-300">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-300">
         <span>
           {t("graph.hint")} ·{" "}
           <span className="text-ink-400">
             {data.nodes.length} {t("graph.nodes")}, {data.links.length} {t("graph.edges")}
           </span>
         </span>
-        <button
-          type="button"
-          onClick={() => {
-            setNodes(
-              new Map([
-                [rootCardId, { id: rootCardId, title: rootTitle, sourceType: rootSourceType, expanded: false, isRoot: true }],
-              ]),
-            );
-            setLinks([]);
-            initialised.current = false;
-          }}
-          className="rounded border border-ink-600 px-2 py-1 text-[10px] text-ink-200 hover:bg-ink-700"
-        >
-          {t("graph.reset")}
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-ink-400">{t("graph.depth")}:</span>
+          <div className="flex gap-1 rounded bg-ink-700 p-0.5 text-[10px]">
+            {[1, 2, 3].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => onDepthChange(d)}
+                className={[
+                  "rounded px-2 py-0.5",
+                  depth === d ? "bg-ink-100 text-ink-900" : "text-ink-200 hover:bg-ink-600",
+                ].join(" ")}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setNodes(
+                new Map([
+                  [rootCardId, { id: rootCardId, title: rootTitle, sourceType: rootSourceType, expanded: false, isRoot: true }],
+                ]),
+              );
+              setLinks([]);
+              initialised.current = false;
+            }}
+            className="rounded border border-ink-600 px-2 py-1 text-[10px] text-ink-200 hover:bg-ink-700"
+          >
+            {t("graph.reset")}
+          </button>
+        </div>
       </div>
 
       <div ref={containerRef} className="relative flex-1 min-h-0 overflow-hidden rounded-lg border border-ink-700 bg-ink-900">

@@ -59,6 +59,7 @@
     "nodes": "Nodes",
     "edges": "Kanten",
     "reset": "Zurücksetzen",
+    "depth": "Tiefe",
     "isolated": {
       "title": "Diese Card hat noch keine Verbindungen.",
       "body": "Füge weitere Cards zum gleichen Thema hinzu (gleiche Tags, ähnlicher Inhalt) — die Verbindungen entstehen automatisch."
@@ -66,10 +67,13 @@
     "global": {
       "title": "Knowledge Graph",
       "subtitle": "Deine gesamte Bibliothek als Netzwerk.",
-      "hint": "Klick auf einen Node öffnet die Card. Linien zeigen geteilte Konzepte, Tags oder semantische Nähe."
+      "hint": "Klick auf einen Node öffnet die Card. Linien zeigen geteilte Konzepte, Tags oder semantische Nähe.",
+      "hint2": "Klick = Card-Vorschau · Shift-Klick = Focus auf Knoten + Nachbarn · Suchfeld unterstützt ↑↓ und Enter."
     },
     "filter": {
-      "all": "Alle"
+      "all": "Alle",
+      "allTags": "Alle Tags",
+      "hideIsolated": "Isolierte ausblenden"
     },
     "color": {
       "source": "Nach Quelle",
@@ -78,7 +82,16 @@
     "controls": {
       "zoomIn": "Reinzoomen",
       "zoomOut": "Rauszoomen",
-      "fit": "Ansicht anpassen"
+      "fit": "Ansicht anpassen",
+      "lock": "Positionen einfrieren",
+      "unlock": "Positionen freigeben"
+    },
+    "search": {
+      "placeholder": "Knoten suchen — ↑↓ zwischen Treffern springen"
+    },
+    "focus": {
+      "exit": "Focus verlassen",
+      "path": "Pfad"
     },
     "drawer": {
       "title": "Card-Vorschau",

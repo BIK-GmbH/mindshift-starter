@@ -1,11 +1,31 @@
-import { Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  EyeOff,
+  Loader2,
+  Lock,
+  Maximize2,
+  Search as SearchIcon,
+  Unlock,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { useTranslation } from "react-i18next";
 
 import GraphCardDrawer from "../components/GraphCardDrawer";
-import { api, type ConnectionReason, type GraphEdge, type GraphView } from "../lib/api";
+import {
+  api,
+  type ConnectionReason,
+  type GraphEdge,
+  type GraphView,
+  type TagWithCount,
+} from "../lib/api";
 import { type ColorMode, SOURCE_COLORS, nodeColor } from "../lib/graphColors";
+
+const POSITIONS_KEY = "mindshift.graphPositions";
 
 interface UiNode {
   id: string;
@@ -14,6 +34,10 @@ interface UiNode {
   tags: string[];
   degree: number;
   thumbnailUrl: string | null;
+  fx?: number;
+  fy?: number;
+  x?: number;
+  y?: number;
 }
 
 interface UiLink {
@@ -29,15 +53,32 @@ export default function GraphPage() {
   const fgRef = useRef<ForceGraphMethods<UiNode, UiLink> | undefined>(undefined);
 
   const [data, setData] = useState<GraphView | null>(null);
+  const [tagOptions, setTagOptions] = useState<TagWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Filters
   const [sourceType, setSourceType] = useState<string>("");
+  const [tag, setTag] = useState<string>("");
+  const [hideIsolated, setHideIsolated] = useState(false);
+
+  // Visualisation
   const [colorMode, setColorMode] = useState<ColorMode>("source");
+  const [locked, setLocked] = useState(false);
+
+  // Search + focus
+  const [searchQuery, setSearchQuery] = useState("");
+  const [matchIndex, setMatchIndex] = useState(0);
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  const [focusBreadcrumb, setFocusBreadcrumb] = useState<{ id: string; title: string }[]>([]);
+
+  // Hover / drawer
   const [hoveredLink, setHoveredLink] = useState<UiLink | null>(null);
   const [hoveredNode, setHoveredNode] = useState<{ node: UiNode; x: number; y: number } | null>(
     null,
   );
   const [drawerCardId, setDrawerCardId] = useState<string | null>(null);
+
   const [size, setSize] = useState({ w: 800, h: 560 });
 
   const fetchGraph = useCallback(async () => {
@@ -45,6 +86,7 @@ export default function GraphPage() {
     try {
       const view = await api.globalGraph({
         source_type: sourceType || undefined,
+        tag: tag || undefined,
         edges_per_card: 5,
       });
       setData(view);
@@ -54,11 +96,15 @@ export default function GraphPage() {
     } finally {
       setLoading(false);
     }
-  }, [sourceType]);
+  }, [sourceType, tag]);
 
   useEffect(() => {
     void fetchGraph();
   }, [fetchGraph]);
+
+  useEffect(() => {
+    void api.listTags().then(setTagOptions).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -68,24 +114,148 @@ export default function GraphPage() {
     return () => obs.disconnect();
   }, []);
 
+  // Focus mode trims to node + 1-hop neighbours
+  const focusedNeighbours = useMemo(() => {
+    if (!focusedNodeId || !data) return null;
+    const allowed = new Set<string>([focusedNodeId]);
+    for (const e of data.edges) {
+      if (e.source === focusedNodeId) allowed.add(e.target);
+      else if (e.target === focusedNodeId) allowed.add(e.source);
+    }
+    return allowed;
+  }, [focusedNodeId, data]);
+
   const graphData = useMemo(() => {
     if (!data) return { nodes: [] as UiNode[], links: [] as UiLink[] };
-    const nodes: UiNode[] = data.nodes.map((n) => ({
-      id: n.id,
-      title: n.title,
-      sourceType: n.source_type,
-      tags: n.tags,
-      degree: n.degree,
-      thumbnailUrl: n.thumbnail_url,
-    }));
-    const links: UiLink[] = data.edges.map((e: GraphEdge) => ({
-      source: e.source,
-      target: e.target,
-      score: e.score,
-      reasons: e.reasons,
-    }));
+    const positionsRaw = locked ? localStorage.getItem(POSITIONS_KEY) : null;
+    const positions: Record<string, { x: number; y: number }> = positionsRaw
+      ? JSON.parse(positionsRaw)
+      : {};
+
+    const filterFn = (id: string) => {
+      if (focusedNeighbours && !focusedNeighbours.has(id)) return false;
+      return true;
+    };
+
+    let nodes: UiNode[] = data.nodes
+      .filter((n) => filterFn(n.id))
+      .map((n) => {
+        const ui: UiNode = {
+          id: n.id,
+          title: n.title,
+          sourceType: n.source_type,
+          tags: n.tags,
+          degree: n.degree,
+          thumbnailUrl: n.thumbnail_url,
+        };
+        const pos = positions[n.id];
+        if (locked && pos) {
+          ui.fx = pos.x;
+          ui.fy = pos.y;
+        }
+        return ui;
+      });
+
+    if (hideIsolated && !focusedNodeId) {
+      const connected = new Set<string>();
+      for (const e of data.edges) {
+        connected.add(e.source);
+        connected.add(e.target);
+      }
+      nodes = nodes.filter((n) => connected.has(n.id));
+    }
+
+    const visibleIds = new Set(nodes.map((n) => n.id));
+    const links: UiLink[] = data.edges
+      .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
+      .map((e: GraphEdge) => ({
+        source: e.source,
+        target: e.target,
+        score: e.score,
+        reasons: e.reasons,
+      }));
     return { nodes, links };
-  }, [data]);
+  }, [data, focusedNeighbours, focusedNodeId, hideIsolated, locked]);
+
+  // Search matches
+  const matches = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [] as UiNode[];
+    return graphData.nodes.filter((n) => n.title.toLowerCase().includes(q));
+  }, [graphData.nodes, searchQuery]);
+
+  const currentMatch = matches[matchIndex] ?? null;
+
+  // Center on current match
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg || !currentMatch) return;
+    const target = currentMatch as UiNode & { x?: number; y?: number };
+    if (target.x != null && target.y != null) {
+      fg.centerAt(target.x, target.y, 600);
+      fg.zoom(2.2, 600);
+    }
+  }, [currentMatch]);
+
+  const handleZoom = (delta: number) => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    fg.zoom(Math.max(0.05, fg.zoom() * delta), 250);
+  };
+  const handleFit = () => fgRef.current?.zoomToFit(400, 60);
+
+  const persistPositions = () => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    const positions: Record<string, { x: number; y: number }> = {};
+    for (const n of graphData.nodes) {
+      const node = n as UiNode;
+      if (node.x != null && node.y != null) positions[node.id] = { x: node.x, y: node.y };
+    }
+    localStorage.setItem(POSITIONS_KEY, JSON.stringify(positions));
+  };
+
+  const toggleLock = () => {
+    if (!locked) {
+      persistPositions();
+    } else {
+      localStorage.removeItem(POSITIONS_KEY);
+    }
+    setLocked((v) => !v);
+  };
+
+  const enterFocus = (node: UiNode) => {
+    setFocusBreadcrumb((bc) =>
+      bc.find((b) => b.id === node.id) ? bc : [...bc, { id: node.id, title: node.title }],
+    );
+    setFocusedNodeId(node.id);
+    setSearchQuery("");
+  };
+  const exitFocus = () => {
+    setFocusedNodeId(null);
+    setFocusBreadcrumb([]);
+  };
+  const focusStep = (id: string) => {
+    setFocusedNodeId(id);
+    setFocusBreadcrumb((bc) => {
+      const idx = bc.findIndex((b) => b.id === id);
+      return idx >= 0 ? bc.slice(0, idx + 1) : bc;
+    });
+  };
+
+  const onCanvasKeyDown = (e: React.KeyboardEvent) => {
+    if (matches.length === 0) return;
+    if (e.key === "ArrowDown" || (e.key === "Enter" && !e.shiftKey)) {
+      e.preventDefault();
+      setMatchIndex((i) => (i + 1) % matches.length);
+    } else if (e.key === "ArrowUp" || (e.key === "Enter" && e.shiftKey)) {
+      e.preventDefault();
+      setMatchIndex((i) => (i - 1 + matches.length) % matches.length);
+    } else if (e.key === "Escape") {
+      setSearchQuery("");
+      setMatchIndex(0);
+    }
+  };
 
   const sourceTypes: { value: string; label: string }[] = [
     { value: "", label: t("graph.filter.all") },
@@ -94,68 +264,146 @@ export default function GraphPage() {
     { value: "pdf", label: "PDF" },
   ];
 
-  const handleZoom = (delta: number) => {
-    const fg = fgRef.current;
-    if (!fg) return;
-    const z = fg.zoom();
-    fg.zoom(Math.max(0.05, z * delta), 250);
-  };
-
-  const handleFit = () => fgRef.current?.zoomToFit(400, 60);
+  const matchSet = new Set(matches.map((m) => m.id));
+  const currentMatchId = currentMatch?.id ?? null;
 
   return (
     <div className="mx-auto flex h-full max-w-6xl flex-col p-8">
-      <header className="mb-4 flex items-start justify-between gap-4">
+      <header className="mb-3 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t("graph.global.title")}</h1>
           <p className="text-sm text-ink-300">{t("graph.global.subtitle")}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-1 rounded-md bg-ink-700 p-1 text-xs">
-            {sourceTypes.map((opt) => (
-              <button
-                key={opt.value || "all"}
-                type="button"
-                onClick={() => setSourceType(opt.value)}
-                className={[
-                  "rounded px-2 py-1 transition",
-                  sourceType === opt.value
-                    ? "bg-ink-100 text-ink-900"
-                    : "text-ink-200 hover:bg-ink-600",
-                ].join(" ")}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1 rounded-md bg-ink-700 p-1 text-xs">
+      </header>
+
+      {/* Filter bar */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 rounded-md bg-ink-700 p-1 text-xs">
+          {sourceTypes.map((opt) => (
             <button
+              key={opt.value || "all"}
               type="button"
-              onClick={() => setColorMode("source")}
+              onClick={() => setSourceType(opt.value)}
               className={[
                 "rounded px-2 py-1 transition",
-                colorMode === "source"
+                sourceType === opt.value
                   ? "bg-ink-100 text-ink-900"
                   : "text-ink-200 hover:bg-ink-600",
               ].join(" ")}
             >
-              {t("graph.color.source")}
+              {opt.label}
             </button>
-            <button
-              type="button"
-              onClick={() => setColorMode("tag")}
-              className={[
-                "rounded px-2 py-1 transition",
-                colorMode === "tag" ? "bg-ink-100 text-ink-900" : "text-ink-200 hover:bg-ink-600",
-              ].join(" ")}
-            >
-              {t("graph.color.tag")}
-            </button>
-          </div>
+          ))}
         </div>
-      </header>
 
-      {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+        <div className="relative inline-flex items-center">
+          <select
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            className="appearance-none rounded border border-ink-600 bg-ink-800 px-2 py-1 pr-6 text-xs text-ink-100 focus:outline-none focus:ring-1 focus:ring-ink-300"
+          >
+            <option value="">{t("graph.filter.allTags")}</option>
+            {tagOptions.map((t2) => (
+              <option key={t2.name} value={t2.name}>
+                #{t2.name} ({t2.count})
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-1.5 h-3 w-3 text-ink-300" />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setHideIsolated((v) => !v)}
+          className={[
+            "inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs",
+            hideIsolated ? "bg-ink-700 text-ink-100" : "text-ink-300 hover:bg-ink-700",
+          ].join(" ")}
+        >
+          <EyeOff className="h-3 w-3" />
+          {t("graph.filter.hideIsolated")}
+        </button>
+
+        <div className="ml-auto flex gap-1 rounded-md bg-ink-700 p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setColorMode("source")}
+            className={[
+              "rounded px-2 py-1 transition",
+              colorMode === "source"
+                ? "bg-ink-100 text-ink-900"
+                : "text-ink-200 hover:bg-ink-600",
+            ].join(" ")}
+          >
+            {t("graph.color.source")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setColorMode("tag")}
+            className={[
+              "rounded px-2 py-1 transition",
+              colorMode === "tag" ? "bg-ink-100 text-ink-900" : "text-ink-200 hover:bg-ink-600",
+            ].join(" ")}
+          >
+            {t("graph.color.tag")}
+          </button>
+        </div>
+      </div>
+
+      {/* Search + focus breadcrumb */}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="relative flex flex-1 items-center" onKeyDown={onCanvasKeyDown}>
+          <SearchIcon className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-ink-400" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setMatchIndex(0);
+            }}
+            onKeyDown={onCanvasKeyDown}
+            placeholder={t("graph.search.placeholder") ?? ""}
+            className="w-full rounded border border-ink-600 bg-ink-800 py-1.5 pl-7 pr-2 text-xs focus:outline-none focus:ring-1 focus:ring-ink-300"
+          />
+          {matches.length > 0 && (
+            <span className="ml-2 text-[10px] text-ink-300">
+              {matchIndex + 1} / {matches.length}
+            </span>
+          )}
+        </div>
+        {focusedNodeId && (
+          <button
+            type="button"
+            onClick={exitFocus}
+            className="inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs text-ink-200 hover:bg-ink-700"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            {t("graph.focus.exit")}
+          </button>
+        )}
+      </div>
+
+      {/* Focus breadcrumb */}
+      {focusBreadcrumb.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-1 text-[10px] text-ink-300">
+          <span className="text-ink-400">{t("graph.focus.path")}:</span>
+          {focusBreadcrumb.map((b, i) => (
+            <span key={b.id} className="flex items-center gap-1">
+              {i > 0 && <span className="text-ink-500">›</span>}
+              <button
+                type="button"
+                onClick={() => focusStep(b.id)}
+                className={[
+                  "rounded px-1.5 py-0.5",
+                  focusedNodeId === b.id ? "bg-ink-700 text-ink-100" : "hover:bg-ink-700",
+                ].join(" ")}
+              >
+                {b.title.length > 30 ? b.title.slice(0, 30) + "…" : b.title}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="mb-2 flex items-center gap-3 text-xs text-ink-400">
         <span>
@@ -203,13 +451,24 @@ export default function GraphPage() {
               backgroundColor="rgb(11,13,18)"
               nodeRelSize={6}
               cooldownTicks={120}
-              linkColor={(link) =>
-                hoveredLink &&
-                hoveredLink.source === (link as UiLink).source &&
-                hoveredLink.target === (link as UiLink).target
-                  ? "rgba(255,255,255,0.85)"
-                  : "rgba(140,150,170,0.45)"
-              }
+              linkColor={(link) => {
+                const l = link as UiLink;
+                if (
+                  hoveredLink &&
+                  hoveredLink.source === l.source &&
+                  hoveredLink.target === l.target
+                ) {
+                  return "rgba(255,255,255,0.85)";
+                }
+                if (
+                  searchQuery &&
+                  !matchSet.has(l.source as unknown as string) &&
+                  !matchSet.has(l.target as unknown as string)
+                ) {
+                  return "rgba(140,150,170,0.15)";
+                }
+                return "rgba(140,150,170,0.45)";
+              }}
               linkWidth={(link) => 0.5 + (link as UiLink).score * 4}
               onLinkHover={(link) => setHoveredLink((link as UiLink) ?? null)}
               onNodeHover={(node) => {
@@ -217,36 +476,55 @@ export default function GraphPage() {
                   setHoveredNode(null);
                   return;
                 }
-                const n = node as UiNode & { x?: number; y?: number };
+                const n = node as UiNode;
                 if (n.x == null || n.y == null) return;
                 const fg = fgRef.current;
                 if (!fg) return;
                 const screen = fg.graph2ScreenCoords(n.x, n.y);
                 setHoveredNode({ node: n, x: screen.x, y: screen.y });
               }}
-              onNodeClick={(node) => setDrawerCardId((node as UiNode).id)}
+              onNodeClick={(node, event) => {
+                const n = node as UiNode;
+                const me = event as MouseEvent;
+                if (me.shiftKey || me.metaKey || me.ctrlKey) {
+                  enterFocus(n);
+                } else {
+                  setDrawerCardId(n.id);
+                }
+              }}
               nodeCanvasObject={(node, ctx, globalScale) => {
-                const n = node as UiNode & { x?: number; y?: number };
+                const n = node as UiNode;
                 if (n.x == null || n.y == null) return;
+                const isMatch = matchSet.has(n.id);
+                const isCurrent = currentMatchId === n.id;
+                const isDimmed = searchQuery !== "" && !isMatch;
                 const radius = 4 + Math.sqrt(Math.max(0, n.degree)) * 2.2;
+                const baseColor = nodeColor(colorMode, n.sourceType, n.tags);
+                ctx.globalAlpha = isDimmed ? 0.18 : 1.0;
                 ctx.beginPath();
                 ctx.arc(n.x, n.y, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = nodeColor(colorMode, n.sourceType, n.tags);
+                ctx.fillStyle = baseColor;
                 ctx.fill();
-                if (drawerCardId === n.id) {
+                if (isCurrent || drawerCardId === n.id || focusedNodeId === n.id) {
                   ctx.strokeStyle = "#ffffff";
-                  ctx.lineWidth = 2 / globalScale;
+                  ctx.lineWidth = 2.5 / globalScale;
+                  ctx.stroke();
+                } else if (isMatch) {
+                  ctx.strokeStyle = "rgba(255,255,255,0.7)";
+                  ctx.lineWidth = 1.8 / globalScale;
                   ctx.stroke();
                 }
                 const label = n.title.length > 36 ? n.title.slice(0, 36) + "…" : n.title;
                 ctx.font = `${11 / globalScale}px Inter, sans-serif`;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "top";
-                ctx.fillStyle = "rgba(230,233,240,0.92)";
+                ctx.fillStyle = isDimmed ? "rgba(140,150,170,0.4)" : "rgba(230,233,240,0.92)";
                 ctx.fillText(label, n.x, n.y + radius + 2);
+                ctx.globalAlpha = 1.0;
               }}
             />
-            {/* Zoom controls */}
+
+            {/* Right-side controls */}
             <div className="pointer-events-auto absolute right-2 top-2 z-10 flex flex-col gap-1 rounded border border-ink-700 bg-ink-800/90 p-1 shadow-md">
               <button
                 type="button"
@@ -272,6 +550,17 @@ export default function GraphPage() {
               >
                 <Maximize2 className="h-3.5 w-3.5" />
               </button>
+              <button
+                type="button"
+                title={t(locked ? "graph.controls.unlock" : "graph.controls.lock") ?? ""}
+                onClick={toggleLock}
+                className={[
+                  "rounded p-1.5",
+                  locked ? "bg-ink-100 text-ink-900" : "text-ink-200 hover:bg-ink-700",
+                ].join(" ")}
+              >
+                {locked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+              </button>
             </div>
 
             {/* Hovered node preview */}
@@ -296,12 +585,12 @@ export default function GraphPage() {
                 <div className="font-medium leading-snug">{hoveredNode.node.title}</div>
                 {hoveredNode.node.tags.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {hoveredNode.node.tags.slice(0, 4).map((tag) => (
+                    {hoveredNode.node.tags.slice(0, 4).map((tagName) => (
                       <span
-                        key={tag}
+                        key={tagName}
                         className="rounded bg-ink-700 px-1.5 py-0.5 text-[9px] text-ink-200"
                       >
-                        #{tag}
+                        #{tagName}
                       </span>
                     ))}
                   </div>
@@ -320,12 +609,19 @@ export default function GraphPage() {
               </div>
             )}
 
+            {error && (
+              <div className="absolute bottom-2 right-2 rounded bg-red-500/20 px-2 py-1 text-xs text-red-300">
+                <X className="mr-1 inline h-3 w-3" />
+                {error}
+              </div>
+            )}
+
             <GraphCardDrawer cardId={drawerCardId} onClose={() => setDrawerCardId(null)} />
           </>
         )}
       </div>
 
-      <p className="mt-2 text-[10px] text-ink-500">{t("graph.global.hint")}</p>
+      <p className="mt-2 text-[10px] text-ink-500">{t("graph.global.hint2")}</p>
     </div>
   );
 }
