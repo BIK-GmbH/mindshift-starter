@@ -1,5 +1,19 @@
-import { ArrowLeft, Download, Loader2, RefreshCw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  BookOpen,
+  Download,
+  FileText,
+  Hash,
+  Loader2,
+  MessageSquare,
+  Network,
+  RefreshCw,
+  Sparkles,
+  StickyNote,
+  Trash2,
+  Type,
+} from "lucide-react";
+import { useCallback, useEffect, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -9,6 +23,15 @@ import StatusBadge from "../components/StatusBadge";
 import { api, type Card, type QuizQuestion } from "../lib/api";
 
 type Tab = "summary" | "transcript" | "notes" | "quiz" | "chat" | "graph";
+
+const TAB_ICONS: Record<Tab, FC<{ className?: string }>> = {
+  summary: BookOpen,
+  transcript: FileText,
+  notes: StickyNote,
+  quiz: Sparkles,
+  chat: MessageSquare,
+  graph: Network,
+};
 
 export default function CardDetailPage() {
   const { t } = useTranslation();
@@ -83,242 +106,362 @@ export default function CardDetailPage() {
     }
   };
 
-  const exportUrl = api.exportCardMarkdownUrl(cardId);
-  const canRegenerate =
-    card !== null && card.status === "failed" && card.source_type !== "pdf";
+  const downloadMarkdown = (e: React.MouseEvent) => {
+    if (!card) return;
+    const token = localStorage.getItem("mindshift.token");
+    if (!token) return;
+    e.preventDefault();
+    void fetch(api.exportCardMarkdownUrl(cardId), {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${card.title.replace(/[^A-Za-z0-9 _-]/g, "_").slice(0, 80) || "card"}.md`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      });
+  };
 
   if (!card) {
     return (
-      <div className="p-8 text-sm text-ink-300">
-        {error ? <p className="text-red-400">{error}</p> : t("common.loading")}
+      <div className="flex h-full items-center justify-center text-sm text-ink-300">
+        {error ? <p className="text-red-400">{error}</p> : (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {t("common.loading")}
+          </span>
+        )}
       </div>
     );
   }
 
-  const tabs: { id: Tab; key: string }[] = [
-    { id: "summary", key: "card.summary" },
-    { id: "transcript", key: "card.transcript" },
-    { id: "notes", key: "card.notes" },
-    { id: "quiz", key: "card.quiz" },
-    { id: "chat", key: "card.chat" },
-    { id: "graph", key: "card.graph" },
-  ];
+  const canRegenerate = card.status === "failed" && card.source_type !== "pdf";
+  const tabs: Tab[] = ["summary", "transcript", "notes", "quiz", "chat", "graph"];
+  const tagPills = card.key_takeaways_json && card.key_takeaways_json.length > 0;
 
   return (
-    <div className="mx-auto max-w-4xl p-8">
-      <button
-        type="button"
-        onClick={() => navigate("/")}
-        className="mb-4 inline-flex items-center gap-1 text-xs text-ink-300 hover:text-ink-100"
-      >
-        <ArrowLeft className="h-3 w-3" />
-        {t("nav.library")}
-      </button>
+    <div className="flex h-full flex-col">
+      {/* Sticky top region: back link + header + actions + status banner + tabs */}
+      <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/85 backdrop-blur-md">
+        <div className="mx-auto max-w-4xl px-8 pb-2 pt-6">
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="group inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-400 transition hover:text-ink-100"
+          >
+            <ArrowLeft className="h-3 w-3 transition group-hover:-translate-x-0.5" />
+            {t("nav.library")}
+          </button>
 
-      <header className="mb-4 flex items-start justify-between gap-4">
-        <div className="flex flex-1 items-start gap-4">
-          {card.thumbnail_url && (
-            <img src={card.thumbnail_url} alt="" className="h-20 w-32 rounded object-cover" />
-          )}
-          <div className="flex-1">
-            <div className="mb-1 flex items-center gap-2">
-              <StatusBadge status={card.status} />
-              <span className="text-[10px] uppercase tracking-wide text-ink-400">
-                {card.source_type}
-              </span>
+          <header className="mt-3 flex items-start justify-between gap-5">
+            <div className="flex min-w-0 flex-1 items-start gap-4">
+              {card.thumbnail_url ? (
+                <img
+                  src={card.thumbnail_url}
+                  alt=""
+                  className="h-20 w-32 flex-shrink-0 rounded-md object-cover ring-1 ring-ink-700"
+                />
+              ) : (
+                <div className="flex h-20 w-32 flex-shrink-0 items-center justify-center rounded-md bg-ink-800 ring-1 ring-ink-700">
+                  <Type className="h-5 w-5 text-ink-500" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                  <StatusBadge status={card.status} />
+                  <span className="rounded-md bg-ink-800 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-300">
+                    {card.source_type}
+                  </span>
+                </div>
+                <h1 className="text-xl font-semibold leading-tight tracking-tight text-ink-100">
+                  {card.title}
+                </h1>
+                {card.error_message && (
+                  <p className="mt-2 rounded bg-red-500/10 px-2 py-1 text-xs text-red-300">
+                    {card.error_message}
+                  </p>
+                )}
+              </div>
             </div>
-            <h1 className="text-xl font-semibold tracking-tight">{card.title}</h1>
-            {card.error_message && (
-              <p className="mt-1 text-xs text-red-400">{card.error_message}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-3">
-          {canRegenerate && (
-            <button
-              type="button"
-              onClick={handleRegenerate}
-              title={t("card.retry") ?? ""}
-              className="inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs text-ink-200 hover:bg-ink-700"
-            >
-              <RefreshCw className="h-3 w-3" />
-              {t("card.retry")}
-            </button>
+
+            <ActionBar
+              canRegenerate={canRegenerate}
+              onRegenerate={handleRegenerate}
+              onDownload={downloadMarkdown}
+              onDelete={handleDelete}
+              t={t}
+            />
+          </header>
+
+          {(card.status === "queued" || card.status === "processing") && (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t(`card.status.${card.status}`)}…
+            </div>
           )}
-          <a
-            href={exportUrl}
-            title={t("card.exportMarkdown") ?? ""}
-            className="inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs text-ink-200 hover:bg-ink-700"
-            onClick={(e) => {
-              const token = localStorage.getItem("mindshift.token");
-              if (!token) return;
-              e.preventDefault();
-              fetch(exportUrl, { headers: { Authorization: `Bearer ${token}` } })
-                .then((r) => r.blob())
-                .then((blob) => {
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `${card.title.replace(/[^A-Za-z0-9 _-]/g, "_").slice(0, 80) || "card"}.md`;
-                  document.body.appendChild(a);
-                  a.click();
-                  a.remove();
-                  URL.revokeObjectURL(url);
-                });
-            }}
-          >
-            <Download className="h-3 w-3" />
-            {t("card.exportMarkdown")}
-          </a>
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="text-ink-400 hover:text-red-400"
-            aria-label={t("common.delete") ?? ""}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
         </div>
-      </header>
 
-      {(card.status === "queued" || card.status === "processing") && (
-        <div className="mb-4 flex items-center gap-2 rounded border border-ink-700 bg-ink-800 p-3 text-xs text-ink-200">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          {t(`card.status.${card.status}`)}…
+        {/* Tabs */}
+        <div className="mx-auto max-w-4xl px-8">
+          <nav className="flex gap-0.5 overflow-x-auto" aria-label="card sections">
+            {tabs.map((id) => {
+              const Icon = TAB_ICONS[id];
+              const active = tab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTab(id)}
+                  className={[
+                    "group relative inline-flex items-center gap-1.5 px-3 pb-3 pt-2 text-sm transition-colors",
+                    active
+                      ? "text-ink-100"
+                      : "text-ink-400 hover:text-ink-200",
+                  ].join(" ")}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{t(`card.${id}`)}</span>
+                  {active && (
+                    <span
+                      key={id}
+                      className="tab-indicator absolute -bottom-px left-2 right-2 h-0.5 rounded-full bg-ink-100"
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
-      )}
+      </div>
 
-      <nav className="mb-4 flex gap-1 border-b border-ink-700 text-sm">
-        {tabs.map((tabItem) => (
-          <button
-            key={tabItem.id}
-            type="button"
-            onClick={() => setTab(tabItem.id)}
-            className={[
-              "border-b-2 px-3 py-2 transition",
-              tab === tabItem.id
-                ? "border-ink-100 text-ink-100"
-                : "border-transparent text-ink-300 hover:text-ink-100",
-            ].join(" ")}
-          >
-            {t(tabItem.key)}
-          </button>
-        ))}
-      </nav>
+      {/* Scrolling content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl px-8 pb-16 pt-6">
+          <div key={tab} className="tab-content-enter">
+            {tab === "summary" && (
+              <div className="space-y-8 text-sm leading-relaxed">
+                {card.concise_summary_md && (
+                  <Section icon={BookOpen} label="TL;DR">
+                    <p className="text-base text-ink-100/90">{card.concise_summary_md}</p>
+                  </Section>
+                )}
 
-      <div>
-        {tab === "summary" && (
-          <div className="space-y-4 text-sm leading-relaxed">
-            {card.concise_summary_md ? (
-              <section>
-                <h2 className="mb-1 text-xs uppercase tracking-wide text-ink-400">TL;DR</h2>
-                <p>{card.concise_summary_md}</p>
-              </section>
-            ) : null}
-            {card.key_takeaways_json && card.key_takeaways_json.length > 0 && (
-              <section>
-                <h2 className="mb-1 text-xs uppercase tracking-wide text-ink-400">Key takeaways</h2>
-                <ul className="list-inside list-disc space-y-1 text-ink-200">
-                  {card.key_takeaways_json.map((point, idx) => (
-                    <li key={idx}>{point}</li>
-                  ))}
-                </ul>
-              </section>
+                {tagPills && (
+                  <Section icon={Sparkles} label={t("card.summary") + " — Key Takeaways"}>
+                    <ul className="grid gap-2 md:grid-cols-2">
+                      {card.key_takeaways_json!.map((point, idx) => (
+                        <li
+                          key={idx}
+                          className="group flex items-start gap-2 rounded-md border border-ink-800 bg-ink-800/40 p-3 text-ink-200 transition hover:border-ink-700 hover:bg-ink-800/70"
+                        >
+                          <span className="mt-1 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ink-400 transition group-hover:bg-ink-200" />
+                          <span>{point}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Section>
+                )}
+
+                {card.detailed_summary_md && (
+                  <Section icon={FileText} label={t("card.summary")}>
+                    <pre className="whitespace-pre-wrap font-sans leading-relaxed text-ink-200">
+                      {card.detailed_summary_md}
+                    </pre>
+                  </Section>
+                )}
+              </div>
             )}
-            {card.detailed_summary_md ? (
-              <section>
-                <h2 className="mb-1 text-xs uppercase tracking-wide text-ink-400">
-                  {t("card.summary")}
-                </h2>
-                <pre className="whitespace-pre-wrap font-sans text-ink-100">
-                  {card.detailed_summary_md}
-                </pre>
-              </section>
-            ) : null}
-          </div>
-        )}
 
-        {tab === "transcript" && (
-          <div className="text-sm leading-relaxed">
-            {transcript === null ? (
-              <p className="text-ink-300">{t("common.loading")}</p>
-            ) : (
-              <pre className="whitespace-pre-wrap font-sans text-ink-200">{transcript}</pre>
+            {tab === "transcript" && (
+              <div className="text-sm leading-relaxed">
+                {transcript === null ? (
+                  <SkeletonLines />
+                ) : (
+                  <pre className="whitespace-pre-wrap font-sans leading-relaxed text-ink-200">
+                    {transcript}
+                  </pre>
+                )}
+              </div>
+            )}
+
+            {tab === "notes" && (
+              <div className="space-y-3">
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={18}
+                  className="w-full resize-y rounded-lg border border-ink-700 bg-ink-900 p-4 font-mono text-sm leading-relaxed text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+                  placeholder="# Notizen in Markdown …"
+                />
+                <div className="flex items-center justify-between text-xs text-ink-400">
+                  <span>{notes.length} chars</span>
+                  <button
+                    type="button"
+                    onClick={saveNotes}
+                    disabled={savingNotes}
+                    className="inline-flex items-center gap-2 rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-60"
+                  >
+                    {savingNotes && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {t("common.save")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {tab === "quiz" && (
+              <div className="space-y-3">
+                {quiz.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-ink-700 p-8 text-center text-sm text-ink-400">
+                    —
+                  </p>
+                ) : (
+                  quiz.map((q, i) => <QuizCard key={q.id} index={i + 1} question={q} />)
+                )}
+              </div>
+            )}
+
+            {tab === "chat" && (
+              <div className="h-[60vh]">
+                <ChatPanel
+                  send={(history) => api.chatCard(cardId, history)}
+                  placeholder={t("chat.placeholderCard") ?? ""}
+                  emptyHint={t("chat.cardEmpty") ?? ""}
+                />
+              </div>
+            )}
+
+            {tab === "graph" && (
+              <div className="h-[65vh]">
+                <CardGraph
+                  rootCardId={card.id}
+                  rootTitle={card.title}
+                  rootSourceType={card.source_type}
+                />
+              </div>
             )}
           </div>
-        )}
-
-        {tab === "notes" && (
-          <div className="space-y-2">
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={14}
-              className="w-full rounded border border-ink-600 bg-ink-900 p-3 text-sm focus:outline-none focus:ring-1 focus:ring-ink-300"
-              placeholder="Markdown notes…"
-            />
-            <button
-              type="button"
-              onClick={saveNotes}
-              disabled={savingNotes}
-              className="inline-flex items-center gap-2 rounded bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-900 hover:bg-ink-200 disabled:opacity-60"
-            >
-              {savingNotes && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {t("common.save")}
-            </button>
-          </div>
-        )}
-
-        {tab === "quiz" && (
-          <div className="space-y-3">
-            {quiz.length === 0 ? (
-              <p className="text-sm text-ink-300">—</p>
-            ) : (
-              quiz.map((q) => <QuizCard key={q.id} question={q} />)
-            )}
-          </div>
-        )}
-
-        {tab === "chat" && (
-          <div className="h-[60vh]">
-            <ChatPanel
-              send={(history) => api.chatCard(cardId, history)}
-              placeholder={t("chat.placeholderCard") ?? ""}
-              emptyHint={t("chat.cardEmpty") ?? ""}
-            />
-          </div>
-        )}
-
-        {tab === "graph" && (
-          <div className="h-[65vh]">
-            <CardGraph
-              rootCardId={card.id}
-              rootTitle={card.title}
-              rootSourceType={card.source_type}
-            />
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
 }
 
-function QuizCard({ question }: { question: QuizQuestion }) {
-  const [revealed, setRevealed] = useState(false);
+// --- Sub-components ---------------------------------------------------------
+
+function Section({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: FC<{ className?: string }>;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded border border-ink-700 bg-ink-800 p-3 text-sm">
-      <p className="font-medium">{question.question}</p>
-      {revealed ? (
-        <p className="mt-2 text-ink-200">{question.answer}</p>
-      ) : (
+    <section>
+      <div className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+        <Icon className="h-3 w-3" />
+        {label}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ActionBar({
+  canRegenerate,
+  onRegenerate,
+  onDownload,
+  onDelete,
+  t,
+}: {
+  canRegenerate: boolean;
+  onRegenerate: () => void;
+  onDownload: (e: React.MouseEvent) => void;
+  onDelete: () => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <div className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-ink-800 bg-ink-800/40 p-1">
+      {canRegenerate && (
         <button
           type="button"
-          onClick={() => setRevealed(true)}
-          className="mt-2 text-xs text-ink-300 underline hover:text-ink-100"
+          onClick={onRegenerate}
+          title={t("card.retry")}
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-ink-200 transition hover:bg-ink-700"
         >
-          Reveal
+          <RefreshCw className="h-3 w-3" />
+          <span className="hidden sm:inline">{t("card.retry")}</span>
         </button>
       )}
+      <button
+        type="button"
+        onClick={onDownload}
+        title={t("card.exportMarkdown")}
+        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-ink-200 transition hover:bg-ink-700"
+      >
+        <Download className="h-3 w-3" />
+        <span className="hidden sm:inline">{t("card.exportMarkdown")}</span>
+      </button>
+      <span className="mx-1 h-4 w-px bg-ink-700" />
+      <button
+        type="button"
+        onClick={onDelete}
+        title={t("common.delete")}
+        className="inline-flex items-center justify-center rounded-md p-1.5 text-ink-400 transition hover:bg-red-500/15 hover:text-red-400"
+        aria-label={t("common.delete")}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function QuizCard({ index, question }: { index: number; question: QuizQuestion }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="group rounded-lg border border-ink-800 bg-ink-800/50 p-4 text-sm transition hover:border-ink-700">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-ink-700 text-[10px] font-semibold text-ink-200">
+          {index}
+        </span>
+        <div className="flex-1">
+          <p className="font-medium leading-snug text-ink-100">{question.question}</p>
+          {revealed ? (
+            <p className="mt-3 rounded-md bg-ink-900/60 p-3 text-ink-200 ring-1 ring-ink-700">
+              {question.answer}
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setRevealed(true)}
+              className="mt-2 inline-flex items-center gap-1.5 text-xs text-ink-300 transition hover:text-ink-100"
+            >
+              <Hash className="h-3 w-3" />
+              Reveal
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonLines() {
+  return (
+    <div className="space-y-2">
+      {[100, 95, 88, 92, 70, 96, 60].map((w, i) => (
+        <div
+          key={i}
+          className="h-3 animate-pulse rounded bg-ink-800/70"
+          style={{ width: `${w}%`, animationDelay: `${i * 60}ms` }}
+        />
+      ))}
     </div>
   );
 }
