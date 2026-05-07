@@ -56,6 +56,28 @@ class Connection:
     reasons: list[Reason] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class GraphNode:
+    id: UUID
+    title: str
+    source_type: str
+    thumbnail_url: str | None
+
+
+@dataclass(slots=True)
+class GraphEdge:
+    source: UUID
+    target: UUID
+    score: float
+    reasons: list[Reason]
+
+
+@dataclass(slots=True)
+class GraphView:
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+
+
 def get_connections(
     db: Session,
     user_id: UUID,
@@ -77,6 +99,67 @@ def get_connections(
 
     ordered = sorted(candidates.values(), key=lambda c: c.score, reverse=True)
     return ordered[:limit]
+
+
+def get_global_graph(
+    db: Session,
+    user_id: UUID,
+    *,
+    edges_per_card: int = 5,
+    min_score: float = 0.05,
+    source_type: str | None = None,
+    tag: str | None = None,
+) -> GraphView:
+    """Compute a global view: every user card as a node + symmetric edges.
+
+    Reuses `get_connections` per source card (top-N), merges edges across cards
+    using a sorted-pair key to avoid duplicates. Edges below `min_score` are
+    dropped to keep the layout readable.
+    """
+    stmt = select(Card).where(Card.user_id == user_id)
+    if source_type:
+        stmt = stmt.where(Card.source_type == source_type)
+    if tag:
+        from app.models.tag import CardTag, Tag
+
+        stmt = (
+            stmt.join(CardTag, CardTag.card_id == Card.id)
+            .join(Tag, Tag.id == CardTag.tag_id)
+            .where(Tag.name == tag.lower())
+        )
+
+    cards = db.execute(stmt).scalars().all()
+    if not cards:
+        return GraphView(nodes=[], edges=[])
+
+    visible_ids: set[UUID] = {c.id for c in cards}
+    nodes = [
+        GraphNode(id=c.id, title=c.title, source_type=c.source_type, thumbnail_url=c.thumbnail_url)
+        for c in cards
+    ]
+
+    edges: dict[tuple[str, str], GraphEdge] = {}
+    for card in cards:
+        connections = get_connections(db, user_id, card.id, limit=edges_per_card)
+        for conn in connections:
+            if conn.card_id not in visible_ids:
+                continue
+            if conn.score < min_score:
+                continue
+            a, b = (str(card.id), str(conn.card_id))
+            key = (a, b) if a < b else (b, a)
+            existing = edges.get(key)
+            # Keep the stronger of the two directional views — semantic anchor differs
+            # depending on which card is the "source", so a→b and b→a may not match.
+            if existing is None or conn.score > existing.score:
+                edges[key] = GraphEdge(
+                    source=card.id,
+                    target=conn.card_id,
+                    score=conn.score,
+                    reasons=conn.reasons,
+                )
+
+    return GraphView(nodes=nodes, edges=list(edges.values()))
 
 
 # --- accumulators -----------------------------------------------------------

@@ -16,3 +16,22 @@ class ConnectionOut(BaseModel):
     thumbnail_url: str | None = None
     score: float
     reasons: list[ReasonOut]
+
+
+class GraphNodeOut(BaseModel):
+    id: UUID
+    title: str
+    source_type: str
+    thumbnail_url: str | None = None
+
+
+class GraphEdgeOut(BaseModel):
+    source: UUID
+    target: UUID
+    score: float
+    reasons: list[ReasonOut]
+
+
+class GraphViewOut(BaseModel):
+    nodes: list[GraphNodeOut]
+    edges: list[GraphEdgeOut]

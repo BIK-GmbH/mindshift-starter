@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./lib/AuthContext";
 import AuthPage from "./pages/AuthPage";
 import CardDetailPage from "./pages/CardDetailPage";
 import ChatPage from "./pages/ChatPage";
+import GraphPage from "./pages/GraphPage";
 import LibraryPage from "./pages/LibraryPage";
 import ReviewPage from "./pages/ReviewPage";
 import SearchPage from "./pages/SearchPage";
@@ -35,6 +36,7 @@ function RootRoutes() {
         <Route index element={<LibraryPage />} />
         <Route path="cards/:cardId" element={<CardDetailPage />} />
         <Route path="chat" element={<ChatPage />} />
+        <Route path="graph" element={<GraphPage />} />
         <Route path="review" element={<ReviewPage />} />
         <Route path="search" element={<SearchPage />} />
         <Route path="settings" element={<SettingsPage />} />

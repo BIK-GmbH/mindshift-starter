@@ -1,4 +1,4 @@
-import { Brain, Library, MessageSquare, RefreshCw, Search, Settings } from "lucide-react";
+import { Brain, Library, MessageSquare, Network, RefreshCw, Search, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { NavLink, Outlet } from "react-router-dom";
 
@@ -7,6 +7,7 @@ import TagsList from "./TagsList";
 
 const navItems = [
   { to: "/", labelKey: "nav.library", Icon: Library, end: true },
+  { to: "/graph", labelKey: "nav.graph", Icon: Network },
   { to: "/chat", labelKey: "nav.chat", Icon: MessageSquare },
   { to: "/search", labelKey: "nav.search", Icon: Search },
   { to: "/review", labelKey: "nav.review", Icon: RefreshCw },

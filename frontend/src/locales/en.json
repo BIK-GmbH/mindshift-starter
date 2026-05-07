@@ -5,6 +5,7 @@
   },
   "nav": {
     "library": "Library",
+    "graph": "Graph",
     "chat": "Chat",
     "review": "Review",
     "search": "Search",
@@ -57,7 +58,23 @@
     "hint": "Click a node to expand its connections, double-click to open the card.",
     "nodes": "nodes",
     "edges": "edges",
-    "reset": "Reset"
+    "reset": "Reset",
+    "isolated": {
+      "title": "This card has no connections yet.",
+      "body": "Add more cards on related topics (shared tags or similar content) — connections form automatically."
+    },
+    "global": {
+      "title": "Knowledge Graph",
+      "subtitle": "Your full library as a network.",
+      "hint": "Click a node to open the card. Lines reflect shared concepts, tags, or semantic similarity."
+    },
+    "filter": {
+      "all": "All"
+    },
+    "empty": {
+      "title": "No cards yet",
+      "body": "Add a few cards to your library — the graph will show their connections."
+    }
   },
   "review": {
     "subtitle": "Practice due quiz questions with spaced repetition.",

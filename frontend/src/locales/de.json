@@ -5,6 +5,7 @@
   },
   "nav": {
     "library": "Bibliothek",
+    "graph": "Graph",
     "chat": "Chat",
     "review": "Wiederholung",
     "search": "Suche",
@@ -57,7 +58,23 @@
     "hint": "Klick auf einen Node erweitert seine Verbindungen, Doppelklick öffnet die Card.",
     "nodes": "Nodes",
     "edges": "Kanten",
-    "reset": "Zurücksetzen"
+    "reset": "Zurücksetzen",
+    "isolated": {
+      "title": "Diese Card hat noch keine Verbindungen.",
+      "body": "Füge weitere Cards zum gleichen Thema hinzu (gleiche Tags, ähnlicher Inhalt) — die Verbindungen entstehen automatisch."
+    },
+    "global": {
+      "title": "Knowledge Graph",
+      "subtitle": "Deine gesamte Bibliothek als Netzwerk.",
+      "hint": "Klick auf einen Node öffnet die Card. Linien zeigen geteilte Konzepte, Tags oder semantische Nähe."
+    },
+    "filter": {
+      "all": "Alle"
+    },
+    "empty": {
+      "title": "Noch keine Cards",
+      "body": "Füge ein paar Cards zur Bibliothek hinzu — der Graph zeigt dann ihre Verbindungen."
+    }
   },
   "review": {
     "subtitle": "Wiederhole fällige Quiz-Fragen mit Spaced Repetition.",

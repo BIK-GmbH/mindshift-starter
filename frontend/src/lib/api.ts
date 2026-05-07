@@ -187,7 +187,34 @@ export const api = {
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
+  globalGraph: (params: { source_type?: string; tag?: string; edges_per_card?: number; min_score?: number } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") search.set(k, String(v));
+    });
+    const qs = search.toString();
+    return request<GraphView>(`/api/graph${qs ? `?${qs}` : ""}`);
+  },
 };
+
+export interface GraphNode {
+  id: string;
+  title: string;
+  source_type: string;
+  thumbnail_url: string | null;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  score: number;
+  reasons: ConnectionReason[];
+}
+
+export interface GraphView {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
 
 export interface ConnectionReason {
   kind: "semantic" | "entity" | "tag" | "relation";
