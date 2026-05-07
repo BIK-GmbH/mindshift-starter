@@ -20,7 +20,13 @@
     },
     "addContent": "Inhalt hinzufügen",
     "search": "Bibliothek durchsuchen",
-    "clearFilter": "Filter zurücksetzen"
+    "clearFilter": "Filter zurücksetzen",
+    "stats": {
+      "cards": "Cards",
+      "completed": "fertig",
+      "processing": "in Arbeit",
+      "failed": "fehlgeschlagen"
+    }
   },
   "addContent": {
     "youtube": "YouTube",
@@ -52,7 +58,15 @@
     "email": "E-Mail",
     "password": "Passwort",
     "displayName": "Anzeigename",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "signInHint": "Mit deinen Anmeldedaten einloggen.",
+    "signUpHint": "Beliebige E-Mail – Single-User-Modus."
+  },
+  "settings": {
+    "subtitle": "Konto und App-Optionen.",
+    "accountLabel": "Account",
+    "aboutLabel": "Über",
+    "aboutBody": "Mindshift ist eine selbstgehostete AI Knowledge Base. Recall-inspiriert, aber Open-Source und vollständig deins."
   },
   "graph": {
     "hint": "Klick auf einen Node erweitert seine Verbindungen, Doppelklick öffnet die Card.",
@@ -114,6 +128,7 @@
   },
   "review": {
     "subtitle": "Wiederhole fällige Quiz-Fragen mit Spaced Repetition.",
+    "questionLabel": "Frage",
     "reveal": "Antwort anzeigen",
     "rating": {
       "again": "Nochmal",
@@ -159,7 +174,8 @@
     "placeholderSemantic": "z. B. „Wie merke ich mir Dinge langfristig?\"",
     "placeholderKeyword": "Keyword in Titel, Summary, Notizen",
     "run": "Suchen",
-    "hint": "Tippe etwas ein und drücke Enter.",
+    "hint": "Tipp: Semantik versteht ganze Fragen, Keyword findet exakte Treffer.",
+    "tryThese": "Probier mal",
     "empty": "Keine Treffer."
   },
   "common": {

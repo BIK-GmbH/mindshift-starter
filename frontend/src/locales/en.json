@@ -20,7 +20,13 @@
     },
     "addContent": "Add content",
     "search": "Search library",
-    "clearFilter": "Clear filter"
+    "clearFilter": "Clear filter",
+    "stats": {
+      "cards": "cards",
+      "completed": "completed",
+      "processing": "processing",
+      "failed": "failed"
+    }
   },
   "addContent": {
     "youtube": "YouTube",
@@ -52,7 +58,15 @@
     "email": "Email",
     "password": "Password",
     "displayName": "Display name",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "signInHint": "Use the credentials you signed up with.",
+    "signUpHint": "Pick any email — single user mode."
+  },
+  "settings": {
+    "subtitle": "Account and app options.",
+    "accountLabel": "Account",
+    "aboutLabel": "About",
+    "aboutBody": "Mindshift is a self-hosted AI knowledge base. Recall-inspired, but open-source and entirely yours."
   },
   "graph": {
     "hint": "Click a node to expand its connections, double-click to open the card.",
@@ -114,6 +128,7 @@
   },
   "review": {
     "subtitle": "Practice due quiz questions with spaced repetition.",
+    "questionLabel": "Question",
     "reveal": "Show answer",
     "rating": {
       "again": "Again",
@@ -159,7 +174,8 @@
     "placeholderSemantic": "e.g. \"How do I remember things long term?\"",
     "placeholderKeyword": "Keyword in title, summary, notes",
     "run": "Search",
-    "hint": "Type something and press Enter.",
+    "hint": "Tip: semantic understands questions, keyword finds exact matches.",
+    "tryThese": "Try one of these",
     "empty": "No results."
   },
   "common": {

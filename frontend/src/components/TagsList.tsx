@@ -34,16 +34,21 @@ export default function TagsList() {
   };
 
   return (
-    <div className="space-y-1 px-2">
-      <p className="px-2 pb-1 text-[10px] uppercase tracking-wide text-ink-400">
-        {t("nav.tags")}
-      </p>
+    <div className="space-y-0.5 px-3">
+      <div className="flex items-center justify-between px-2 pb-1 pt-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+          {t("nav.tags")}
+        </p>
+        <span className="text-[10px] text-ink-500">{tags.length}</span>
+      </div>
       <button
         type="button"
         onClick={() => select(null)}
         className={[
-          "flex w-full items-center justify-between rounded-md px-3 py-1 text-xs",
-          !activeTag ? "bg-ink-700 text-ink-100" : "text-ink-300 hover:bg-ink-700/60 hover:text-ink-100",
+          "flex w-full items-center justify-between rounded-md px-2 py-1 text-xs transition",
+          !activeTag
+            ? "bg-ink-700/60 text-ink-100"
+            : "text-ink-300 hover:bg-ink-700/30 hover:text-ink-100",
         ].join(" ")}
       >
         <span>{t("nav.allCards")}</span>
@@ -54,17 +59,31 @@ export default function TagsList() {
           type="button"
           onClick={() => select(tag.name)}
           className={[
-            "flex w-full items-center justify-between rounded-md px-3 py-1 text-xs",
+            "group flex w-full items-center justify-between rounded-md px-2 py-1 text-xs transition",
             activeTag === tag.name
-              ? "bg-ink-700 text-ink-100"
-              : "text-ink-300 hover:bg-ink-700/60 hover:text-ink-100",
+              ? "bg-ink-700/60 text-ink-100"
+              : "text-ink-300 hover:bg-ink-700/30 hover:text-ink-100",
           ].join(" ")}
         >
           <span className="flex items-center gap-1.5 truncate">
-            <Hash className="h-3 w-3 flex-shrink-0" />
+            <Hash
+              className={[
+                "h-3 w-3 flex-shrink-0",
+                activeTag === tag.name ? "text-ink-100" : "text-ink-500 group-hover:text-ink-300",
+              ].join(" ")}
+            />
             <span className="truncate">{tag.name}</span>
           </span>
-          <span className="ml-2 text-[10px] text-ink-400">{tag.count}</span>
+          <span
+            className={[
+              "ml-2 rounded-full px-1.5 text-[9px] font-medium tabular-nums transition",
+              activeTag === tag.name
+                ? "bg-ink-100/15 text-ink-100"
+                : "bg-ink-800 text-ink-400 group-hover:bg-ink-700 group-hover:text-ink-200",
+            ].join(" ")}
+          >
+            {tag.count}
+          </span>
         </button>
       ))}
     </div>

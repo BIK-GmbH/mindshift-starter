@@ -1,4 +1,4 @@
-import { Loader2, Send } from "lucide-react";
+import { Bot, Lightbulb, Loader2, Send, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,7 @@ interface Props {
   send: (history: ChatMessage[]) => Promise<ChatResponse>;
   placeholder?: string;
   emptyHint?: string;
+  suggestions?: string[];
 }
 
 interface UiMessage extends ChatMessage {
@@ -16,7 +17,7 @@ interface UiMessage extends ChatMessage {
   citations?: Citation[];
 }
 
-export default function ChatPanel({ send, placeholder, emptyHint }: Props) {
+export default function ChatPanel({ send, placeholder, emptyHint, suggestions }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<UiMessage[]>([]);
@@ -29,15 +30,14 @@ export default function ChatPanel({ send, placeholder, emptyHint }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, busy]);
 
-  const onSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const text = input.trim();
-    if (!text || busy) return;
+  const submitText = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || busy) return;
 
     const userMsg: UiMessage = {
       id: `u-${Date.now()}`,
       role: "user",
-      content: text,
+      content: trimmed,
     };
     const nextHistory = [...messages, userMsg];
     setMessages(nextHistory);
@@ -46,9 +46,7 @@ export default function ChatPanel({ send, placeholder, emptyHint }: Props) {
     setError(null);
 
     try {
-      const response = await send(
-        nextHistory.map(({ role, content }) => ({ role, content })),
-      );
+      const response = await send(nextHistory.map(({ role, content }) => ({ role, content })));
       setMessages((prev) => [
         ...prev,
         {
@@ -65,37 +63,49 @@ export default function ChatPanel({ send, placeholder, emptyHint }: Props) {
     }
   };
 
+  const onSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await submitText(input);
+  };
+
   return (
     <div className="flex h-full flex-col">
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto pb-3">
-        {messages.length === 0 && emptyHint && (
-          <p className="text-xs text-ink-400">{emptyHint}</p>
+      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-3 pr-1">
+        {messages.length === 0 && (
+          <EmptyState
+            hint={emptyHint}
+            suggestions={suggestions}
+            onPick={(prompt) => void submitText(prompt)}
+          />
         )}
         {messages.map((m) => (
-          <div
+          <MessageBubble
             key={m.id}
-            className={
-              m.role === "user"
-                ? "ml-auto max-w-[85%] rounded-lg bg-ink-100 px-3 py-2 text-sm text-ink-900"
-                : "max-w-[95%] rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm text-ink-100"
-            }
-          >
-            {m.role === "assistant" ? (
-              <AssistantMessage content={m.content} citations={m.citations ?? []} onOpen={(id) => navigate(`/cards/${id}`)} />
-            ) : (
-              <span className="whitespace-pre-wrap">{m.content}</span>
-            )}
-          </div>
+            message={m}
+            onOpenCard={(id) => navigate(`/cards/${id}`)}
+          />
         ))}
         {busy && (
-          <div className="max-w-[95%] rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm text-ink-300">
-            <Loader2 className="inline h-3.5 w-3.5 animate-spin" />
+          <div className="flex items-start gap-2.5">
+            <Avatar role="assistant" />
+            <div className="rounded-2xl rounded-tl-sm border border-ink-700 bg-ink-800 px-4 py-3 text-sm">
+              <span className="inline-flex items-center gap-1.5 text-ink-400">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-400" style={{ animationDelay: "0ms" }} />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-400" style={{ animationDelay: "150ms" }} />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-400" style={{ animationDelay: "300ms" }} />
+              </span>
+            </div>
           </div>
         )}
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {error && (
+          <p className="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>
+        )}
       </div>
 
-      <form onSubmit={onSubmit} className="flex items-end gap-2 border-t border-ink-700 pt-3">
+      <form
+        onSubmit={onSubmit}
+        className="flex items-end gap-2 rounded-2xl border border-ink-700 bg-ink-800/40 p-2 shadow-lg shadow-black/20 focus-within:border-ink-500"
+      >
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -106,18 +116,65 @@ export default function ChatPanel({ send, placeholder, emptyHint }: Props) {
             }
           }}
           placeholder={placeholder ?? t("chat.placeholder") ?? ""}
-          rows={2}
-          className="flex-1 resize-none rounded border border-ink-600 bg-ink-900 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink-300"
+          rows={1}
+          className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
+          style={{ minHeight: "1.75rem", maxHeight: "10rem" }}
         />
         <button
           type="submit"
           disabled={busy || !input.trim()}
-          className="inline-flex items-center gap-1.5 rounded bg-ink-100 px-3 py-2 text-sm font-medium text-ink-900 hover:bg-ink-200 disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-900 transition hover:bg-white disabled:opacity-50"
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
           {t("chat.send")}
         </button>
       </form>
+    </div>
+  );
+}
+
+function Avatar({ role }: { role: "user" | "assistant" }) {
+  return (
+    <div
+      className={[
+        "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-[10px]",
+        role === "user"
+          ? "bg-ink-100 text-ink-900"
+          : "bg-ink-700 text-ink-100 ring-1 ring-ink-600",
+      ].join(" ")}
+    >
+      {role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+    </div>
+  );
+}
+
+function MessageBubble({
+  message,
+  onOpenCard,
+}: {
+  message: UiMessage;
+  onOpenCard: (id: string) => void;
+}) {
+  if (message.role === "user") {
+    return (
+      <div className="flex flex-row-reverse items-start gap-2.5">
+        <Avatar role="user" />
+        <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-ink-100 px-4 py-2.5 text-sm text-ink-900 shadow-sm">
+          <span className="whitespace-pre-wrap">{message.content}</span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-start gap-2.5">
+      <Avatar role="assistant" />
+      <div className="max-w-[90%] rounded-2xl rounded-tl-sm border border-ink-700 bg-ink-800 px-4 py-3 text-sm text-ink-100 shadow-sm">
+        <AssistantMessage
+          content={message.content}
+          citations={message.citations ?? []}
+          onOpen={onOpenCard}
+        />
+      </div>
     </div>
   );
 }
@@ -148,7 +205,7 @@ function AssistantMessage({
   if (lastIdx < content.length) parts.push(content.slice(lastIdx));
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <p className="whitespace-pre-wrap leading-relaxed">
         {parts.map((p, i) =>
           typeof p === "string" ? (
@@ -159,7 +216,7 @@ function AssistantMessage({
               type="button"
               title={p.citation.title}
               onClick={() => onOpen(p.citation.card_id)}
-              className="mx-0.5 inline-flex items-center rounded bg-ink-700 px-1.5 text-[10px] font-medium text-ink-100 hover:bg-ink-600"
+              className="mx-0.5 inline-flex items-center rounded-md bg-ink-700 px-1.5 py-px text-[10px] font-semibold text-ink-100 ring-1 ring-ink-600 transition hover:bg-ink-600 hover:ring-ink-500"
             >
               #{p.citation.index}
             </button>
@@ -167,23 +224,60 @@ function AssistantMessage({
         )}
       </p>
       {citations.length > 0 && (
-        <div className="border-t border-ink-700 pt-2">
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-ink-400">Sources</p>
+        <div className="border-t border-ink-700/60 pt-2">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-500">
+            Sources
+          </p>
           <ul className="space-y-1">
             {citations.map((c) => (
               <li key={c.index}>
                 <button
                   type="button"
                   onClick={() => onOpen(c.card_id)}
-                  className="block w-full text-left text-xs text-ink-200 hover:text-ink-100"
+                  className="group flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-xs text-ink-300 transition hover:bg-ink-700/40 hover:text-ink-100"
                 >
-                  <span className="mr-1 rounded bg-ink-700 px-1 text-[10px]">#{c.index}</span>
-                  <span className="font-medium">{c.title}</span>
-                  <span className="ml-1 text-ink-400">({c.source_type})</span>
+                  <span className="rounded bg-ink-700 px-1 text-[10px] font-semibold text-ink-100">
+                    #{c.index}
+                  </span>
+                  <span className="truncate font-medium">{c.title}</span>
+                  <span className="text-[10px] text-ink-500">({c.source_type})</span>
                 </button>
               </li>
             ))}
           </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({
+  hint,
+  suggestions,
+  onPick,
+}: {
+  hint?: string;
+  suggestions?: string[];
+  onPick: (q: string) => void;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-4 py-12 text-center">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-ink-800 ring-1 ring-ink-700">
+        <Lightbulb className="h-5 w-5 text-ink-300" />
+      </div>
+      {hint && <p className="mb-5 max-w-md text-sm text-ink-400">{hint}</p>}
+      {suggestions && suggestions.length > 0 && (
+        <div className="grid w-full max-w-xl gap-2 sm:grid-cols-2">
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onPick(s)}
+              className="rounded-xl border border-ink-800 bg-ink-800/40 px-3 py-2.5 text-left text-xs leading-snug text-ink-200 transition hover:-translate-y-0.5 hover:border-ink-600 hover:bg-ink-800"
+            >
+              {s}
+            </button>
+          ))}
         </div>
       )}
     </div>
