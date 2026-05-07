@@ -1,9 +1,22 @@
-import { FileText, Globe, Hash, Plus, Search as SearchIcon, X, Youtube } from "lucide-react";
+import {
+  FileText,
+  Globe,
+  Hash,
+  MessageSquare,
+  PanelRightClose,
+  PanelRightOpen,
+  Plus,
+  Search as SearchIcon,
+  X,
+  Youtube,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 import AddContentModal from "../components/AddYouTubeModal";
+import CardDetailContent from "../components/CardDetailContent";
+import ChatPanel from "../components/ChatPanel";
 import StatusBadge from "../components/StatusBadge";
 import { api, type CardListItem } from "../lib/api";
 
@@ -13,12 +26,22 @@ const SOURCE_ICONS: Record<string, FC<{ className?: string }>> = {
   pdf: FileText,
 };
 
+const RIGHT_PANE_KEY = "mindshift.libraryRightPane";
+
 export default function LibraryPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tag = params.get("tag");
   const untaggedFilter = params.get("untagged") === "1";
+  const selectedCardId = params.get("card");
+  const [rightPaneOpen, setRightPaneOpen] = useState(() => {
+    try {
+      const v = localStorage.getItem(RIGHT_PANE_KEY);
+      return v === null ? true : v === "1";
+    } catch {
+      return true;
+    }
+  });
   const [cards, setCards] = useState<CardListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +114,81 @@ export default function LibraryPage() {
     { total: 0, completed: 0, failed: 0, inflight: 0 },
   );
 
+  const openCard = (id: string) => {
+    const next = new URLSearchParams(params);
+    next.set("card", id);
+    setParams(next, { replace: false });
+  };
+
+  const closeCard = () => {
+    const next = new URLSearchParams(params);
+    next.delete("card");
+    setParams(next, { replace: false });
+  };
+
+  const toggleRightPane = () => {
+    const next = !rightPaneOpen;
+    setRightPaneOpen(next);
+    try {
+      localStorage.setItem(RIGHT_PANE_KEY, next ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Detail mode: card is open in the middle, optional chat side pane on the right.
+  if (selectedCardId) {
+    return (
+      <div className="flex h-full">
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <CardDetailContent
+            cardId={selectedCardId}
+            onBack={closeCard}
+            backStyle="link"
+            compact
+            hideChatTab={rightPaneOpen}
+          />
+        </div>
+        {rightPaneOpen ? (
+          <aside className="flex w-[40%] min-w-[360px] max-w-[640px] flex-col border-l border-ink-800 bg-ink-900/40">
+            <div className="flex items-center justify-between border-b border-ink-800 px-4 py-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
+                <MessageSquare className="h-3 w-3" />
+                {t("nav.chat")}
+              </div>
+              <button
+                type="button"
+                onClick={toggleRightPane}
+                title={t("library.rightPane.hide") ?? ""}
+                className="rounded p-1 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+              >
+                <PanelRightClose className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex flex-1 min-h-0 flex-col px-4 pb-4 pt-3">
+              <ChatPanel
+                key={selectedCardId}
+                send={(history) => api.chatCard(selectedCardId, history)}
+                placeholder={t("chat.placeholderCard") ?? ""}
+                emptyHint={t("chat.cardEmpty") ?? ""}
+              />
+            </div>
+          </aside>
+        ) : (
+          <button
+            type="button"
+            onClick={toggleRightPane}
+            title={t("library.rightPane.show") ?? ""}
+            className="flex w-8 flex-col items-center justify-center border-l border-ink-800 bg-ink-900/40 text-ink-400 transition hover:bg-ink-800/60 hover:text-ink-100"
+          >
+            <PanelRightOpen className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Grid mode: no card selected.
   return (
     <div className="flex h-full flex-col">
       {/* Sticky header */}
@@ -198,7 +296,7 @@ export default function LibraryPage() {
                 <CardTile
                   key={card.id}
                   card={card}
-                  onClick={() => navigate(`/cards/${card.id}`)}
+                  onClick={() => openCard(card.id)}
                 />
               ))}
             </div>

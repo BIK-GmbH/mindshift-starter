@@ -209,6 +209,12 @@ export default function TagsTree() {
     [data, t],
   );
 
+  const openCard = (cardId: string) => {
+    const next = new URLSearchParams(params);
+    next.set("card", cardId);
+    navigate(`/?${next.toString()}`);
+  };
+
   const select = (tagName: string | null, untaggedSelect = false) => {
     const next = new URLSearchParams(params);
     if (tagName) {
@@ -402,7 +408,7 @@ export default function TagsTree() {
             onActivate={(node) => {
               const item = node.data;
               if (item.kind === "tag") select(item.name);
-              else if (item.kind === "card") navigate(`/cards/${item.rawId}`);
+              else if (item.kind === "card") openCard(item.rawId);
               else if (item.kind === "untagged") select(null, true);
             }}
             // hide the line a11y border arborist draws by default
@@ -421,7 +427,7 @@ export default function TagsTree() {
                 busy={busy}
                 onAddChild={(rawId) => startCreate(rawId)}
                 onPickTag={(name) => select(name)}
-                onPickCard={(id) => navigate(`/cards/${id}`)}
+                onPickCard={(id) => openCard(id)}
                 onPickUntagged={() => select(null, true)}
               />
             )}

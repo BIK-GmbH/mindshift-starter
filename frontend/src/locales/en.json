@@ -28,6 +28,10 @@
     "filteredBy": "Filtered by",
     "clearAll": "Clear all",
     "clearFilter": "Clear filter",
+    "rightPane": {
+      "hide": "Hide chat pane",
+      "show": "Show chat pane"
+    },
     "stats": {
       "cards": "cards",
       "completed": "completed",

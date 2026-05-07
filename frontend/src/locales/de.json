@@ -28,6 +28,10 @@
     "filteredBy": "Gefiltert nach",
     "clearAll": "Filter zurücksetzen",
     "clearFilter": "Filter zurücksetzen",
+    "rightPane": {
+      "hide": "Chat-Pane ausblenden",
+      "show": "Chat-Pane einblenden"
+    },
     "stats": {
       "cards": "Cards",
       "completed": "fertig",
