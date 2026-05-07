@@ -187,7 +187,15 @@ export const api = {
   regenerateCard: (id: string) =>
     request<{ card: Card; job: JobOut }>(`/api/cards/${id}/regenerate`, { method: "POST" }),
   listTags: () => request<TagWithCount[]>("/api/tags"),
+  tagsTree: () => request<TagsTree>("/api/tags/tree"),
   untaggedCount: () => request<{ count: number }>("/api/tags/untagged-count"),
+  assignTag: (tagId: string, cardId: string) =>
+    request<void>(`/api/tags/${tagId}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ tag_id: tagId, card_id: cardId }),
+    }),
+  unassignTag: (tagId: string, cardId: string) =>
+    request<void>(`/api/tags/${tagId}/assign/${cardId}`, { method: "DELETE" }),
   createTag: (name: string, parentId?: string | null) =>
     request<TagWithCount>("/api/tags", {
       method: "POST",
@@ -266,6 +274,27 @@ export interface TagWithCount {
   name: string;
   parent_id: string | null;
   count: number;
+}
+
+export interface TagCard {
+  id: string;
+  title: string;
+  source_type: string;
+  status: CardStatus;
+  thumbnail_url: string | null;
+}
+
+export interface TagWithCards {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  count: number;
+  cards: TagCard[];
+}
+
+export interface TagsTree {
+  tags: TagWithCards[];
+  untagged: TagCard[];
 }
 
 export type ReviewRating = "again" | "hard" | "good" | "easy";

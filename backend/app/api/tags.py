@@ -35,6 +35,27 @@ class UntaggedCount(BaseModel):
     count: int
 
 
+class TagCardOut(BaseModel):
+    id: UUID
+    title: str
+    source_type: str
+    status: str
+    thumbnail_url: str | None = None
+
+
+class TagWithCardsOut(BaseModel):
+    id: UUID
+    name: str
+    parent_id: UUID | None = None
+    count: int
+    cards: list[TagCardOut] = []
+
+
+class TreeResponse(BaseModel):
+    tags: list[TagWithCardsOut]
+    untagged: list[TagCardOut]
+
+
 @router.get("", response_model=list[TagOut])
 def list_tags(
     current_user: User = Depends(get_current_user),
@@ -62,6 +83,73 @@ def list_tags(
         TagOut(id=t.id, name=t.name, parent_id=t.parent_id, count=int(c or 0))
         for t, c in rows
     ]
+
+
+@router.get("/tree", response_model=TreeResponse)
+def tag_tree(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TreeResponse:
+    """Return all tags + the cards directly tagged under each, plus the untagged list.
+
+    Used by the Library sidebar to render a Recall-style tree where cards appear as
+    leaves underneath their tags.
+    """
+    tags = db.execute(
+        select(Tag).where(Tag.user_id == current_user.id).order_by(Tag.name)
+    ).scalars().all()
+
+    # Build {tag_id: [cards]} in one query.
+    cards_per_tag: dict[UUID, list[TagCardOut]] = {}
+    rows = db.execute(
+        select(CardTag.tag_id, Card)
+        .join(Card, Card.id == CardTag.card_id)
+        .where(Card.user_id == current_user.id)
+        .order_by(CardTag.tag_id, Card.title)
+    ).all()
+    for tag_id, card in rows:
+        cards_per_tag.setdefault(tag_id, []).append(
+            TagCardOut(
+                id=card.id,
+                title=card.title,
+                source_type=card.source_type,
+                status=card.status,
+                thumbnail_url=card.thumbnail_url,
+            )
+        )
+
+    tag_outs = [
+        TagWithCardsOut(
+            id=t.id,
+            name=t.name,
+            parent_id=t.parent_id,
+            count=len(cards_per_tag.get(t.id, [])),
+            cards=cards_per_tag.get(t.id, []),
+        )
+        for t in tags
+    ]
+
+    untagged_cards = db.execute(
+        select(Card)
+        .where(Card.user_id == current_user.id)
+        .where(~Card.id.in_(select(CardTag.card_id)))
+        .order_by(Card.created_at.desc())
+        .limit(200)
+    ).scalars().all()
+
+    return TreeResponse(
+        tags=tag_outs,
+        untagged=[
+            TagCardOut(
+                id=c.id,
+                title=c.title,
+                source_type=c.source_type,
+                status=c.status,
+                thumbnail_url=c.thumbnail_url,
+            )
+            for c in untagged_cards
+        ],
+    )
 
 
 @router.get("/untagged-count", response_model=UntaggedCount)
@@ -166,4 +254,57 @@ def delete_tag(
     if tag is None or tag.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Tag not found")
     db.delete(tag)
+    db.commit()
+
+
+class AssignTagRequest(BaseModel):
+    card_id: UUID
+    tag_id: UUID
+
+
+@router.post("/{tag_id}/assign", status_code=status.HTTP_204_NO_CONTENT)
+def assign_card_to_tag(
+    tag_id: UUID,
+    payload: AssignTagRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """Add a tag to a card. Idempotent — repeated calls are no-ops.
+
+    Used by drag-and-drop: dropping a card on a tag should attach that tag.
+    """
+    if payload.tag_id != tag_id:
+        raise HTTPException(status_code=400, detail="Path / body tag_id mismatch")
+    tag = db.get(Tag, tag_id)
+    if tag is None or tag.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    card = db.get(Card, payload.card_id)
+    if card is None or card.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Card not found")
+    db.merge(CardTag(card_id=card.id, tag_id=tag.id))
+    db.commit()
+
+
+@router.delete("/{tag_id}/assign/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
+def unassign_card_from_tag(
+    tag_id: UUID,
+    card_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """Remove a tag from a card. No-op if not assigned."""
+    tag = db.get(Tag, tag_id)
+    if tag is None or tag.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    card = db.get(Card, card_id)
+    if card is None or card.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Card not found")
+    db.execute(
+        select(CardTag).where(CardTag.card_id == card.id, CardTag.tag_id == tag.id)
+    ).all()
+    from sqlalchemy import delete
+
+    db.execute(
+        delete(CardTag).where(CardTag.card_id == card.id, CardTag.tag_id == tag.id)
+    )
     db.commit()

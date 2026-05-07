@@ -21,17 +21,12 @@ const railItems = [
   { to: "/review", labelKey: "nav.review", Icon: RefreshCw },
 ];
 
-const PAGES_WITH_TAGS_SIDEBAR = new Set<string>(["/", "/library", "/search", "/chat"]);
-
 export default function AppLayout() {
   const { t } = useTranslation();
   const location = useLocation();
 
-  // Show tags sidebar on Library + a few related pages. Not on /graph (has its own
-  // settings panel), /review, /settings, /cards/:id (own header/sidebar layout).
-  const showTagsSidebar =
-    PAGES_WITH_TAGS_SIDEBAR.has(location.pathname) ||
-    location.pathname.startsWith("/?");
+  // Tags sidebar is the Library navigator. Other pages get full width.
+  const showTagsSidebar = location.pathname === "/";
 
   return (
     <div className="flex h-full bg-ink-900">
