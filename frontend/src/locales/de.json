@@ -196,7 +196,12 @@
     "placeholderKb": "Frage etwas zu deiner Knowledge Base…",
     "kbSubtitle": "Stelle Fragen über alle deine Cards.",
     "kbEmpty": "Stelle eine Frage – Antworten kommen mit Quellenangaben.",
-    "cardEmpty": "Stelle eine Frage zum Inhalt dieser Card."
+    "cardEmpty": "Stelle eine Frage zum Inhalt dieser Card.",
+    "history": {
+      "heading": "Unterhaltungen",
+      "newChat": "Neu",
+      "empty": "Noch keine Unterhaltungen."
+    }
   },
   "search": {
     "subtitle": "Stelle eine Frage – semantisch oder per Keyword.",

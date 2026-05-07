@@ -196,7 +196,12 @@
     "placeholderKb": "Ask something about your knowledge base…",
     "kbSubtitle": "Ask questions across all your cards.",
     "kbEmpty": "Ask a question — answers come with citations.",
-    "cardEmpty": "Ask a question about this card's content."
+    "cardEmpty": "Ask a question about this card's content.",
+    "history": {
+      "heading": "Conversations",
+      "newChat": "New",
+      "empty": "No conversations yet."
+    }
   },
   "search": {
     "subtitle": "Ask a question — semantically or by keyword.",

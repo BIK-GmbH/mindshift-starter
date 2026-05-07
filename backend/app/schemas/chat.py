@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChatMessageIn(BaseModel):
@@ -11,6 +12,7 @@ class ChatMessageIn(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessageIn] = Field(min_length=1, max_length=40)
     top_k: int = Field(default=5, ge=1, le=20)
+    session_id: UUID | None = None  # if set, persist user msg + assistant reply
 
 
 class CitationOut(BaseModel):
@@ -25,3 +27,48 @@ class CitationOut(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     citations: list[CitationOut] = Field(default_factory=list)
+    session_id: UUID | None = None  # echo back so frontend can keep using it
+
+
+# --- Sessions API ----------------------------------------------------------
+
+
+class ChatSessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    card_id: UUID | None = None
+    created_at: datetime
+    updated_at: datetime
+    message_count: int = 0
+
+
+class ChatSessionCreate(BaseModel):
+    card_id: UUID | None = None
+    title: str | None = None
+
+
+class ChatSessionUpdate(BaseModel):
+    title: str | None = None
+
+
+class ChatMessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    role: str
+    content: str
+    citations_json: list | None = None
+    created_at: datetime
+
+
+class ChatSessionDetail(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    card_id: UUID | None = None
+    created_at: datetime
+    updated_at: datetime
+    messages: list[ChatMessageOut] = Field(default_factory=list)

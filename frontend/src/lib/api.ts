@@ -167,16 +167,34 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ query, limit }),
     }),
-  chatCard: (cardId: string, messages: ChatMessage[]) =>
+  chatCard: (cardId: string, messages: ChatMessage[], sessionId?: string) =>
     request<ChatResponse>(`/api/cards/${cardId}/chat`, {
       method: "POST",
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, session_id: sessionId }),
     }),
-  chatKb: (messages: ChatMessage[], topK = 5) =>
+  chatKb: (messages: ChatMessage[], topK = 5, sessionId?: string) =>
     request<ChatResponse>("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ messages, top_k: topK }),
+      body: JSON.stringify({ messages, top_k: topK, session_id: sessionId }),
     }),
+  listChatSessions: (cardId?: string) => {
+    const qs = cardId ? `?card_id=${cardId}` : "";
+    return request<ChatSessionItem[]>(`/api/chat/sessions${qs}`);
+  },
+  getChatSession: (id: string) =>
+    request<ChatSessionDetail>(`/api/chat/sessions/${id}`),
+  createChatSession: (cardId?: string, title?: string) =>
+    request<ChatSessionItem>("/api/chat/sessions", {
+      method: "POST",
+      body: JSON.stringify({ card_id: cardId, title }),
+    }),
+  renameChatSession: (id: string, title: string) =>
+    request<ChatSessionItem>(`/api/chat/sessions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
+  deleteChatSession: (id: string) =>
+    request<void>(`/api/chat/sessions/${id}`, { method: "DELETE" }),
   reviewQueue: (limit = 20) => request<ReviewQueueItem[]>(`/api/review/queue?limit=${limit}`),
   reviewStats: () => request<ReviewStats>("/api/review/stats"),
   submitReviewAnswer: (questionId: string, rating: ReviewRating) =>
@@ -352,6 +370,33 @@ export interface Citation {
 export interface ChatResponse {
   answer: string;
   citations: Citation[];
+  session_id: string | null;
+}
+
+export interface ChatSessionItem {
+  id: string;
+  title: string;
+  card_id: string | null;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface PersistedChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations_json: Citation[] | null;
+  created_at: string;
+}
+
+export interface ChatSessionDetail {
+  id: string;
+  title: string;
+  card_id: string | null;
+  created_at: string;
+  updated_at: string;
+  messages: PersistedChatMessage[];
 }
 
 export interface SearchHit {

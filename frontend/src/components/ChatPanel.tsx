@@ -3,13 +3,18 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import type { ChatMessage, ChatResponse, Citation } from "../lib/api";
+import type { ChatMessage, ChatResponse, Citation, PersistedChatMessage } from "../lib/api";
 
 interface Props {
   send: (history: ChatMessage[]) => Promise<ChatResponse>;
   placeholder?: string;
   emptyHint?: string;
   suggestions?: string[];
+  /** Pre-fill panel with a previously persisted conversation. */
+  initialMessages?: PersistedChatMessage[];
+  /** Fire when the backend assigns/echoes a session id (so the page can
+   *  refresh the sidebar listing or pin the URL). */
+  onSessionId?: (id: string) => void;
 }
 
 interface UiMessage extends ChatMessage {
@@ -17,14 +22,37 @@ interface UiMessage extends ChatMessage {
   citations?: Citation[];
 }
 
-export default function ChatPanel({ send, placeholder, emptyHint, suggestions }: Props) {
+function persistedToUi(msgs: PersistedChatMessage[]): UiMessage[] {
+  return msgs.map((m) => ({
+    id: m.id,
+    role: m.role,
+    content: m.content,
+    citations: m.citations_json ?? undefined,
+  }));
+}
+
+export default function ChatPanel({
+  send,
+  placeholder,
+  emptyHint,
+  suggestions,
+  initialMessages,
+  onSessionId,
+}: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<UiMessage[]>([]);
+  const [messages, setMessages] = useState<UiMessage[]>(() =>
+    initialMessages ? persistedToUi(initialMessages) : [],
+  );
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // When the parent swaps in a different session, replace the message list.
+  useEffect(() => {
+    setMessages(initialMessages ? persistedToUi(initialMessages) : []);
+  }, [initialMessages]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -56,6 +84,7 @@ export default function ChatPanel({ send, placeholder, emptyHint, suggestions }:
           citations: response.citations,
         },
       ]);
+      if (response.session_id && onSessionId) onSessionId(response.session_id);
     } catch (err) {
       setError((err as Error).message || t("common.error"));
     } finally {
