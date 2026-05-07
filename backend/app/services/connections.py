@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
@@ -118,6 +119,8 @@ def get_global_graph(
     min_score: float = 0.05,
     source_type: str | None = None,
     tag: str | None = None,
+    created_after: "datetime | None" = None,
+    created_before: "datetime | None" = None,
 ) -> GraphView:
     """Compute a global view: every user card as a node + symmetric edges.
 
@@ -128,9 +131,11 @@ def get_global_graph(
     stmt = select(Card).where(Card.user_id == user_id)
     if source_type:
         stmt = stmt.where(Card.source_type == source_type)
+    if created_after is not None:
+        stmt = stmt.where(Card.created_at >= created_after)
+    if created_before is not None:
+        stmt = stmt.where(Card.created_at <= created_before)
     if tag:
-        from app.models.tag import CardTag, Tag
-
         stmt = (
             stmt.join(CardTag, CardTag.card_id == Card.id)
             .join(Tag, Tag.id == CardTag.tag_id)
@@ -183,6 +188,61 @@ def get_global_graph(
             nodes_by_id[edge.target].degree += 1
 
     return GraphView(nodes=list(nodes_by_id.values()), edges=list(edges.values()))
+
+
+def find_shortest_path(
+    db: Session,
+    user_id: UUID,
+    from_id: UUID,
+    to_id: UUID,
+    *,
+    edges_per_card: int = 5,
+    min_score: float = 0.05,
+    max_hops: int = 6,
+) -> list[UUID]:
+    """BFS over the global graph to find the shortest path between two cards.
+
+    Returns the path as an ordered list of card UUIDs starting with `from_id`
+    and ending with `to_id`, or an empty list if unreachable within `max_hops`.
+    """
+    if from_id == to_id:
+        return [from_id]
+
+    view = get_global_graph(
+        db, user_id, edges_per_card=edges_per_card, min_score=min_score
+    )
+    adj: dict[UUID, set[UUID]] = {n.id: set() for n in view.nodes}
+    for edge in view.edges:
+        adj.setdefault(edge.source, set()).add(edge.target)
+        adj.setdefault(edge.target, set()).add(edge.source)
+
+    if from_id not in adj or to_id not in adj:
+        return []
+
+    # Standard BFS keeping the predecessor for path reconstruction.
+    visited: dict[UUID, UUID | None] = {from_id: None}
+    frontier = [from_id]
+    for hop in range(max_hops):
+        next_frontier: list[UUID] = []
+        for current in frontier:
+            for neighbour in adj.get(current, ()):
+                if neighbour in visited:
+                    continue
+                visited[neighbour] = current
+                if neighbour == to_id:
+                    # Reconstruct path
+                    path: list[UUID] = [neighbour]
+                    while True:
+                        prev = visited[path[-1]]
+                        if prev is None:
+                            break
+                        path.append(prev)
+                    return list(reversed(path))
+                next_frontier.append(neighbour)
+        if not next_frontier:
+            break
+        frontier = next_frontier
+    return []
 
 
 def _bulk_card_tags(db: Session, card_ids: list[UUID]) -> dict[UUID, list[str]]:

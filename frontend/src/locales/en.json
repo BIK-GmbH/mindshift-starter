@@ -93,6 +93,16 @@
       "exit": "Exit focus",
       "path": "Path"
     },
+    "path": {
+      "toggle": "Path mode",
+      "pickFrom": "Pick start card …",
+      "pickTo": "Pick target card …",
+      "hops": "hops",
+      "notFound": "No path found"
+    },
+    "timeline": {
+      "toggle": "Timeline"
+    },
     "drawer": {
       "title": "Card preview",
       "openCard": "Open card"

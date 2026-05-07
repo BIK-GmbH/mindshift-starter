@@ -93,6 +93,16 @@
       "exit": "Focus verlassen",
       "path": "Pfad"
     },
+    "path": {
+      "toggle": "Pfad-Modus",
+      "pickFrom": "Wähle Start-Card …",
+      "pickTo": "Wähle Ziel-Card …",
+      "hops": "Hops",
+      "notFound": "Kein Pfad gefunden"
+    },
+    "timeline": {
+      "toggle": "Zeitraum"
+    },
     "drawer": {
       "title": "Card-Vorschau",
       "openCard": "Card öffnen"

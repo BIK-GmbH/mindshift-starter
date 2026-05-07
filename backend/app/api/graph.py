@@ -1,11 +1,20 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.graph import GraphEdgeOut, GraphNodeOut, GraphViewOut, ReasonOut
-from app.services.connections import get_global_graph
+from app.schemas.graph import (
+    GraphEdgeOut,
+    GraphNodeOut,
+    GraphViewOut,
+    PathRequest,
+    PathResponse,
+    ReasonOut,
+)
+from app.services.connections import find_shortest_path, get_global_graph
 
 router = APIRouter(prefix="/graph", tags=["graph"])
 
@@ -16,6 +25,8 @@ def global_graph(
     min_score: float = Query(default=0.05, ge=0.0, le=1.0),
     source_type: str | None = Query(default=None),
     tag: str | None = Query(default=None),
+    created_after: datetime | None = Query(default=None),
+    created_before: datetime | None = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> GraphViewOut:
@@ -26,6 +37,8 @@ def global_graph(
         min_score=min_score,
         source_type=source_type,
         tag=tag,
+        created_after=created_after,
+        created_before=created_before,
     )
     return GraphViewOut(
         nodes=[
@@ -49,3 +62,19 @@ def global_graph(
             for e in view.edges
         ],
     )
+
+
+@router.post("/path", response_model=PathResponse)
+def find_path(
+    payload: PathRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PathResponse:
+    path = find_shortest_path(
+        db,
+        current_user.id,
+        payload.from_id,
+        payload.to_id,
+        max_hops=payload.max_hops,
+    )
+    return PathResponse(path=path, found=len(path) > 0, hops=max(0, len(path) - 1))

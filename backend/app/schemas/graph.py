@@ -38,3 +38,15 @@ class GraphEdgeOut(BaseModel):
 class GraphViewOut(BaseModel):
     nodes: list[GraphNodeOut]
     edges: list[GraphEdgeOut]
+
+
+class PathRequest(BaseModel):
+    from_id: UUID
+    to_id: UUID
+    max_hops: int = 6
+
+
+class PathResponse(BaseModel):
+    path: list[UUID]
+    found: bool
+    hops: int

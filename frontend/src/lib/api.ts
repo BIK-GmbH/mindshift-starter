@@ -187,7 +187,14 @@ export const api = {
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
-  globalGraph: (params: { source_type?: string; tag?: string; edges_per_card?: number; min_score?: number } = {}) => {
+  globalGraph: (params: {
+    source_type?: string;
+    tag?: string;
+    edges_per_card?: number;
+    min_score?: number;
+    created_after?: string;
+    created_before?: string;
+  } = {}) => {
     const search = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "") search.set(k, String(v));
@@ -195,6 +202,11 @@ export const api = {
     const qs = search.toString();
     return request<GraphView>(`/api/graph${qs ? `?${qs}` : ""}`);
   },
+  graphPath: (fromId: string, toId: string, maxHops = 6) =>
+    request<{ path: string[]; found: boolean; hops: number }>("/api/graph/path", {
+      method: "POST",
+      body: JSON.stringify({ from_id: fromId, to_id: toId, max_hops: maxHops }),
+    }),
 };
 
 export interface GraphNode {

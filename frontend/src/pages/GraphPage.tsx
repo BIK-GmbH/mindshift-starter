@@ -1,10 +1,12 @@
 import {
   ArrowLeft,
   ChevronDown,
+  Clock,
   EyeOff,
   Loader2,
   Lock,
   Maximize2,
+  Route,
   Search as SearchIcon,
   Unlock,
   X,
@@ -79,6 +81,19 @@ export default function GraphPage() {
   );
   const [drawerCardId, setDrawerCardId] = useState<string | null>(null);
 
+  // Path finder
+  const [pathMode, setPathMode] = useState(false);
+  const [pathFrom, setPathFrom] = useState<UiNode | null>(null);
+  const [pathTo, setPathTo] = useState<UiNode | null>(null);
+  const [pathResult, setPathResult] = useState<string[]>([]);
+  const [pathError, setPathError] = useState<string | null>(null);
+  const pathSet = useMemo(() => new Set(pathResult), [pathResult]);
+
+  // Timeline
+  const [timelineEnabled, setTimelineEnabled] = useState(false);
+  const [createdAfter, setCreatedAfter] = useState<string>("");
+  const [createdBefore, setCreatedBefore] = useState<string>("");
+
   const [size, setSize] = useState({ w: 800, h: 560 });
 
   const fetchGraph = useCallback(async () => {
@@ -88,6 +103,8 @@ export default function GraphPage() {
         source_type: sourceType || undefined,
         tag: tag || undefined,
         edges_per_card: 5,
+        created_after: timelineEnabled && createdAfter ? createdAfter : undefined,
+        created_before: timelineEnabled && createdBefore ? createdBefore : undefined,
       });
       setData(view);
       setError(null);
@@ -96,7 +113,7 @@ export default function GraphPage() {
     } finally {
       setLoading(false);
     }
-  }, [sourceType, tag]);
+  }, [sourceType, tag, timelineEnabled, createdAfter, createdBefore]);
 
   useEffect(() => {
     void fetchGraph();
@@ -383,6 +400,68 @@ export default function GraphPage() {
         )}
       </div>
 
+      {/* Path-finder + Timeline toggles */}
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setPathMode((v) => !v);
+            setPathFrom(null);
+            setPathTo(null);
+            setPathResult([]);
+            setPathError(null);
+          }}
+          className={[
+            "inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs",
+            pathMode ? "bg-ink-700 text-ink-100" : "text-ink-300 hover:bg-ink-700",
+          ].join(" ")}
+        >
+          <Route className="h-3 w-3" />
+          {t("graph.path.toggle")}
+        </button>
+        {pathMode && (
+          <span className="text-[10px] text-ink-300">
+            {!pathFrom
+              ? t("graph.path.pickFrom")
+              : !pathTo
+              ? t("graph.path.pickTo")
+              : pathError
+              ? pathError
+              : pathResult.length > 0
+              ? `${pathResult.length - 1} ${t("graph.path.hops")}`
+              : t("common.loading")}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setTimelineEnabled((v) => !v)}
+          className={[
+            "inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs",
+            timelineEnabled ? "bg-ink-700 text-ink-100" : "text-ink-300 hover:bg-ink-700",
+          ].join(" ")}
+        >
+          <Clock className="h-3 w-3" />
+          {t("graph.timeline.toggle")}
+        </button>
+        {timelineEnabled && (
+          <>
+            <input
+              type="datetime-local"
+              value={createdAfter}
+              onChange={(e) => setCreatedAfter(e.target.value)}
+              className="rounded border border-ink-600 bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-100"
+            />
+            <span className="text-[10px] text-ink-400">→</span>
+            <input
+              type="datetime-local"
+              value={createdBefore}
+              onChange={(e) => setCreatedBefore(e.target.value)}
+              className="rounded border border-ink-600 bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-100"
+            />
+          </>
+        )}
+      </div>
+
       {/* Focus breadcrumb */}
       {focusBreadcrumb.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-1 text-[10px] text-ink-300">
@@ -453,6 +532,10 @@ export default function GraphPage() {
               cooldownTicks={120}
               linkColor={(link) => {
                 const l = link as UiLink;
+                const inPath =
+                  pathSet.has(l.source as unknown as string) &&
+                  pathSet.has(l.target as unknown as string);
+                if (inPath) return "#fbbf24"; // amber path
                 if (
                   hoveredLink &&
                   hoveredLink.source === l.source &&
@@ -467,9 +550,17 @@ export default function GraphPage() {
                 ) {
                   return "rgba(140,150,170,0.15)";
                 }
+                if (pathResult.length > 0) return "rgba(140,150,170,0.18)";
                 return "rgba(140,150,170,0.45)";
               }}
-              linkWidth={(link) => 0.5 + (link as UiLink).score * 4}
+              linkWidth={(link) => {
+                const l = link as UiLink;
+                const inPath =
+                  pathSet.has(l.source as unknown as string) &&
+                  pathSet.has(l.target as unknown as string);
+                if (inPath) return 3.5;
+                return 0.5 + l.score * 4;
+              }}
               onLinkHover={(link) => setHoveredLink((link as UiLink) ?? null)}
               onNodeHover={(node) => {
                 if (!node) {
@@ -486,6 +577,34 @@ export default function GraphPage() {
               onNodeClick={(node, event) => {
                 const n = node as UiNode;
                 const me = event as MouseEvent;
+                if (pathMode) {
+                  if (!pathFrom) {
+                    setPathFrom(n);
+                    setPathResult([]);
+                    setPathError(null);
+                  } else if (!pathTo && n.id !== pathFrom.id) {
+                    setPathTo(n);
+                    void api
+                      .graphPath(pathFrom.id, n.id)
+                      .then((res) => {
+                        if (res.found) {
+                          setPathResult(res.path);
+                          setPathError(null);
+                        } else {
+                          setPathResult([]);
+                          setPathError(t("graph.path.notFound") ?? "No path found");
+                        }
+                      })
+                      .catch((err) => setPathError((err as Error).message));
+                  } else {
+                    // restart selection
+                    setPathFrom(n);
+                    setPathTo(null);
+                    setPathResult([]);
+                    setPathError(null);
+                  }
+                  return;
+                }
                 if (me.shiftKey || me.metaKey || me.ctrlKey) {
                   enterFocus(n);
                 } else {
@@ -497,15 +616,26 @@ export default function GraphPage() {
                 if (n.x == null || n.y == null) return;
                 const isMatch = matchSet.has(n.id);
                 const isCurrent = currentMatchId === n.id;
-                const isDimmed = searchQuery !== "" && !isMatch;
+                const isPathNode = pathSet.has(n.id);
+                const isPathEndpoint =
+                  pathFrom?.id === n.id || pathTo?.id === n.id;
+                const isDimmed =
+                  (searchQuery !== "" && !isMatch) ||
+                  (pathResult.length > 0 && !isPathNode);
                 const radius = 4 + Math.sqrt(Math.max(0, n.degree)) * 2.2;
-                const baseColor = nodeColor(colorMode, n.sourceType, n.tags);
+                const baseColor = isPathNode
+                  ? "#fbbf24"
+                  : nodeColor(colorMode, n.sourceType, n.tags);
                 ctx.globalAlpha = isDimmed ? 0.18 : 1.0;
                 ctx.beginPath();
                 ctx.arc(n.x, n.y, radius, 0, 2 * Math.PI);
                 ctx.fillStyle = baseColor;
                 ctx.fill();
-                if (isCurrent || drawerCardId === n.id || focusedNodeId === n.id) {
+                if (isPathEndpoint) {
+                  ctx.strokeStyle = "#ffffff";
+                  ctx.lineWidth = 3 / globalScale;
+                  ctx.stroke();
+                } else if (isCurrent || drawerCardId === n.id || focusedNodeId === n.id) {
                   ctx.strokeStyle = "#ffffff";
                   ctx.lineWidth = 2.5 / globalScale;
                   ctx.stroke();
