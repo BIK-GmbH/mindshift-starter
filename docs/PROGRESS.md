@@ -7,7 +7,14 @@ When a new session starts, read this first to know where to pick up.
 
 ## Active sprint — Recall-pattern follow-ups
 
-**Status:** all 6 phases complete (commits `5f03ac2`, `d39b1d4`, `f6922a2`, `f45fc73`, `0566f26`, plus the export commit at HEAD).
+**Status:** All phases (1-10) complete.
+
+| Phase | Status | Description |
+|---|---|---|
+| 7 | ✅ | **Global search modal** — Recall-style modal opened via header trigger / outer-rail icon / `cmd+K` / `/`. Text + AI toggle, debounced search, ↑↓/Enter result navigation. Standalone `/search` route retired. |
+| 8 | ✅ | **Micro-animations** — `.page-enter` (route fade), `.modal-card-enter` + `.modal-backdrop-enter`, refined `.card-hover` with theme-aware shadow. All CSS-only. |
+| 9 | ✅ | **Graph label theme-awareness** — both `CardGraph` and `GraphPage` read `useTheme()` and pass dark label text in light mode, near-white in dark. |
+| 10 | ✅ | **Conversation auto-title** — `_title_from_message` trims at the last word boundary inside the cap and adds an ellipsis. No more mid-word splits. |
 
 Goal: bring the rest of the app up to the Recall-style shell that
 `fb2d44c` introduced. Six phases, in order. Each phase ends with a

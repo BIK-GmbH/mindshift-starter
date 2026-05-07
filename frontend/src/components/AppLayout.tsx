@@ -1,20 +1,23 @@
 import { Brain, Library, MessageSquare, Network, RefreshCw, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 
+import GlobalSearchModal from "./GlobalSearchModal";
 import RailFooterButtons from "./RailFooterButtons";
 import SettingsModal from "./SettingsModal";
+import { useSearchModal } from "../lib/SearchModalContext";
 
 const railItems = [
   { to: "/", labelKey: "nav.library", Icon: Library, end: true },
   { to: "/graph", labelKey: "nav.graph", Icon: Network },
   { to: "/chat", labelKey: "nav.chat", Icon: MessageSquare },
-  { to: "/search", labelKey: "nav.search", Icon: Search },
   { to: "/review", labelKey: "nav.review", Icon: RefreshCw },
 ];
 
 export default function AppLayout() {
   const { t } = useTranslation();
+  const { openModal: openSearch } = useSearchModal();
+  const location = useLocation();
 
   return (
     <div className="flex h-full bg-ink-900">
@@ -52,6 +55,16 @@ export default function AppLayout() {
               )}
             </NavLink>
           ))}
+
+          {/* Search trigger — opens the global cmd+K modal */}
+          <button
+            type="button"
+            onClick={openSearch}
+            title={`${t("nav.search")}  ⌘K`}
+            className="group relative flex h-9 w-9 items-center justify-center rounded-xl text-ink-400 transition hover:bg-ink-800/60 hover:text-ink-100"
+          >
+            <Search className="h-4 w-4" />
+          </button>
         </nav>
 
         {/* Footer — theme + lang + settings; always visible. */}
@@ -59,12 +72,13 @@ export default function AppLayout() {
       </aside>
 
       {/* Main — pages render their own context sidebars (TagsTree, Graph settings, …). */}
-      <main className="flex-1 overflow-hidden">
+      <main key={location.pathname} className="flex-1 overflow-hidden page-enter">
         <Outlet />
       </main>
 
-      {/* Global settings modal */}
+      {/* Global modals */}
       <SettingsModal />
+      <GlobalSearchModal />
     </div>
   );
 }

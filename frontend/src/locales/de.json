@@ -231,7 +231,20 @@
     "run": "Suchen",
     "hint": "Tipp: Semantik versteht ganze Fragen, Keyword findet exakte Treffer.",
     "tryThese": "Probier mal",
-    "empty": "Keine Treffer."
+    "empty": "Keine Treffer.",
+    "global": {
+      "title": "Suche",
+      "text": "Text",
+      "ai": "KI",
+      "placeholderText": "Titel, Zusammenfassung, Notizen durchsuchen…",
+      "placeholderAi": "Stelle eine Frage – semantische Suche über deine KB",
+      "empty": "Keine Treffer. Versuche es mit der KI-Suche.",
+      "startTyping": "Tippen, um zu suchen…",
+      "modeHint": "Wechsle zwischen Volltext- und semantischer Suche, um genau das zu finden, was du suchst.",
+      "hintNav": "navigieren",
+      "hintOpen": "Card öffnen",
+      "hintToggle": "öffnen"
+    }
   },
   "common": {
     "save": "Speichern",

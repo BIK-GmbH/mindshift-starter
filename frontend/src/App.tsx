@@ -8,7 +8,6 @@ import ChatPage from "./pages/ChatPage";
 import GraphPage from "./pages/GraphPage";
 import LibraryPage from "./pages/LibraryPage";
 import ReviewPage from "./pages/ReviewPage";
-import SearchPage from "./pages/SearchPage";
 
 export default function App() {
   return (
@@ -37,7 +36,6 @@ function RootRoutes() {
         <Route path="chat" element={<ChatPage />} />
         <Route path="graph" element={<GraphPage />} />
         <Route path="review" element={<ReviewPage />} />
-        <Route path="search" element={<SearchPage />} />
       </Route>
     </Routes>
   );

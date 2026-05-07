@@ -261,7 +261,7 @@ export default function CardGraph({ rootCardId, rootTitle, rootSourceType }: Pro
             ctx.font = `${12 / globalScale}px Inter, sans-serif`;
             ctx.textAlign = "center";
             ctx.textBaseline = "top";
-            ctx.fillStyle = "rgba(230,233,240,0.92)";
+            ctx.fillStyle = theme === "light" ? "rgba(15,23,42,0.85)" : "rgba(230,233,240,0.92)";
             ctx.fillText(label, n.x, n.y + radius + 2);
           }}
         />

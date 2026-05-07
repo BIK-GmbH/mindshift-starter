@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
+import { SearchModalProvider } from "./lib/SearchModalContext";
 import { SettingsModalProvider } from "./lib/SettingsModalContext";
 import { ThemeProvider } from "./lib/ThemeContext";
 import "./i18n";
@@ -13,7 +14,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <SettingsModalProvider>
         <BrowserRouter>
-          <App />
+          <SearchModalProvider>
+            <App />
+          </SearchModalProvider>
         </BrowserRouter>
       </SettingsModalProvider>
     </ThemeProvider>

@@ -231,7 +231,20 @@
     "run": "Search",
     "hint": "Tip: semantic understands questions, keyword finds exact matches.",
     "tryThese": "Try one of these",
-    "empty": "No results."
+    "empty": "No results.",
+    "global": {
+      "title": "Search",
+      "text": "Text",
+      "ai": "AI",
+      "placeholderText": "Search title, summary, notes…",
+      "placeholderAi": "Ask a question — semantic search across your KB",
+      "empty": "No matches. Try AI search for a question instead.",
+      "startTyping": "Start typing to search…",
+      "modeHint": "Switch between full-text and semantic search to find exactly what you need.",
+      "hintNav": "navigate",
+      "hintOpen": "open card",
+      "hintToggle": "toggle"
+    }
   },
   "common": {
     "save": "Save",

@@ -48,11 +48,38 @@ def _ensure_session(
 def _create_session(
     db: Session, user: User, *, card_id: UUID | None, first_message: str
 ) -> ChatSession:
-    title = first_message.strip().splitlines()[0][:80] if first_message else "New chat"
-    session = ChatSession(user_id=user.id, card_id=card_id, title=title)
+    session = ChatSession(
+        user_id=user.id,
+        card_id=card_id,
+        title=_title_from_message(first_message),
+    )
     db.add(session)
     db.flush()
     return session
+
+
+def _title_from_message(text: str, max_chars: int = 64) -> str:
+    """Condense a user message into a session title.
+
+    Trims to the first line, strips trailing punctuation, and breaks on
+    the last word boundary that fits within `max_chars`.
+    """
+    import re
+
+    if not text:
+        return "New chat"
+    first_line = text.strip().splitlines()[0].strip()
+    # Drop common question/imperative trailing punctuation but keep '?'.
+    first_line = first_line.rstrip(" .!,;:")
+    if len(first_line) <= max_chars:
+        return first_line or "New chat"
+
+    cut = first_line[:max_chars]
+    # Break at the last whitespace so we don't cap mid-word.
+    m = re.search(r"\s+\S*$", cut)
+    if m and m.start() > max_chars * 0.5:
+        cut = cut[: m.start()]
+    return cut.rstrip() + "…"
 
 
 def _persist_messages(

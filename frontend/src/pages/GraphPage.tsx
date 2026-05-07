@@ -702,7 +702,11 @@ export default function GraphPage() {
                 ctx.font = `${11 / globalScale}px Inter, sans-serif`;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "top";
-                ctx.fillStyle = isDimmed ? "rgba(140,150,170,0.4)" : "rgba(230,233,240,0.92)";
+                ctx.fillStyle = isDimmed
+                  ? "rgba(140,150,170,0.4)"
+                  : theme === "light"
+                  ? "rgba(15,23,42,0.85)"
+                  : "rgba(230,233,240,0.92)";
                 ctx.fillText(label, n.x, n.y + radius + 2);
                 ctx.globalAlpha = 1.0;
               }}

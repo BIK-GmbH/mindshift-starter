@@ -19,6 +19,7 @@ import CardDetailContent from "../components/CardDetailContent";
 import ChatPanel from "../components/ChatPanel";
 import StatusBadge from "../components/StatusBadge";
 import TagsTree from "../components/TagsTree";
+import { useSearchModal } from "../lib/SearchModalContext";
 import { api, type CardListItem } from "../lib/api";
 
 const SOURCE_ICONS: Record<string, FC<{ className?: string }>> = {
@@ -31,6 +32,7 @@ const RIGHT_PANE_KEY = "mindshift.libraryRightPane";
 
 export default function LibraryPage() {
   const { t } = useTranslation();
+  const { openModal: openSearch } = useSearchModal();
   const [params, setParams] = useSearchParams();
   const tag = params.get("tag");
   const untaggedFilter = params.get("untagged") === "1";
@@ -47,27 +49,22 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [search, setSearch] = useState("");
   const pollTimerRef = useRef<number | null>(null);
 
-  const fetchCards = useCallback(
-    async (q?: string) => {
-      try {
-        const list = await api.listCards({
-          q,
-          tag: tag ?? undefined,
-          untagged: untaggedFilter || undefined,
-        });
-        setCards(list);
-        setError(null);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [tag, untaggedFilter],
-  );
+  const fetchCards = useCallback(async () => {
+    try {
+      const list = await api.listCards({
+        tag: tag ?? undefined,
+        untagged: untaggedFilter || undefined,
+      });
+      setCards(list);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [tag, untaggedFilter]);
 
   useEffect(() => {
     void fetchCards();
@@ -90,19 +87,14 @@ export default function LibraryPage() {
       return;
     }
     if (pollTimerRef.current) return;
-    pollTimerRef.current = window.setInterval(() => void fetchCards(search || undefined), 2500);
+    pollTimerRef.current = window.setInterval(() => void fetchCards(), 2500);
     return () => {
       if (pollTimerRef.current) {
         window.clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
     };
-  }, [cards, fetchCards, search]);
-
-  const onSearchSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    void fetchCards(search.trim() || undefined);
-  };
+  }, [cards, fetchCards]);
 
   const counts = cards.reduce(
     (acc, c) => {
@@ -243,18 +235,17 @@ export default function LibraryPage() {
             </button>
           </div>
 
-          <form onSubmit={onSearchSubmit} className="mt-4">
-            <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-500" />
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t("library.search") ?? ""}
-                className="w-full rounded-lg border border-ink-700 bg-ink-800/60 py-2 pl-9 pr-3 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
-              />
-            </div>
-          </form>
+          <button
+            type="button"
+            onClick={openSearch}
+            className="mt-4 flex w-full items-center gap-2 rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2 text-left text-sm text-ink-500 transition hover:border-ink-500 hover:bg-ink-800/80"
+          >
+            <SearchIcon className="h-4 w-4 text-ink-500" />
+            <span className="flex-1">{t("library.search")}</span>
+            <kbd className="hidden rounded border border-ink-700 bg-ink-900/50 px-1.5 py-0.5 text-[10px] font-mono text-ink-400 sm:inline-block">
+              ⌘K
+            </kbd>
+          </button>
 
           {(tag || untaggedFilter) && (
             <div className="mt-3 flex items-center gap-2 text-[11px]">
@@ -313,7 +304,7 @@ export default function LibraryPage() {
         <AddContentModal
           open={modalOpen}
           onClose={() => setModalOpen(false)}
-          onCreated={() => void fetchCards(search.trim() || undefined)}
+          onCreated={() => void fetchCards()}
         />
       </div>
     </div>
@@ -344,7 +335,7 @@ function CardTile({ card, onClick }: { card: CardListItem; onClick: () => void }
     <button
       type="button"
       onClick={onClick}
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-ink-800 bg-ink-800/40 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-ink-600 hover:shadow-lg hover:shadow-black/30"
+      className="card-hover group relative flex flex-col overflow-hidden rounded-xl border border-ink-800 bg-ink-800/40 text-left shadow-sm hover:border-ink-600"
     >
       <div className="relative aspect-video w-full overflow-hidden bg-ink-800">
         {card.thumbnail_url ? (
