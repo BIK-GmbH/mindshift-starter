@@ -160,6 +160,13 @@ cd backend
 - **Hierarchy boost in the edge engine**: cards that share a parent
   subtree but no leaf tag get `+0.05 × tanh(n/2)`. See
   `docs/edge-engine.md`.
+- **Auto-tagging with hierarchy**: the OpenAI prompt receives the
+  user's existing top-level tags as context and may suggest tags as
+  `parent/child` slugs (e.g. `finance/investment`). `_attach_tags`
+  parses the slash, creates missing parents idempotently, attaches the
+  card to the **leaf** only. If an existing leaf tag has no parent
+  yet, it adopts the AI's suggested parent — manually-set parents are
+  never overwritten.
 - **Two-sidebar layout** with the tags tree only visible on Library.
 - **`react-arborist`** chosen over `@dnd-kit/core` for the tree because
   the hand-rolled drag layer was fragile (clicks vs drags, cycle

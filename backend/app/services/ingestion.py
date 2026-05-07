@@ -150,7 +150,8 @@ def _job_context(card_id: UUID, job_id: UUID):
 
 
 def _summarize_and_attach(db: Session, card: Card, text: str) -> None:
-    summary = summarize_transcript(card.title, text)
+    existing_top_tags = _existing_top_level_tag_names(db, card.user_id)
+    summary = summarize_transcript(card.title, text, existing_top_tags=existing_top_tags)
     card.concise_summary_md = summary.concise_summary_md
     card.detailed_summary_md = summary.detailed_summary_md
     card.key_takeaways_json = summary.key_takeaways
@@ -158,6 +159,21 @@ def _summarize_and_attach(db: Session, card: Card, text: str) -> None:
     _attach_entities(db, card, summary.entities)
     _attach_quiz(db, card, summary.quiz_questions)
     _attach_embeddings(db, card, text, summary.concise_summary_md)
+
+
+def _existing_top_level_tag_names(db: Session, user_id: UUID, limit: int = 30) -> list[str]:
+    """The user's most-used top-level tags. Used as context for the OpenAI prompt."""
+    from sqlalchemy import func
+
+    rows = db.execute(
+        select(Tag.name, func.count(CardTag.card_id).label("c"))
+        .outerjoin(CardTag, CardTag.tag_id == Tag.id)
+        .where(Tag.user_id == user_id, Tag.parent_id.is_(None))
+        .group_by(Tag.id, Tag.name)
+        .order_by(func.count(CardTag.card_id).desc(), Tag.name)
+        .limit(limit)
+    ).all()
+    return [name for name, _ in rows]
 
 
 def _attach_embeddings(db: Session, card: Card, source_text: str, concise_summary: str | None) -> None:
@@ -204,18 +220,55 @@ def _mark_failed(db: Session, card: Card, job: Job, message: str) -> None:
 
 
 def _attach_tags(db: Session, card: Card, tag_names: list[str]) -> None:
+    """Attach AI-suggested tags to a card.
+
+    Supports hierarchical paths via `/`, e.g. `finance/investment` creates
+    `finance` (parent) + `investment` (child of finance), and the card is
+    attached to the leaf (`investment`).
+
+    Existing tags are reused. If an existing leaf tag has no parent yet,
+    we adopt the AI's suggested parent — but we never overwrite a
+    user-set parent.
+    """
     for raw in tag_names:
-        name = raw.strip().lower()
-        if not name:
+        # Slash-path: "finance/investment" → ["finance", "investment"]
+        parts = [
+            _slugify_tag(p)
+            for p in str(raw).split("/")
+            if _slugify_tag(p)
+        ]
+        if not parts:
             continue
-        existing = db.execute(
-            select(Tag).where(Tag.user_id == card.user_id, Tag.name == name)
-        ).scalar_one_or_none()
-        tag = existing or Tag(user_id=card.user_id, name=name)
-        if existing is None:
-            db.add(tag)
-            db.flush()
-        db.merge(CardTag(card_id=card.id, tag_id=tag.id))
+
+        parent_id: UUID | None = None
+        leaf_tag: Tag | None = None
+        for part in parts:
+            existing = db.execute(
+                select(Tag).where(Tag.user_id == card.user_id, Tag.name == part)
+            ).scalar_one_or_none()
+            if existing is None:
+                tag = Tag(user_id=card.user_id, name=part, parent_id=parent_id)
+                db.add(tag)
+                db.flush()
+                leaf_tag = tag
+                parent_id = tag.id
+                continue
+
+            # Re-use existing tag. Adopt the AI's suggested parent only if
+            # the user hasn't manually placed it somewhere already.
+            if existing.parent_id is None and parent_id is not None and parent_id != existing.id:
+                existing.parent_id = parent_id
+                db.flush()
+            leaf_tag = existing
+            parent_id = existing.id
+
+        if leaf_tag is not None:
+            db.merge(CardTag(card_id=card.id, tag_id=leaf_tag.id))
+
+
+def _slugify_tag(s: str) -> str:
+    """Normalise a tag fragment: lowercase, trim, no internal whitespace."""
+    return s.strip().lower().replace(" ", "-")
 
 
 def _attach_entities(db: Session, card: Card, entities: list[dict]) -> None:
