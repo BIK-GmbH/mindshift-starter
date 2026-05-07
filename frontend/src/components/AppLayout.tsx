@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { NavLink, Outlet } from "react-router-dom";
 
 import LanguageToggle from "./LanguageToggle";
+import TagsList from "./TagsList";
 
 const navItems = [
   { to: "/", labelKey: "nav.library", Icon: Library, end: true },
@@ -22,7 +23,7 @@ export default function AppLayout() {
           <Brain className="h-6 w-6 text-ink-100" />
           <span className="text-lg font-semibold tracking-tight">{t("app.name")}</span>
         </div>
-        <nav className="flex-1 px-2">
+        <nav className="flex-shrink-0 px-2">
           {navItems.map(({ to, labelKey, Icon, end }) => (
             <NavLink
               key={to}
@@ -42,6 +43,9 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
+        <div className="mt-4 flex-1 overflow-y-auto">
+          <TagsList />
+        </div>
         <div className="border-t border-ink-700 p-3">
           <LanguageToggle />
         </div>

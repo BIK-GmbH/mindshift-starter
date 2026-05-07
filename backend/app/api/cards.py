@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,7 @@ from app.schemas.card import (
     NotesUpdate,
     QuizQuestionOut,
 )
+from app.services.export import card_to_markdown
 from app.services.ingestion import process_article_card, process_pdf_card, process_youtube_card
 from app.services.youtube import extract_video_id
 
@@ -245,6 +246,49 @@ def delete_card(
     db.commit()
 
 
+@router.post("/{card_id}/regenerate", response_model=IngestionResponse)
+def regenerate_card(
+    card_id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> IngestionResponse:
+    """Re-run the ingestion pipeline for an existing card (typically a failed one).
+
+    PDF cards cannot be regenerated because the upload bytes are not retained.
+    """
+    card = _get_owned_card(db, card_id, current_user.id)
+    source = db.get(Source, card.source_id) if card.source_id else None
+
+    if card.source_type == "pdf":
+        raise HTTPException(
+            status_code=400,
+            detail="PDF cards cannot be re-ingested. Upload the file again.",
+        )
+    if source is None or not source.url:
+        raise HTTPException(status_code=400, detail="Card has no original source URL")
+
+    card.status = "queued"
+    card.error_message = None
+    job = Job(card_id=card.id, job_type=f"{card.source_type}_reingest", status="queued")
+    db.add(job)
+    db.commit()
+    db.refresh(card)
+    db.refresh(job)
+
+    if card.source_type == "youtube":
+        external_id = source.external_id or extract_video_id(source.url)
+        if not external_id:
+            raise HTTPException(status_code=400, detail="Could not parse YouTube video ID")
+        background_tasks.add_task(process_youtube_card, card.id, job.id, external_id)
+    elif card.source_type == "article":
+        background_tasks.add_task(process_article_card, card.id, job.id, source.url)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown source type: {card.source_type}")
+
+    return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
+
+
 @router.get("/{card_id}/transcript")
 def get_transcript(
     card_id: UUID,
@@ -263,6 +307,23 @@ def get_transcript(
         "provider": transcript.provider,
         "text": transcript.text,
     }
+
+
+@router.get("/{card_id}/export.md")
+def export_card_markdown(
+    card_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    card = _get_owned_card(db, card_id, current_user.id)
+    body = card_to_markdown(db, card)
+    safe_title = "".join(c if c.isalnum() or c in "-_ " else "_" for c in card.title)[:80].strip() or "card"
+    filename = f"{safe_title}.md"
+    return Response(
+        content=body,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{card_id}/quiz", response_model=list[QuizQuestionOut])

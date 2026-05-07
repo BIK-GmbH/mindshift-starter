@@ -1,7 +1,7 @@
-import { Plus } from "lucide-react";
+import { Hash, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import AddContentModal from "../components/AddYouTubeModal";
 import StatusBadge from "../components/StatusBadge";
@@ -10,6 +10,8 @@ import { api, type CardListItem } from "../lib/api";
 export default function LibraryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const tag = params.get("tag");
   const [cards, setCards] = useState<CardListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +22,7 @@ export default function LibraryPage() {
   const fetchCards = useCallback(
     async (q?: string) => {
       try {
-        const list = await api.listCards({ q });
+        const list = await api.listCards({ q, tag: tag ?? undefined });
         setCards(list);
         setError(null);
       } catch (err) {
@@ -29,12 +31,18 @@ export default function LibraryPage() {
         setLoading(false);
       }
     },
-    [],
+    [tag],
   );
 
   useEffect(() => {
     void fetchCards();
   }, [fetchCards]);
+
+  const clearTag = () => {
+    const next = new URLSearchParams(params);
+    next.delete("tag");
+    setParams(next);
+  };
 
   useEffect(() => {
     const hasInflight = cards.some((c) => c.status === "queued" || c.status === "processing");
@@ -77,7 +85,7 @@ export default function LibraryPage() {
         </button>
       </header>
 
-      <form onSubmit={onSearchSubmit} className="mb-6">
+      <form onSubmit={onSearchSubmit} className="mb-3">
         <input
           type="search"
           value={search}
@@ -86,6 +94,23 @@ export default function LibraryPage() {
           className="w-full rounded border border-ink-600 bg-ink-800 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ink-300"
         />
       </form>
+
+      {tag && (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded bg-ink-700 px-2 py-1 text-xs text-ink-100">
+            <Hash className="h-3 w-3" />
+            {tag}
+          </span>
+          <button
+            type="button"
+            onClick={clearTag}
+            className="inline-flex items-center gap-1 text-xs text-ink-300 hover:text-ink-100"
+          >
+            <X className="h-3 w-3" />
+            {t("library.clearFilter")}
+          </button>
+        </div>
+      )}
 
       {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
 

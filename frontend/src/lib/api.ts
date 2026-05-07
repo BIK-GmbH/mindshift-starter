@@ -181,7 +181,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ rating }),
     }),
+  regenerateCard: (id: string) =>
+    request<{ card: Card; job: JobOut }>(`/api/cards/${id}/regenerate`, { method: "POST" }),
+  listTags: () => request<TagWithCount[]>("/api/tags"),
+  exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
 };
+
+export interface TagWithCount {
+  name: string;
+  count: number;
+}
 
 export type ReviewRating = "again" | "hard" | "good" | "easy";
 export type ReviewStage = "new" | "learning" | "practiced" | "confident" | "mastered";

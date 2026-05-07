@@ -1,4 +1,4 @@
-import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -73,6 +73,19 @@ export default function CardDetailPage() {
     navigate("/");
   };
 
+  const handleRegenerate = async () => {
+    try {
+      await api.regenerateCard(cardId);
+      await fetchCard();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const exportUrl = api.exportCardMarkdownUrl(cardId);
+  const canRegenerate =
+    card !== null && card.status === "failed" && card.source_type !== "pdf";
+
   if (!card) {
     return (
       <div className="p-8 text-sm text-ink-300">
@@ -118,14 +131,52 @@ export default function CardDetailPage() {
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleDelete}
-          className="text-ink-400 hover:text-red-400"
-          aria-label={t("common.delete") ?? ""}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <div className="flex flex-shrink-0 items-center gap-3">
+          {canRegenerate && (
+            <button
+              type="button"
+              onClick={handleRegenerate}
+              title={t("card.retry") ?? ""}
+              className="inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs text-ink-200 hover:bg-ink-700"
+            >
+              <RefreshCw className="h-3 w-3" />
+              {t("card.retry")}
+            </button>
+          )}
+          <a
+            href={exportUrl}
+            title={t("card.exportMarkdown") ?? ""}
+            className="inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs text-ink-200 hover:bg-ink-700"
+            onClick={(e) => {
+              const token = localStorage.getItem("mindshift.token");
+              if (!token) return;
+              e.preventDefault();
+              fetch(exportUrl, { headers: { Authorization: `Bearer ${token}` } })
+                .then((r) => r.blob())
+                .then((blob) => {
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `${card.title.replace(/[^A-Za-z0-9 _-]/g, "_").slice(0, 80) || "card"}.md`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                });
+            }}
+          >
+            <Download className="h-3 w-3" />
+            {t("card.exportMarkdown")}
+          </a>
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="text-ink-400 hover:text-red-400"
+            aria-label={t("common.delete") ?? ""}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </header>
 
       {(card.status === "queued" || card.status === "processing") && (

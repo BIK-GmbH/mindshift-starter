@@ -8,7 +8,9 @@
     "chat": "Chat",
     "review": "Wiederholung",
     "search": "Suche",
-    "settings": "Einstellungen"
+    "settings": "Einstellungen",
+    "tags": "Tags",
+    "allCards": "Alle Cards"
   },
   "library": {
     "empty": {
@@ -16,7 +18,8 @@
       "body": "Füge ein YouTube-Video hinzu, um loszulegen."
     },
     "addContent": "Inhalt hinzufügen",
-    "search": "Bibliothek durchsuchen"
+    "search": "Bibliothek durchsuchen",
+    "clearFilter": "Filter zurücksetzen"
   },
   "addContent": {
     "youtube": "YouTube",
@@ -31,6 +34,8 @@
     "notes": "Notizen",
     "quiz": "Quiz",
     "chat": "Chat",
+    "retry": "Erneut versuchen",
+    "exportMarkdown": "Markdown",
     "tags": "Tags",
     "status": {
       "queued": "Wartet",
