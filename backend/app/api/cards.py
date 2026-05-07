@@ -160,11 +160,14 @@ def list_cards(
     q: str | None = Query(default=None, description="Keyword search over title/summary/notes"),
     status_filter: str | None = Query(default=None, alias="status"),
     tag: str | None = Query(default=None),
+    untagged: bool = Query(default=False),
     source_type: str | None = Query(default=None),
     sort: str = Query(default="newest", pattern="^(newest|oldest|title)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[Card]:
+    from app.models.tag import CardTag, Tag
+
     stmt = select(Card).where(Card.user_id == current_user.id)
     if status_filter:
         stmt = stmt.where(Card.status == status_filter)
@@ -181,11 +184,11 @@ def list_cards(
             )
         )
     if tag:
-        from app.models.tag import CardTag, Tag
-
         stmt = stmt.join(CardTag, CardTag.card_id == Card.id).join(Tag, Tag.id == CardTag.tag_id).where(
             Tag.name == tag.lower()
         )
+    if untagged:
+        stmt = stmt.where(~Card.id.in_(select(CardTag.card_id)))
 
     order = {
         "newest": Card.created_at.desc(),

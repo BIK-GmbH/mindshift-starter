@@ -13,6 +13,11 @@
     "tags": "Tags",
     "allCards": "All cards"
   },
+  "tags": {
+    "newTag": "New tag",
+    "newTagPlaceholder": "Tag name…",
+    "untagged": "Untagged"
+  },
   "library": {
     "empty": {
       "title": "No knowledge cards yet",
@@ -20,6 +25,8 @@
     },
     "addContent": "Add content",
     "search": "Search library",
+    "filteredBy": "Filtered by",
+    "clearAll": "Clear all",
     "clearFilter": "Clear filter",
     "stats": {
       "cards": "cards",

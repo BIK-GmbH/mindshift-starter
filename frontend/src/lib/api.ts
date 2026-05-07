@@ -103,9 +103,12 @@ export const api = {
     }),
   me: () => request<{ id: string; email: string; display_name: string | null }>("/api/auth/me"),
 
-  listCards: (params: { q?: string; status?: string; tag?: string; sort?: string } = {}) => {
+  listCards: (params: { q?: string; status?: string; tag?: string; untagged?: boolean; sort?: string } = {}) => {
     const search = new URLSearchParams();
-    Object.entries(params).forEach(([k, v]) => v && search.set(k, v));
+    Object.entries(params).forEach(([k, v]) => {
+      if (v === undefined || v === null || v === "" || v === false) return;
+      search.set(k, String(v));
+    });
     const qs = search.toString();
     return request<CardListItem[]>(`/api/cards${qs ? `?${qs}` : ""}`);
   },
@@ -184,6 +187,18 @@ export const api = {
   regenerateCard: (id: string) =>
     request<{ card: Card; job: JobOut }>(`/api/cards/${id}/regenerate`, { method: "POST" }),
   listTags: () => request<TagWithCount[]>("/api/tags"),
+  untaggedCount: () => request<{ count: number }>("/api/tags/untagged-count"),
+  createTag: (name: string, parentId?: string | null) =>
+    request<TagWithCount>("/api/tags", {
+      method: "POST",
+      body: JSON.stringify({ name, parent_id: parentId ?? null }),
+    }),
+  updateTag: (id: string, body: { name?: string; parent_id?: string | null }) =>
+    request<TagWithCount>(`/api/tags/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteTag: (id: string) => request<void>(`/api/tags/${id}`, { method: "DELETE" }),
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
@@ -247,7 +262,9 @@ export interface Connection {
 }
 
 export interface TagWithCount {
+  id: string;
   name: string;
+  parent_id: string | null;
   count: number;
 }
 

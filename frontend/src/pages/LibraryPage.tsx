@@ -18,6 +18,7 @@ export default function LibraryPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tag = params.get("tag");
+  const untaggedFilter = params.get("untagged") === "1";
   const [cards, setCards] = useState<CardListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,11 @@ export default function LibraryPage() {
   const fetchCards = useCallback(
     async (q?: string) => {
       try {
-        const list = await api.listCards({ q, tag: tag ?? undefined });
+        const list = await api.listCards({
+          q,
+          tag: tag ?? undefined,
+          untagged: untaggedFilter || undefined,
+        });
         setCards(list);
         setError(null);
       } catch (err) {
@@ -37,16 +42,17 @@ export default function LibraryPage() {
         setLoading(false);
       }
     },
-    [tag],
+    [tag, untaggedFilter],
   );
 
   useEffect(() => {
     void fetchCards();
   }, [fetchCards]);
 
-  const clearTag = () => {
+  const clearFilters = () => {
     const next = new URLSearchParams(params);
     next.delete("tag");
+    next.delete("untagged");
     setParams(next);
   };
 
@@ -146,19 +152,27 @@ export default function LibraryPage() {
             </div>
           </form>
 
-          {tag && (
-            <div className="mt-3 flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2.5 py-0.5 text-[11px] font-medium text-ink-100 ring-1 ring-ink-600">
-                <Hash className="h-3 w-3 text-ink-300" />
-                {tag}
-              </span>
+          {(tag || untaggedFilter) && (
+            <div className="mt-3 flex items-center gap-2 text-[11px]">
+              <span className="text-ink-500">{t("library.filteredBy")}:</span>
+              {tag && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2.5 py-0.5 font-medium text-ink-100 ring-1 ring-ink-600">
+                  <Hash className="h-3 w-3 text-ink-300" />
+                  {tag}
+                </span>
+              )}
+              {untaggedFilter && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2.5 py-0.5 font-medium italic text-ink-100 ring-1 ring-ink-600">
+                  {t("tags.untagged")}
+                </span>
+              )}
               <button
                 type="button"
-                onClick={clearTag}
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+                onClick={clearFilters}
+                className="ml-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
               >
                 <X className="h-3 w-3" />
-                {t("library.clearFilter")}
+                {t("library.clearAll")}
               </button>
             </div>
           )}

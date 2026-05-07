@@ -17,6 +17,12 @@ class Tag(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    parent_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("tags.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
 
 class CardTag(Base):
