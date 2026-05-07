@@ -34,6 +34,7 @@
     "notes": "Notes",
     "quiz": "Quiz",
     "chat": "Chat",
+    "graph": "Graph",
     "retry": "Retry",
     "exportMarkdown": "Markdown",
     "tags": "Tags",
@@ -51,6 +52,12 @@
     "password": "Password",
     "displayName": "Display name",
     "signOut": "Sign out"
+  },
+  "graph": {
+    "hint": "Click a node to expand its connections, double-click to open the card.",
+    "nodes": "nodes",
+    "edges": "edges",
+    "reset": "Reset"
   },
   "review": {
     "subtitle": "Practice due quiz questions with spaced repetition.",

@@ -185,7 +185,24 @@ export const api = {
     request<{ card: Card; job: JobOut }>(`/api/cards/${id}/regenerate`, { method: "POST" }),
   listTags: () => request<TagWithCount[]>("/api/tags"),
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
+  cardConnections: (id: string, limit = 10) =>
+    request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
 };
+
+export interface ConnectionReason {
+  kind: "semantic" | "entity" | "tag" | "relation";
+  label: string;
+  weight: number;
+}
+
+export interface Connection {
+  card_id: string;
+  title: string;
+  source_type: string;
+  thumbnail_url: string | null;
+  score: number;
+  reasons: ConnectionReason[];
+}
 
 export interface TagWithCount {
   name: string;

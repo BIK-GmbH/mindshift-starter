@@ -34,6 +34,7 @@
     "notes": "Notizen",
     "quiz": "Quiz",
     "chat": "Chat",
+    "graph": "Graph",
     "retry": "Erneut versuchen",
     "exportMarkdown": "Markdown",
     "tags": "Tags",
@@ -51,6 +52,12 @@
     "password": "Passwort",
     "displayName": "Anzeigename",
     "signOut": "Abmelden"
+  },
+  "graph": {
+    "hint": "Klick auf einen Node erweitert seine Verbindungen, Doppelklick öffnet die Card.",
+    "nodes": "Nodes",
+    "edges": "Kanten",
+    "reset": "Zurücksetzen"
   },
   "review": {
     "subtitle": "Wiederhole fällige Quiz-Fragen mit Spaced Repetition.",

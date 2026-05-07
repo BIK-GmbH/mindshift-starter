@@ -23,6 +23,8 @@ from app.schemas.card import (
     NotesUpdate,
     QuizQuestionOut,
 )
+from app.schemas.graph import ConnectionOut, ReasonOut
+from app.services.connections import get_connections
 from app.services.export import card_to_markdown
 from app.services.ingestion import process_article_card, process_pdf_card, process_youtube_card
 from app.services.youtube import extract_video_id
@@ -324,6 +326,28 @@ def export_card_markdown(
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/{card_id}/connections", response_model=list[ConnectionOut])
+def card_connections(
+    card_id: UUID,
+    limit: int = Query(default=10, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[ConnectionOut]:
+    _get_owned_card(db, card_id, current_user.id)
+    connections = get_connections(db, current_user.id, card_id, limit=limit)
+    return [
+        ConnectionOut(
+            card_id=c.card_id,
+            title=c.title,
+            source_type=c.source_type,
+            thumbnail_url=c.thumbnail_url,
+            score=c.score,
+            reasons=[ReasonOut(kind=r.kind, label=r.label, weight=r.weight) for r in c.reasons],
+        )
+        for c in connections
+    ]
 
 
 @router.get("/{card_id}/quiz", response_model=list[QuizQuestionOut])

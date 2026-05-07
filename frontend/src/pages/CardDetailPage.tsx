@@ -3,11 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
+import CardGraph from "../components/CardGraph";
 import ChatPanel from "../components/ChatPanel";
 import StatusBadge from "../components/StatusBadge";
 import { api, type Card, type QuizQuestion } from "../lib/api";
 
-type Tab = "summary" | "transcript" | "notes" | "quiz" | "chat";
+type Tab = "summary" | "transcript" | "notes" | "quiz" | "chat" | "graph";
 
 export default function CardDetailPage() {
   const { t } = useTranslation();
@@ -100,6 +101,7 @@ export default function CardDetailPage() {
     { id: "notes", key: "card.notes" },
     { id: "quiz", key: "card.quiz" },
     { id: "chat", key: "card.chat" },
+    { id: "graph", key: "card.graph" },
   ];
 
   return (
@@ -283,6 +285,16 @@ export default function CardDetailPage() {
               send={(history) => api.chatCard(cardId, history)}
               placeholder={t("chat.placeholderCard") ?? ""}
               emptyHint={t("chat.cardEmpty") ?? ""}
+            />
+          </div>
+        )}
+
+        {tab === "graph" && (
+          <div className="h-[65vh]">
+            <CardGraph
+              rootCardId={card.id}
+              rootTitle={card.title}
+              rootSourceType={card.source_type}
             />
           </div>
         )}
