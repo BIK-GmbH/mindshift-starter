@@ -26,6 +26,7 @@ import {
   type TagWithCount,
 } from "../lib/api";
 import { type ColorMode, SOURCE_COLORS, nodeColor } from "../lib/graphColors";
+import { useTheme } from "../lib/ThemeContext";
 
 const POSITIONS_KEY = "mindshift.graphPositions";
 
@@ -51,6 +52,8 @@ interface UiLink {
 
 export default function GraphPage() {
   const { t } = useTranslation();
+  const { theme } = useTheme();
+  const graphBg = theme === "light" ? "rgb(248,250,252)" : "rgb(11,13,18)";
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<ForceGraphMethods<UiNode, UiLink> | undefined>(undefined);
 
@@ -527,7 +530,7 @@ export default function GraphPage() {
               width={size.w}
               height={size.h}
               graphData={graphData}
-              backgroundColor="rgb(11,13,18)"
+              backgroundColor={graphBg}
               nodeRelSize={6}
               cooldownTicks={120}
               linkColor={(link) => {

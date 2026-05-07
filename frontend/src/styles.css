@@ -18,17 +18,19 @@
   }
 
   /* Light theme — invert the ink scale so existing utility classes remap
-     without touching every component. 900 = darkest text, 100 = page bg. */
+     without touching every component. 900 = darkest text, 100 = page bg.
+     Tuned for more contrast in the mid-tones so alpha-fills (e.g.
+     `bg-ink-800/40`) stay readable on the page background. */
   :root.light {
-    --ink-900: 246 247 251;
-    --ink-800: 234 236 242;
-    --ink-700: 218 222 230;
-    --ink-600: 196 202 214;
-    --ink-500: 156 164 180;
-    --ink-400: 110 119 138;
-    --ink-300: 76 85 103;
-    --ink-200: 44 52 70;
-    --ink-100: 15 22 38;
+    --ink-900: 248 250 252;
+    --ink-800: 226 232 240;
+    --ink-700: 203 213 225;
+    --ink-600: 173 184 200;
+    --ink-500: 130 146 168;
+    --ink-400: 92 104 124;
+    --ink-300: 64 75 95;
+    --ink-200: 35 46 64;
+    --ink-100: 15 23 42;
     color-scheme: light;
   }
 

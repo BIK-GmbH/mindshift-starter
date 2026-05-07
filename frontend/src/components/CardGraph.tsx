@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { api, type ConnectionReason } from "../lib/api";
+import { useTheme } from "../lib/ThemeContext";
 
 interface Props {
   rootCardId: string;
@@ -34,6 +35,8 @@ const SOURCE_COLORS: Record<string, string> = {
 
 export default function CardGraph({ rootCardId, rootTitle, rootSourceType }: Props) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
+  const graphBg = theme === "light" ? "rgb(248,250,252)" : "rgb(11,13,18)";
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<ForceGraphMethods<Node, Link> | undefined>(undefined);
@@ -223,7 +226,7 @@ export default function CardGraph({ rootCardId, rootTitle, rootSourceType }: Pro
           width={size.w}
           height={size.h}
           graphData={data}
-          backgroundColor="rgb(11,13,18)"
+          backgroundColor={graphBg}
           nodeRelSize={6}
           linkColor={(link) =>
             hoveredLink && hoveredLink.source === (link as Link).source && hoveredLink.target === (link as Link).target
