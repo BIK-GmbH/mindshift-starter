@@ -18,6 +18,7 @@ import AddContentModal from "../components/AddYouTubeModal";
 import CardDetailContent from "../components/CardDetailContent";
 import ChatPanel from "../components/ChatPanel";
 import StatusBadge from "../components/StatusBadge";
+import TagsTree from "../components/TagsTree";
 import { api, type CardListItem } from "../lib/api";
 
 const SOURCE_ICONS: Record<string, FC<{ className?: string }>> = {
@@ -140,57 +141,62 @@ export default function LibraryPage() {
   if (selectedCardId) {
     return (
       <div className="flex h-full">
-        <div className="flex-1 min-w-0 overflow-hidden">
-          <CardDetailContent
-            cardId={selectedCardId}
-            onBack={closeCard}
-            backStyle="link"
-            compact
-            hideChatTab={rightPaneOpen}
-          />
-        </div>
-        {rightPaneOpen ? (
-          <aside className="flex w-[40%] min-w-[360px] max-w-[640px] flex-col border-l border-ink-800 bg-ink-900/40">
-            <div className="flex items-center justify-between border-b border-ink-800 px-4 py-2.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
-                <MessageSquare className="h-3 w-3" />
-                {t("nav.chat")}
+        <LibraryTagsSidebar />
+        <div className="flex flex-1 min-w-0">
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <CardDetailContent
+              cardId={selectedCardId}
+              onBack={closeCard}
+              backStyle="link"
+              compact
+              hideChatTab={rightPaneOpen}
+            />
+          </div>
+          {rightPaneOpen ? (
+            <aside className="flex w-[40%] min-w-[360px] max-w-[640px] flex-col border-l border-ink-800 bg-ink-900/40">
+              <div className="flex items-center justify-between border-b border-ink-800 px-4 py-2.5">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
+                  <MessageSquare className="h-3 w-3" />
+                  {t("nav.chat")}
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleRightPane}
+                  title={t("library.rightPane.hide") ?? ""}
+                  className="rounded p-1 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+                >
+                  <PanelRightClose className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={toggleRightPane}
-                title={t("library.rightPane.hide") ?? ""}
-                className="rounded p-1 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
-              >
-                <PanelRightClose className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="flex flex-1 min-h-0 flex-col px-4 pb-4 pt-3">
-              <ChatPanel
-                key={selectedCardId}
-                send={(history) => api.chatCard(selectedCardId, history)}
-                placeholder={t("chat.placeholderCard") ?? ""}
-                emptyHint={t("chat.cardEmpty") ?? ""}
-              />
-            </div>
-          </aside>
-        ) : (
-          <button
-            type="button"
-            onClick={toggleRightPane}
-            title={t("library.rightPane.show") ?? ""}
-            className="flex w-8 flex-col items-center justify-center border-l border-ink-800 bg-ink-900/40 text-ink-400 transition hover:bg-ink-800/60 hover:text-ink-100"
-          >
-            <PanelRightOpen className="h-4 w-4" />
-          </button>
-        )}
+              <div className="flex flex-1 min-h-0 flex-col px-4 pb-4 pt-3">
+                <ChatPanel
+                  key={selectedCardId}
+                  send={(history) => api.chatCard(selectedCardId, history)}
+                  placeholder={t("chat.placeholderCard") ?? ""}
+                  emptyHint={t("chat.cardEmpty") ?? ""}
+                />
+              </div>
+            </aside>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleRightPane}
+              title={t("library.rightPane.show") ?? ""}
+              className="flex w-8 flex-col items-center justify-center border-l border-ink-800 bg-ink-900/40 text-ink-400 transition hover:bg-ink-800/60 hover:text-ink-100"
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
     );
   }
 
   // Grid mode: no card selected.
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full">
+      <LibraryTagsSidebar />
+      <div className="flex flex-1 min-w-0 flex-col">
       {/* Sticky header */}
       <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/85 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-8 pb-4 pt-6">
@@ -304,16 +310,33 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      <AddContentModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onCreated={() => void fetchCards(search.trim() || undefined)}
-      />
+        <AddContentModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onCreated={() => void fetchCards(search.trim() || undefined)}
+        />
+      </div>
     </div>
   );
 }
 
 // --- Sub-components ---------------------------------------------------------
+
+function LibraryTagsSidebar() {
+  const { t } = useTranslation();
+  return (
+    <aside className="flex w-60 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
+      <div className="flex items-center justify-between border-b border-ink-800 px-4 py-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
+          {t("nav.tags")}
+        </span>
+      </div>
+      <div className="flex-1 overflow-y-auto py-2">
+        <TagsTree />
+      </div>
+    </aside>
+  );
+}
 
 function CardTile({ card, onClick }: { card: CardListItem; onClick: () => void }) {
   const SourceIcon = SOURCE_ICONS[card.source_type] ?? FileText;

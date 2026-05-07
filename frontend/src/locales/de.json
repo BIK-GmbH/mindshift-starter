@@ -77,7 +77,19 @@
     "subtitle": "Konto und App-Optionen.",
     "accountLabel": "Account",
     "aboutLabel": "Über",
-    "aboutBody": "Mindshift ist eine selbstgehostete AI Knowledge Base. Recall-inspiriert, aber Open-Source und vollständig deins."
+    "aboutBody": "Mindshift ist eine selbstgehostete AI Knowledge Base. Recall-inspiriert, aber Open-Source und vollständig deins.",
+    "tab": {
+      "account": "Account",
+      "appearance": "Erscheinungsbild",
+      "about": "Über"
+    },
+    "appearance": {
+      "theme": "Theme",
+      "dark": "Dunkel",
+      "light": "Hell",
+      "system": "System",
+      "language": "Sprache"
+    }
   },
   "graph": {
     "hint": "Klick auf einen Node erweitert seine Verbindungen, Doppelklick öffnet die Card.",

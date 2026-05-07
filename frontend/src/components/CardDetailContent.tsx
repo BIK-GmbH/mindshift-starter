@@ -258,7 +258,7 @@ export default function CardDetailContent({
         </div>
 
         <div className={`mx-auto ${innerWidth} ${horizPad}`}>
-          <nav className="flex gap-0.5 overflow-x-auto" aria-label="card sections">
+          <nav className="no-scrollbar flex gap-0.5 overflow-x-auto" aria-label="card sections">
             {tabs.map((id) => {
               const Icon = TAB_ICONS[id];
               const active = tab === id;

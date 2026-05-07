@@ -9,7 +9,6 @@ import GraphPage from "./pages/GraphPage";
 import LibraryPage from "./pages/LibraryPage";
 import ReviewPage from "./pages/ReviewPage";
 import SearchPage from "./pages/SearchPage";
-import SettingsPage from "./pages/SettingsPage";
 
 export default function App() {
   return (
@@ -39,7 +38,6 @@ function RootRoutes() {
         <Route path="graph" element={<GraphPage />} />
         <Route path="review" element={<ReviewPage />} />
         <Route path="search" element={<SearchPage />} />
-        <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   );
