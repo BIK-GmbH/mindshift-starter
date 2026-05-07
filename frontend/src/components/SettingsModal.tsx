@@ -392,7 +392,7 @@ function TagsTab() {
         <button
           type="submit"
           disabled={!newName.trim()}
-          className="inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-900 transition hover:bg-white disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
         >
           <Plus className="h-3.5 w-3.5" />
           {t("settings.tags.add")}

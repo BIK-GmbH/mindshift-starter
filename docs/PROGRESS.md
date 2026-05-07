@@ -7,7 +7,17 @@ When a new session starts, read this first to know where to pick up.
 
 ## Active sprint — Recall-pattern follow-ups
 
-**Status:** All phases (1-10) complete.
+**Status:** Phases 1-17 done.
+
+| Phase | Status | Description |
+|---|---|---|
+| 11 | ✅ | **Add Content modal** — Recall-style with backdrop blur + 5 tabs (URL / Wiki / PDF / Import / Note). YouTube vs. article URL is auto-detected. |
+| 12 | ✅ | **Light-mode hover** — `hover:bg-white` swept to `hover:bg-ink-200` across 7 components so primary buttons stay readable in light mode. |
+| 13 | ✅ | **Wiki import** — `/api/wiki/search` proxies `en/de.wikipedia.org/w/api.php?action=opensearch`; debounced live search lands article URLs straight into ingestion. |
+| 14 | ✅ | **Note creation** — `POST /api/cards/from-note` + `process_note_card`; tab supports optional AI summary on save. |
+| 15 | ✅ | **Browser bookmarks import** — `POST /api/import/bookmarks` parses Netscape-format HTML into per-URL ingestion jobs (cap 500). |
+| 16 | ✅ | **Markdown import** — `POST /api/import/markdown` accepts a ZIP of `.md` files, takes title from first H1 or filename. |
+| 17 | ✅ | **Share feature** — `card_shares` table (migration 0006), share/revoke endpoints, public read-only viewer at `/share/:token`. Share modal in card detail header with copy + revoke. |
 
 | Phase | Status | Description |
 |---|---|---|

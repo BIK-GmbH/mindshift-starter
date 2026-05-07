@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Network,
   RefreshCw,
+  Share2,
   Sparkles,
   StickyNote,
   Trash2,
@@ -19,6 +20,7 @@ import { useTranslation } from "react-i18next";
 
 import CardGraph from "./CardGraph";
 import ChatPanel from "./ChatPanel";
+import ShareModal from "./ShareModal";
 import StatusBadge from "./StatusBadge";
 import { useDialog } from "../lib/DialogContext";
 import { api, type Card, type QuizQuestion } from "../lib/api";
@@ -66,6 +68,7 @@ export default function CardDetailContent({
 }: Props) {
   const { t } = useTranslation();
   const { confirm } = useDialog();
+  const [shareOpen, setShareOpen] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
   const [tab, setTab] = useState<CardDetailTab>(initialTab);
   const [transcript, setTranscript] = useState<string | null>(null);
@@ -255,6 +258,7 @@ export default function CardDetailContent({
               canRegenerate={canRegenerate}
               onRegenerate={handleRegenerate}
               onDownload={downloadMarkdown}
+              onShare={() => setShareOpen(true)}
               onDelete={handleDelete}
               t={t}
             />
@@ -403,6 +407,7 @@ export default function CardDetailContent({
           </div>
         </div>
       </div>
+      <ShareModal cardId={shareOpen ? cardId : null} onClose={() => setShareOpen(false)} />
     </div>
   );
 }
@@ -433,12 +438,14 @@ function ActionBar({
   canRegenerate,
   onRegenerate,
   onDownload,
+  onShare,
   onDelete,
   t,
 }: {
   canRegenerate: boolean;
   onRegenerate: () => void;
   onDownload: (e: React.MouseEvent) => void;
+  onShare: () => void;
   onDelete: () => void;
   t: (key: string) => string;
 }) {
@@ -463,6 +470,15 @@ function ActionBar({
       >
         <Download className="h-3 w-3" />
         <span className="hidden sm:inline">{t("card.exportMarkdown")}</span>
+      </button>
+      <button
+        type="button"
+        onClick={onShare}
+        title={t("share.title")}
+        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-ink-200 transition hover:bg-ink-700"
+      >
+        <Share2 className="h-3 w-3" />
+        <span className="hidden sm:inline">{t("share.title")}</span>
       </button>
       <span className="mx-1 h-4 w-px bg-ink-700" />
       <button

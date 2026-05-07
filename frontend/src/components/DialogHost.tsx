@@ -108,7 +108,7 @@ export default function DialogHost() {
               "rounded-md px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50",
               danger
                 ? "bg-red-500/90 text-white hover:bg-red-500"
-                : "bg-ink-100 text-ink-900 hover:bg-white",
+                : "bg-ink-100 text-ink-900 hover:bg-ink-200",
             ].join(" ")}
           >
             {opts.confirmLabel ?? (danger ? t("common.delete") : t("common.save"))}

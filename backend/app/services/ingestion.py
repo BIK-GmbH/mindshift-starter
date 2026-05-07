@@ -87,6 +87,45 @@ def process_pdf_card(card_id: UUID, job_id: UUID, pdf_bytes: bytes, filename: st
         _mark_completed(db, card, job)
 
 
+def process_note_card(card_id: UUID, job_id: UUID, body: str, summarize: bool) -> None:
+    """Persist a user-authored note as a card.
+
+    The note body becomes the transcript text. Summary + tags + entities are
+    optional — caller decides via the `summarize` flag.
+    """
+    with _job_context(card_id, job_id) as ctx:
+        if ctx is None:
+            return
+        db, card, job = ctx
+
+        text = (body or "").strip()
+        if not text:
+            # An empty note is fine — title alone is the content.
+            text = card.title
+
+        db.add(
+            Transcript(
+                card_id=card.id,
+                language=None,
+                text=text,
+                segments_json=None,
+                provider="note",
+            )
+        )
+        db.commit()
+
+        if summarize:
+            _summarize_and_attach(db, card, text)
+        else:
+            # Persist a tiny "summary" so the UI still shows the note body
+            # in the summary tab without an OpenAI round-trip.
+            card.concise_summary_md = text[:1000] + ("…" if len(text) > 1000 else "")
+            card.detailed_summary_md = text
+            _attach_embeddings(db, card, text, card.concise_summary_md)
+            db.commit()
+        _mark_completed(db, card, job)
+
+
 def process_article_card(card_id: UUID, job_id: UUID, url: str) -> None:
     """Fetch a web article and run the summarization pipeline."""
     with _job_context(card_id, job_id) as ctx:

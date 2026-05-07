@@ -228,7 +228,7 @@ export default function LibraryPage() {
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-900 shadow-sm transition hover:bg-white"
+              className="inline-flex items-center gap-2 rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-900 shadow-sm transition hover:bg-ink-200"
             >
               <Plus className="h-4 w-4" />
               {t("library.addContent")}
@@ -405,7 +405,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       <button
         type="button"
         onClick={onAdd}
-        className="mt-4 inline-flex items-center gap-2 rounded-md bg-ink-100 px-4 py-2 text-sm font-medium text-ink-900 transition hover:bg-white"
+        className="mt-4 inline-flex items-center gap-2 rounded-md bg-ink-100 px-4 py-2 text-sm font-medium text-ink-900 transition hover:bg-ink-200"
       >
         <Plus className="h-4 w-4" />
         {t("library.addContent")}

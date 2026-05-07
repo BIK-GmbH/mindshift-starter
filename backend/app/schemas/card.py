@@ -54,6 +54,12 @@ class FromUrlRequest(BaseModel):
     url: HttpUrl
 
 
+class FromNoteRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    body: str = Field(default="", max_length=200_000)
+    summarize: bool = Field(default=False, description="Run AI summary on the note body")
+
+
 class JobOut(BaseModel):
     id: UUID
     card_id: UUID | None

@@ -16,6 +16,7 @@ from app.schemas.card import (
     CardListItem,
     CardOut,
     CardUpdate,
+    FromNoteRequest,
     FromUrlRequest,
     FromYouTubeRequest,
     IngestionResponse,
@@ -26,7 +27,12 @@ from app.schemas.card import (
 from app.schemas.graph import ConnectionOut, ReasonOut
 from app.services.connections import get_connections
 from app.services.export import card_to_markdown
-from app.services.ingestion import process_article_card, process_pdf_card, process_youtube_card
+from app.services.ingestion import (
+    process_article_card,
+    process_note_card,
+    process_pdf_card,
+    process_youtube_card,
+)
 from app.services.youtube import extract_video_id
 
 MAX_PDF_BYTES = 25 * 1024 * 1024
@@ -152,6 +158,41 @@ async def create_card_from_pdf(
     db.refresh(job)
 
     background_tasks.add_task(process_pdf_card, card.id, job.id, content, filename)
+    return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
+
+
+@router.post("/from-note", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
+def create_card_from_note(
+    payload: FromNoteRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> IngestionResponse:
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
+
+    source = Source(source_type="note", url=f"note://{current_user.id}/{title}", external_id=None)
+    db.add(source)
+    db.flush()
+
+    card = Card(
+        user_id=current_user.id,
+        source_id=source.id,
+        title=title,
+        source_type="note",
+        status="queued",
+    )
+    db.add(card)
+    db.flush()
+
+    job = Job(card_id=card.id, job_type="note_ingest", status="queued")
+    db.add(job)
+    db.commit()
+    db.refresh(card)
+    db.refresh(job)
+
+    background_tasks.add_task(process_note_card, card.id, job.id, payload.body, payload.summarize)
     return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
 
 

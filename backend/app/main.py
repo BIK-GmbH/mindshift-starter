@@ -7,10 +7,13 @@ from app.api.chat import router as chat_router
 from app.api.export import router as export_router
 from app.api.graph import router as graph_router
 from app.api.health import router as health_router
+from app.api.imports import router as import_router
 from app.api.jobs import router as jobs_router
 from app.api.review import router as review_router
 from app.api.search import router as search_router
+from app.api.share import router as share_router
 from app.api.tags import router as tags_router
+from app.api.wiki import router as wiki_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -35,6 +38,9 @@ app.include_router(review_router, prefix="/api")
 app.include_router(tags_router, prefix="/api")
 app.include_router(graph_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
+app.include_router(wiki_router, prefix="/api")
+app.include_router(import_router, prefix="/api")
+app.include_router(share_router, prefix="/api")
 
 
 @app.get("/")

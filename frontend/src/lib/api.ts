@@ -16,6 +16,24 @@ export const tokenStorage = {
   clear: () => localStorage.removeItem(TOKEN_KEY),
 };
 
+async function uploadFile<T>(path: string, file: File, fieldName = "file"): Promise<T> {
+  const form = new FormData();
+  form.append(fieldName, file);
+  const headers: Record<string, string> = {};
+  const token = tokenStorage.get();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const response = await fetch(`${BASE_URL}${path}`, { method: "POST", body: form, headers });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail =
+      data && typeof data === "object" && "detail" in data
+        ? String((data as { detail?: unknown }).detail)
+        : response.statusText;
+    throw new ApiError(response.status, detail, data);
+  }
+  return data as T;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
@@ -123,6 +141,23 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ url }),
     }),
+  createFromNote: (title: string, body: string, summarize = false) =>
+    request<{ card: Card; job: JobOut }>("/api/cards/from-note", {
+      method: "POST",
+      body: JSON.stringify({ title, body, summarize }),
+    }),
+  wikiSearch: (q: string, lang: "en" | "de" = "en", limit = 8) => {
+    const params = new URLSearchParams({ q, lang, limit: String(limit) });
+    return request<WikiHit[]>(`/api/wiki/search?${params.toString()}`);
+  },
+  importBookmarks: async (file: File) => uploadFile<ImportSummary>("/api/import/bookmarks", file),
+  importMarkdown: async (file: File) => uploadFile<ImportSummary>("/api/import/markdown", file),
+  getShare: (cardId: string) => request<ShareOut | null>(`/api/cards/${cardId}/share`),
+  createShare: (cardId: string) =>
+    request<ShareOut>(`/api/cards/${cardId}/share`, { method: "POST" }),
+  revokeShare: (cardId: string) =>
+    request<void>(`/api/cards/${cardId}/share`, { method: "DELETE" }),
+  getPublicCard: (token: string) => request<PublicCard>(`/api/public/share/${token}`),
   createFromPdf: async (file: File, title?: string) => {
     const form = new FormData();
     form.append("file", file);
@@ -398,6 +433,34 @@ export interface ChatSessionDetail {
   created_at: string;
   updated_at: string;
   messages: PersistedChatMessage[];
+}
+
+export interface WikiHit {
+  title: string;
+  description: string;
+  url: string;
+}
+
+export interface ImportSummary {
+  queued: number;
+  skipped: number;
+  detail: string | null;
+}
+
+export interface ShareOut {
+  token: string;
+  card_id: string;
+}
+
+export interface PublicCard {
+  id: string;
+  title: string;
+  source_type: string;
+  thumbnail_url: string | null;
+  concise_summary_md: string | null;
+  detailed_summary_md: string | null;
+  key_takeaways_json: unknown[] | null;
+  notes_md: string | null;
 }
 
 export interface SearchHit {

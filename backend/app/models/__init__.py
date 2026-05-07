@@ -7,6 +7,7 @@ from app.models.entity import CardEntity, Entity  # noqa: F401
 from app.models.job import Job  # noqa: F401
 from app.models.quiz import QuizQuestion, ReviewEvent  # noqa: F401
 from app.models.relation import CardRelation  # noqa: F401
+from app.models.share import CardShare  # noqa: F401
 from app.models.source import Source  # noqa: F401
 from app.models.tag import CardTag, Tag  # noqa: F401
 from app.models.transcript import Transcript  # noqa: F401

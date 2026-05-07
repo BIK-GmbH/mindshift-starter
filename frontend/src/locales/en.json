@@ -44,7 +44,41 @@
     "article": "Article",
     "pdf": "PDF",
     "choosePdf": "Choose PDF",
-    "pickFile": "Please pick a file"
+    "pickFile": "Please pick a file",
+    "create": "Create",
+    "examples": "Examples",
+    "urlPlaceholder": "Paste a URL here",
+    "wikiPlaceholder": "Add wiki sources for movies, people, places, and things",
+    "wikiEmpty": "No matching Wikipedia articles.",
+    "notePlaceholderTitle": "Title",
+    "notePlaceholderBody": "Write your note in markdown — **bold**, *italic*, lists, links",
+    "tab": {
+      "url": "URL",
+      "wiki": "Wiki",
+      "pdf": "PDF",
+      "import": "Import",
+      "note": "Note"
+    },
+    "import": {
+      "queued": "{count} items queued.",
+      "empty": "No items found in this file.",
+      "note": "Imported pages store the raw text only — AI summaries, embeddings and connections run on each card just like normal ingestion.",
+      "bookmarks": {
+        "title": "Browser Bookmarks",
+        "body": "Import bookmarks from Chrome, Firefox or Edge (.html export)."
+      },
+      "pocket": {
+        "title": "Pocket",
+        "body": "Import your saved articles from Pocket."
+      },
+      "markdown": {
+        "title": "Markdown Files",
+        "body": "Import notes from Obsidian, Notion or any zip of markdown files."
+      }
+    },
+    "note": {
+      "summarize": "Run AI summary on save"
+    }
   },
   "card": {
     "summary": "Summary",
@@ -252,5 +286,23 @@
     "delete": "Delete",
     "loading": "Loading…",
     "error": "Something went wrong."
+  },
+  "share": {
+    "title": "Share",
+    "body": "Create a public read-only link. Anyone with the link can view the card's summary and notes — no login needed.",
+    "create": "Create share link",
+    "copy": "Copy",
+    "copied": "Copied",
+    "revoke": "Revoke link",
+    "revokeTitle": "Revoke this share link?",
+    "revokeBody": "Anyone with the link will lose access. The card itself stays in your library.",
+    "public": {
+      "errorTitle": "This share link isn't available.",
+      "tag": "Shared via Mindshift",
+      "takeaways": "Key takeaways",
+      "summary": "Summary",
+      "notes": "Notes",
+      "footer": "This is a read-only view of a Mindshift card."
+    }
   }
 }

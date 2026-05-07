@@ -44,7 +44,41 @@
     "article": "Artikel",
     "pdf": "PDF",
     "choosePdf": "PDF auswählen",
-    "pickFile": "Bitte eine Datei auswählen"
+    "pickFile": "Bitte eine Datei auswählen",
+    "create": "Erstellen",
+    "examples": "Beispiele",
+    "urlPlaceholder": "URL hier einfügen",
+    "wikiPlaceholder": "Wiki-Quellen suchen — Personen, Orte, Filme, Konzepte",
+    "wikiEmpty": "Keine passenden Wikipedia-Artikel.",
+    "notePlaceholderTitle": "Titel",
+    "notePlaceholderBody": "Note in Markdown schreiben — **fett**, *kursiv*, Listen, Links",
+    "tab": {
+      "url": "URL",
+      "wiki": "Wiki",
+      "pdf": "PDF",
+      "import": "Import",
+      "note": "Note"
+    },
+    "import": {
+      "queued": "{count} Inhalte in der Warteschlange.",
+      "empty": "Keine Einträge in dieser Datei.",
+      "note": "Importierte Seiten speichern erst nur den Reader-Inhalt. AI-Summaries, Embeddings und Verbindungen laufen pro Card automatisch wie bei normaler Ingestion.",
+      "bookmarks": {
+        "title": "Browser-Lesezeichen",
+        "body": "Lesezeichen aus Chrome, Firefox oder Edge importieren (.html-Export)."
+      },
+      "pocket": {
+        "title": "Pocket",
+        "body": "Gespeicherte Artikel aus Pocket importieren."
+      },
+      "markdown": {
+        "title": "Markdown-Dateien",
+        "body": "Notes aus Obsidian, Notion oder jedem ZIP mit Markdown-Dateien importieren."
+      }
+    },
+    "note": {
+      "summarize": "Beim Speichern AI-Summary erstellen"
+    }
   },
   "card": {
     "summary": "Zusammenfassung",
@@ -252,5 +286,23 @@
     "delete": "Löschen",
     "loading": "Wird geladen…",
     "error": "Etwas ist schiefgelaufen."
+  },
+  "share": {
+    "title": "Teilen",
+    "body": "Erstelle einen öffentlichen Read-only-Link. Jeder mit dem Link kann die Card-Summary und Notes sehen – ohne Anmeldung.",
+    "create": "Share-Link erstellen",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "revoke": "Link widerrufen",
+    "revokeTitle": "Diesen Share-Link widerrufen?",
+    "revokeBody": "Jeder mit dem Link verliert den Zugriff. Die Card selbst bleibt in deiner Bibliothek.",
+    "public": {
+      "errorTitle": "Dieser Share-Link ist nicht verfügbar.",
+      "tag": "Geteilt über Mindshift",
+      "takeaways": "Kernaussagen",
+      "summary": "Zusammenfassung",
+      "notes": "Notizen",
+      "footer": "Das ist eine Read-only-Ansicht einer Mindshift-Card."
+    }
   }
 }

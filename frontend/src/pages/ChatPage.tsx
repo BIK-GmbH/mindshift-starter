@@ -105,7 +105,7 @@ export default function ChatPage() {
             type="button"
             onClick={startNew}
             title={t("chat.history.newChat") ?? ""}
-            className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-white"
+            className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
           >
             <Plus className="h-3 w-3" />
             {t("chat.history.newChat")}

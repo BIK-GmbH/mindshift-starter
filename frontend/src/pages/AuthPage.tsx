@@ -110,7 +110,7 @@ export default function AuthPage() {
             <button
               type="submit"
               disabled={busy}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ink-100 px-3 py-2.5 text-sm font-medium text-ink-900 shadow-sm transition hover:bg-white disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-ink-100 px-3 py-2.5 text-sm font-medium text-ink-900 shadow-sm transition hover:bg-ink-200 disabled:opacity-60"
             >
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {busy ? t("common.loading") : t(`auth.${mode}`)}
