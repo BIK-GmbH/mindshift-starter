@@ -97,6 +97,13 @@
     "edges": "Kanten",
     "reset": "Zurücksetzen",
     "depth": "Tiefe",
+    "settingsHeading": "Graph-Einstellungen",
+    "filtersHeading": "Filter",
+    "filterSource": "Quelle",
+    "filterTag": "Tag",
+    "displayHeading": "Darstellung",
+    "colorBy": "Farben nach",
+    "toolsHeading": "Werkzeuge",
     "isolated": {
       "title": "Diese Card hat noch keine Verbindungen.",
       "body": "Füge weitere Cards zum gleichen Thema hinzu (gleiche Tags, ähnlicher Inhalt) — die Verbindungen entstehen automatisch."
@@ -124,7 +131,8 @@
       "unlock": "Positionen freigeben"
     },
     "search": {
-      "placeholder": "Knoten suchen — ↑↓ zwischen Treffern springen"
+      "heading": "Suche",
+      "placeholder": "Knoten suchen — ↑↓ wechselt"
     },
     "focus": {
       "exit": "Focus verlassen",

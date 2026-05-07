@@ -97,6 +97,13 @@
     "edges": "edges",
     "reset": "Reset",
     "depth": "Depth",
+    "settingsHeading": "Graph Settings",
+    "filtersHeading": "Filters",
+    "filterSource": "Source",
+    "filterTag": "Tag",
+    "displayHeading": "Display",
+    "colorBy": "Color by",
+    "toolsHeading": "Tools",
     "isolated": {
       "title": "This card has no connections yet.",
       "body": "Add more cards on related topics (shared tags or similar content) — connections form automatically."
@@ -124,7 +131,8 @@
       "unlock": "Unlock positions"
     },
     "search": {
-      "placeholder": "Search nodes — ↑↓ to cycle matches"
+      "heading": "Search",
+      "placeholder": "Search nodes — ↑↓ to cycle"
     },
     "focus": {
       "exit": "Exit focus",

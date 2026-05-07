@@ -288,226 +288,277 @@ export default function GraphPage() {
   const currentMatchId = currentMatch?.id ?? null;
 
   return (
-    <div className="mx-auto flex h-full max-w-6xl flex-col p-8">
-      <header className="mb-3 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("graph.global.title")}</h1>
-          <p className="text-sm text-ink-300">{t("graph.global.subtitle")}</p>
+    <div className="flex h-full">
+      {/* Context sidebar — Recall-style graph settings */}
+      <aside className="flex w-72 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
+        <div className="flex-shrink-0 border-b border-ink-800 px-4 py-3">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
+            {t("graph.settingsHeading")}
+          </h2>
         </div>
-      </header>
+        <div className="flex-1 space-y-6 overflow-y-auto p-4">
+          {/* Search */}
+          <SidebarSection title={t("graph.search.heading")}>
+            <div className="relative" onKeyDown={onCanvasKeyDown}>
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-400" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setMatchIndex(0);
+                }}
+                onKeyDown={onCanvasKeyDown}
+                placeholder={t("graph.search.placeholder") ?? ""}
+                className="w-full rounded-md border border-ink-700 bg-ink-800/60 py-1.5 pl-8 pr-2 text-xs focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+              />
+              {matches.length > 0 && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-ink-400">
+                  {matchIndex + 1} / {matches.length}
+                </span>
+              )}
+            </div>
+          </SidebarSection>
 
-      {/* Filter bar */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-md bg-ink-700 p-1 text-xs">
-          {sourceTypes.map((opt) => (
-            <button
-              key={opt.value || "all"}
-              type="button"
-              onClick={() => setSourceType(opt.value)}
-              className={[
-                "rounded px-2 py-1 transition",
-                sourceType === opt.value
-                  ? "bg-ink-100 text-ink-900"
-                  : "text-ink-200 hover:bg-ink-600",
-              ].join(" ")}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+          {/* Filters */}
+          <SidebarSection title={t("graph.filtersHeading")}>
+            <div className="space-y-2.5">
+              <div>
+                <label className="mb-1 block text-[10px] uppercase tracking-wider text-ink-500">
+                  {t("graph.filterSource")}
+                </label>
+                <div className="grid grid-cols-2 gap-1 rounded-md bg-ink-700/50 p-0.5 text-[11px]">
+                  {sourceTypes.map((opt) => (
+                    <button
+                      key={opt.value || "all"}
+                      type="button"
+                      onClick={() => setSourceType(opt.value)}
+                      className={[
+                        "rounded px-2 py-1 transition",
+                        sourceType === opt.value
+                          ? "bg-ink-100 text-ink-900"
+                          : "text-ink-200 hover:bg-ink-600",
+                      ].join(" ")}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-        <div className="relative inline-flex items-center">
-          <select
-            value={tag}
-            onChange={(e) => setTag(e.target.value)}
-            className="appearance-none rounded border border-ink-600 bg-ink-800 px-2 py-1 pr-6 text-xs text-ink-100 focus:outline-none focus:ring-1 focus:ring-ink-300"
-          >
-            <option value="">{t("graph.filter.allTags")}</option>
-            {tagOptions.map((t2) => (
-              <option key={t2.name} value={t2.name}>
-                #{t2.name} ({t2.count})
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-1.5 h-3 w-3 text-ink-300" />
-        </div>
+              <div>
+                <label className="mb-1 block text-[10px] uppercase tracking-wider text-ink-500">
+                  {t("graph.filterTag")}
+                </label>
+                <div className="relative">
+                  <select
+                    value={tag}
+                    onChange={(e) => setTag(e.target.value)}
+                    className="w-full appearance-none rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1.5 pr-7 text-xs text-ink-100 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+                  >
+                    <option value="">{t("graph.filter.allTags")}</option>
+                    {tagOptions.map((t2) => (
+                      <option key={t2.name} value={t2.name}>
+                        #{t2.name} ({t2.count})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-300" />
+                </div>
+              </div>
 
-        <button
-          type="button"
-          onClick={() => setHideIsolated((v) => !v)}
-          className={[
-            "inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs",
-            hideIsolated ? "bg-ink-700 text-ink-100" : "text-ink-300 hover:bg-ink-700",
-          ].join(" ")}
-        >
-          <EyeOff className="h-3 w-3" />
-          {t("graph.filter.hideIsolated")}
-        </button>
-
-        <div className="ml-auto flex gap-1 rounded-md bg-ink-700 p-1 text-xs">
-          <button
-            type="button"
-            onClick={() => setColorMode("source")}
-            className={[
-              "rounded px-2 py-1 transition",
-              colorMode === "source"
-                ? "bg-ink-100 text-ink-900"
-                : "text-ink-200 hover:bg-ink-600",
-            ].join(" ")}
-          >
-            {t("graph.color.source")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setColorMode("tag")}
-            className={[
-              "rounded px-2 py-1 transition",
-              colorMode === "tag" ? "bg-ink-100 text-ink-900" : "text-ink-200 hover:bg-ink-600",
-            ].join(" ")}
-          >
-            {t("graph.color.tag")}
-          </button>
-        </div>
-      </div>
-
-      {/* Search + focus breadcrumb */}
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <div className="relative flex flex-1 items-center" onKeyDown={onCanvasKeyDown}>
-          <SearchIcon className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-ink-400" />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setMatchIndex(0);
-            }}
-            onKeyDown={onCanvasKeyDown}
-            placeholder={t("graph.search.placeholder") ?? ""}
-            className="w-full rounded border border-ink-600 bg-ink-800 py-1.5 pl-7 pr-2 text-xs focus:outline-none focus:ring-1 focus:ring-ink-300"
-          />
-          {matches.length > 0 && (
-            <span className="ml-2 text-[10px] text-ink-300">
-              {matchIndex + 1} / {matches.length}
-            </span>
-          )}
-        </div>
-        {focusedNodeId && (
-          <button
-            type="button"
-            onClick={exitFocus}
-            className="inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs text-ink-200 hover:bg-ink-700"
-          >
-            <ArrowLeft className="h-3 w-3" />
-            {t("graph.focus.exit")}
-          </button>
-        )}
-      </div>
-
-      {/* Path-finder + Timeline toggles */}
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setPathMode((v) => !v);
-            setPathFrom(null);
-            setPathTo(null);
-            setPathResult([]);
-            setPathError(null);
-          }}
-          className={[
-            "inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs",
-            pathMode ? "bg-ink-700 text-ink-100" : "text-ink-300 hover:bg-ink-700",
-          ].join(" ")}
-        >
-          <Route className="h-3 w-3" />
-          {t("graph.path.toggle")}
-        </button>
-        {pathMode && (
-          <span className="text-[10px] text-ink-300">
-            {!pathFrom
-              ? t("graph.path.pickFrom")
-              : !pathTo
-              ? t("graph.path.pickTo")
-              : pathError
-              ? pathError
-              : pathResult.length > 0
-              ? `${pathResult.length - 1} ${t("graph.path.hops")}`
-              : t("common.loading")}
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={() => setTimelineEnabled((v) => !v)}
-          className={[
-            "inline-flex items-center gap-1 rounded border border-ink-600 px-2 py-1 text-xs",
-            timelineEnabled ? "bg-ink-700 text-ink-100" : "text-ink-300 hover:bg-ink-700",
-          ].join(" ")}
-        >
-          <Clock className="h-3 w-3" />
-          {t("graph.timeline.toggle")}
-        </button>
-        {timelineEnabled && (
-          <>
-            <input
-              type="datetime-local"
-              value={createdAfter}
-              onChange={(e) => setCreatedAfter(e.target.value)}
-              className="rounded border border-ink-600 bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-100"
-            />
-            <span className="text-[10px] text-ink-400">→</span>
-            <input
-              type="datetime-local"
-              value={createdBefore}
-              onChange={(e) => setCreatedBefore(e.target.value)}
-              className="rounded border border-ink-600 bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-100"
-            />
-          </>
-        )}
-      </div>
-
-      {/* Focus breadcrumb */}
-      {focusBreadcrumb.length > 0 && (
-        <div className="mb-2 flex flex-wrap items-center gap-1 text-[10px] text-ink-300">
-          <span className="text-ink-400">{t("graph.focus.path")}:</span>
-          {focusBreadcrumb.map((b, i) => (
-            <span key={b.id} className="flex items-center gap-1">
-              {i > 0 && <span className="text-ink-500">›</span>}
               <button
                 type="button"
-                onClick={() => focusStep(b.id)}
+                onClick={() => setHideIsolated((v) => !v)}
                 className={[
-                  "rounded px-1.5 py-0.5",
-                  focusedNodeId === b.id ? "bg-ink-700 text-ink-100" : "hover:bg-ink-700",
+                  "flex w-full items-center justify-between rounded-md border border-ink-700 px-2.5 py-1.5 text-[11px] transition",
+                  hideIsolated ? "bg-ink-700/70 text-ink-100" : "text-ink-300 hover:bg-ink-800",
                 ].join(" ")}
               >
-                {b.title.length > 30 ? b.title.slice(0, 30) + "…" : b.title}
+                <span className="inline-flex items-center gap-1.5">
+                  <EyeOff className="h-3 w-3" />
+                  {t("graph.filter.hideIsolated")}
+                </span>
+                <span
+                  className={[
+                    "h-3 w-6 rounded-full p-[2px] transition",
+                    hideIsolated ? "bg-ink-100" : "bg-ink-700",
+                  ].join(" ")}
+                >
+                  <span
+                    className={[
+                      "block h-2 w-2 rounded-full bg-ink-900 transition",
+                      hideIsolated ? "translate-x-3" : "translate-x-0",
+                    ].join(" ")}
+                  />
+                </span>
               </button>
-            </span>
-          ))}
-        </div>
-      )}
+            </div>
+          </SidebarSection>
 
-      <div className="mb-2 flex items-center gap-3 text-xs text-ink-400">
-        <span>
-          {graphData.nodes.length} {t("graph.nodes")} · {graphData.links.length} {t("graph.edges")}
-        </span>
-        {colorMode === "source" && (
-          <span className="ml-auto inline-flex items-center gap-3">
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full" style={{ background: SOURCE_COLORS.youtube }} />
-              YouTube
+          {/* Display */}
+          <SidebarSection title={t("graph.displayHeading")}>
+            <label className="mb-1 block text-[10px] uppercase tracking-wider text-ink-500">
+              {t("graph.colorBy")}
+            </label>
+            <div className="grid grid-cols-2 gap-1 rounded-md bg-ink-700/50 p-0.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setColorMode("source")}
+                className={[
+                  "rounded px-2 py-1 transition",
+                  colorMode === "source"
+                    ? "bg-ink-100 text-ink-900"
+                    : "text-ink-200 hover:bg-ink-600",
+                ].join(" ")}
+              >
+                {t("graph.color.source")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setColorMode("tag")}
+                className={[
+                  "rounded px-2 py-1 transition",
+                  colorMode === "tag" ? "bg-ink-100 text-ink-900" : "text-ink-200 hover:bg-ink-600",
+                ].join(" ")}
+              >
+                {t("graph.color.tag")}
+              </button>
+            </div>
+            {colorMode === "source" && (
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink-400">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full" style={{ background: SOURCE_COLORS.youtube }} />
+                  YouTube
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full" style={{ background: SOURCE_COLORS.article }} />
+                  Article
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full" style={{ background: SOURCE_COLORS.pdf }} />
+                  PDF
+                </span>
+              </div>
+            )}
+          </SidebarSection>
+
+          {/* Tools */}
+          <SidebarSection title={t("graph.toolsHeading")}>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPathMode((v) => !v);
+                  setPathFrom(null);
+                  setPathTo(null);
+                  setPathResult([]);
+                  setPathError(null);
+                }}
+                className={[
+                  "flex w-full items-center gap-1.5 rounded-md border border-ink-700 px-2.5 py-1.5 text-[11px] transition",
+                  pathMode ? "bg-ink-700/70 text-ink-100" : "text-ink-300 hover:bg-ink-800",
+                ].join(" ")}
+              >
+                <Route className="h-3 w-3" />
+                {t("graph.path.toggle")}
+              </button>
+              {pathMode && (
+                <p className="text-[10px] text-ink-300">
+                  {!pathFrom
+                    ? t("graph.path.pickFrom")
+                    : !pathTo
+                    ? t("graph.path.pickTo")
+                    : pathError
+                    ? pathError
+                    : pathResult.length > 0
+                    ? `${pathResult.length - 1} ${t("graph.path.hops")}`
+                    : t("common.loading")}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setTimelineEnabled((v) => !v)}
+                className={[
+                  "flex w-full items-center gap-1.5 rounded-md border border-ink-700 px-2.5 py-1.5 text-[11px] transition",
+                  timelineEnabled ? "bg-ink-700/70 text-ink-100" : "text-ink-300 hover:bg-ink-800",
+                ].join(" ")}
+              >
+                <Clock className="h-3 w-3" />
+                {t("graph.timeline.toggle")}
+              </button>
+              {timelineEnabled && (
+                <div className="space-y-1">
+                  <input
+                    type="datetime-local"
+                    value={createdAfter}
+                    onChange={(e) => setCreatedAfter(e.target.value)}
+                    className="w-full rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1 text-[10px] text-ink-100"
+                  />
+                  <span className="block text-center text-[10px] text-ink-500">→</span>
+                  <input
+                    type="datetime-local"
+                    value={createdBefore}
+                    onChange={(e) => setCreatedBefore(e.target.value)}
+                    className="w-full rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1 text-[10px] text-ink-100"
+                  />
+                </div>
+              )}
+            </div>
+          </SidebarSection>
+
+          {/* Stats footer */}
+          <div className="mt-auto border-t border-ink-800 pt-3 text-[10px] text-ink-400">
+            <span>
+              <span className="font-medium tabular-nums text-ink-200">{graphData.nodes.length}</span>{" "}
+              {t("graph.nodes")} ·{" "}
+              <span className="font-medium tabular-nums text-ink-200">{graphData.links.length}</span>{" "}
+              {t("graph.edges")}
             </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full" style={{ background: SOURCE_COLORS.article }} />
-              Article
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full" style={{ background: SOURCE_COLORS.pdf }} />
-              PDF
-            </span>
-          </span>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <div className="flex flex-1 min-w-0 flex-col p-6">
+        <header className="mb-3 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink-100">{t("graph.global.title")}</h1>
+            <p className="text-sm text-ink-400">{t("graph.global.subtitle")}</p>
+          </div>
+          {focusedNodeId && (
+            <button
+              type="button"
+              onClick={exitFocus}
+              className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-2.5 py-1.5 text-xs text-ink-200 hover:bg-ink-800"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              {t("graph.focus.exit")}
+            </button>
+          )}
+        </header>
+
+        {/* Focus breadcrumb */}
+        {focusBreadcrumb.length > 0 && (
+          <div className="mb-2 flex flex-wrap items-center gap-1 text-[10px] text-ink-300">
+            <span className="text-ink-400">{t("graph.focus.path")}:</span>
+            {focusBreadcrumb.map((b, i) => (
+              <span key={b.id} className="flex items-center gap-1">
+                {i > 0 && <span className="text-ink-500">›</span>}
+                <button
+                  type="button"
+                  onClick={() => focusStep(b.id)}
+                  className={[
+                    "rounded px-1.5 py-0.5",
+                    focusedNodeId === b.id ? "bg-ink-700 text-ink-100" : "hover:bg-ink-800",
+                  ].join(" ")}
+                >
+                  {b.title.length > 30 ? b.title.slice(0, 30) + "…" : b.title}
+                </button>
+              </span>
+            ))}
+          </div>
         )}
-      </div>
 
       <div
         ref={containerRef}
@@ -752,9 +803,21 @@ export default function GraphPage() {
             <GraphCardDrawer cardId={drawerCardId} onClose={() => setDrawerCardId(null)} />
           </>
         )}
-      </div>
+        </div>
 
-      <p className="mt-2 text-[10px] text-ink-500">{t("graph.global.hint2")}</p>
+        <p className="mt-2 text-[10px] text-ink-500">{t("graph.global.hint2")}</p>
+      </div>
     </div>
+  );
+}
+
+function SidebarSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+        {title}
+      </h3>
+      {children}
+    </section>
   );
 }
