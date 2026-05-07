@@ -37,6 +37,7 @@ from app.models.tag import CardTag, Tag
 W_SEMANTIC = 0.5
 W_ENTITY = 0.3
 W_TAG = 0.15
+W_TAG_ANCESTOR = 0.05  # bonus for cards under the same parent subtree (no direct tag overlap)
 W_RELATION = 0.05
 
 
@@ -99,6 +100,7 @@ def get_connections(
     _accumulate_semantic(db, source, candidates, user_id)
     _accumulate_shared_entities(db, source, candidates, user_id)
     _accumulate_shared_tags(db, source, candidates, user_id)
+    _accumulate_shared_tag_ancestors(db, source, candidates, user_id)
     _accumulate_manual_relations(db, source, candidates, user_id)
 
     ordered = sorted(candidates.values(), key=lambda c: c.score, reverse=True)[:limit]
@@ -411,6 +413,116 @@ def _accumulate_shared_tags(
         conn.reasons.append(
             Reason(kind="tag", label=f"tags: {sample}{suffix}", weight=contribution)
         )
+
+
+def _accumulate_shared_tag_ancestors(
+    db: Session, source: Card, out: dict[UUID, Connection], user_id: UUID
+) -> None:
+    """Bonus for cards under the same parent subtree, when no direct tag overlap exists.
+
+    If two cards already share a leaf tag they get the full `_accumulate_shared_tags`
+    score — no need to double-count. This accumulator only fires when both sides have
+    DIFFERENT direct tags but those tags share at least one ancestor.
+
+    Example: card A tagged `Finance/Investment`, card B tagged `Finance/Banking`.
+    They have no direct tag overlap, but both live under `Finance` — so this
+    contributes a small `W_TAG_ANCESTOR` bump.
+    """
+    source_tag_ids: set[UUID] = {
+        tid
+        for (tid,) in db.execute(
+            select(CardTag.tag_id).where(CardTag.card_id == source.id)
+        ).all()
+    }
+    if not source_tag_ids:
+        return
+
+    ancestors_map = _build_ancestors_map(db, user_id)
+    source_ancestors: set[UUID] = set()
+    for tid in source_tag_ids:
+        source_ancestors |= ancestors_map.get(tid, set())
+    source_ancestors.difference_update(source_tag_ids)
+    if not source_ancestors:
+        return
+
+    # All other cards' direct tags
+    cand_tag_rows = db.execute(
+        select(CardTag.card_id, CardTag.tag_id)
+        .join(Card, Card.id == CardTag.card_id)
+        .where(Card.user_id == user_id)
+        .where(Card.id != source.id)
+    ).all()
+    cand_tags_map: dict[UUID, set[UUID]] = {}
+    for cid, tid in cand_tag_rows:
+        cand_tags_map.setdefault(cid, set()).add(tid)
+    if not cand_tags_map:
+        return
+
+    tag_names = dict(
+        db.execute(select(Tag.id, Tag.name).where(Tag.user_id == user_id)).all()
+    )
+
+    for cand_id, cand_tags in cand_tags_map.items():
+        if cand_tags & source_tag_ids:
+            continue  # direct overlap — handled by _accumulate_shared_tags
+
+        cand_ancestors: set[UUID] = set()
+        for tid in cand_tags:
+            cand_ancestors |= ancestors_map.get(tid, set())
+
+        # Common ancestor IDs across the two cards' full hierarchies.
+        source_full = source_tag_ids | source_ancestors
+        cand_full = cand_tags | cand_ancestors
+        shared = (source_full & cand_full)
+        if not shared:
+            continue
+
+        contribution = math.tanh(len(shared) / 2) * W_TAG_ANCESTOR
+        if contribution < 0.005:
+            continue
+
+        card = db.get(Card, cand_id)
+        if card is None:
+            continue
+        conn = _ensure(out, card)
+        conn.score += contribution
+
+        sample_names = sorted(
+            tag_names.get(tid, "?") for tid in list(shared)[:2]
+        )
+        conn.reasons.append(
+            Reason(
+                kind="hierarchy",
+                label=f"shares parent: {', '.join(sample_names)}",
+                weight=contribution,
+            )
+        )
+
+
+def _build_ancestors_map(db: Session, user_id: UUID) -> dict[UUID, set[UUID]]:
+    """For each tag of `user_id`, the set of all transitive ancestor tag IDs."""
+    rows = db.execute(
+        select(Tag.id, Tag.parent_id).where(Tag.user_id == user_id)
+    ).all()
+    parents: dict[UUID, UUID | None] = {tid: pid for tid, pid in rows}
+    cache: dict[UUID, set[UUID]] = {}
+
+    def ancestors(tid: UUID) -> set[UUID]:
+        if tid in cache:
+            return cache[tid]
+        out: set[UUID] = set()
+        cursor = parents.get(tid)
+        seen: set[UUID] = set()
+        while cursor is not None and cursor not in seen:
+            out.add(cursor)
+            seen.add(cursor)
+            cursor = parents.get(cursor)
+        cache[tid] = out
+        return out
+
+    for tid in parents:
+        ancestors(tid)
+    return cache
 
 
 def _accumulate_manual_relations(
