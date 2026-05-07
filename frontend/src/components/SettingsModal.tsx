@@ -1,28 +1,35 @@
 import {
+  ChevronRight,
   Github,
+  Hash,
   HelpCircle,
   Languages,
   LogOut,
   Mail,
   Monitor,
   Moon,
+  Pencil,
+  Plus,
   SlidersHorizontal,
   Sun,
+  Trash2,
   UserRound,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../lib/AuthContext";
 import { useSettingsModal } from "../lib/SettingsModalContext";
 import { useTheme } from "../lib/ThemeContext";
+import { api, type TagWithCount } from "../lib/api";
 
-type SettingsTab = "account" | "appearance" | "about";
+type SettingsTab = "account" | "appearance" | "tags" | "about";
 
 const tabs: { id: SettingsTab; labelKey: string; Icon: typeof UserRound }[] = [
   { id: "account", labelKey: "settings.tab.account", Icon: UserRound },
   { id: "appearance", labelKey: "settings.tab.appearance", Icon: SlidersHorizontal },
+  { id: "tags", labelKey: "settings.tab.tags", Icon: Hash },
   { id: "about", labelKey: "settings.tab.about", Icon: HelpCircle },
 ];
 
@@ -105,6 +112,7 @@ export default function SettingsModal() {
           <div className="flex-1 overflow-y-auto px-6 py-6">
             {active === "account" && <AccountTab />}
             {active === "appearance" && <AppearanceTab />}
+            {active === "tags" && <TagsTab />}
             {active === "about" && <AboutTab />}
           </div>
         </div>
@@ -246,6 +254,197 @@ function ThemeChoice({
       <span>{label}</span>
     </button>
   );
+}
+
+function TagsTab() {
+  const { t } = useTranslation();
+  const [tags, setTags] = useState<TagWithCount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const list = await api.listTags();
+      setTags(list);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const tree = useMemo(() => buildTagTree(tags), [tags]);
+
+  const onCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newName.trim();
+    if (!name) return;
+    await api.createTag(name);
+    setNewName("");
+    void refresh();
+  };
+
+  const onRename = async (tag: TagWithCount) => {
+    const next = window.prompt(t("settings.tags.renamePrompt") ?? "Rename to:", tag.name);
+    if (!next || next.trim() === tag.name) return;
+    await api.updateTag(tag.id, { name: next.trim() });
+    void refresh();
+  };
+
+  const onDelete = async (tag: TagWithCount) => {
+    if (
+      !window.confirm(
+        (t("settings.tags.confirmDelete") ?? "Delete tag") + ` “${tag.name}”?`,
+      )
+    )
+      return;
+    await api.deleteTag(tag.id);
+    void refresh();
+  };
+
+  const onChangeParent = async (tag: TagWithCount, parentId: string | null) => {
+    await api.updateTag(tag.id, { parent_id: parentId });
+    void refresh();
+  };
+
+  return (
+    <section className="space-y-4">
+      <p className="text-xs text-ink-400">{t("settings.tags.subtitle")}</p>
+
+      <form onSubmit={onCreate} className="flex gap-2">
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder={t("tags.newTagPlaceholder") ?? ""}
+          className="flex-1 rounded-md border border-ink-700 bg-ink-900/40 px-3 py-1.5 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+        />
+        <button
+          type="submit"
+          disabled={!newName.trim()}
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-sm font-medium text-ink-900 transition hover:bg-white disabled:opacity-50"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t("settings.tags.add")}
+        </button>
+      </form>
+
+      {error && (
+        <p className="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>
+      )}
+
+      {loading ? (
+        <p className="text-xs text-ink-400">{t("common.loading")}</p>
+      ) : tags.length === 0 ? (
+        <p className="rounded-md border border-dashed border-ink-700 px-4 py-6 text-center text-xs text-ink-400">
+          {t("settings.tags.empty")}
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-ink-700">
+          <table className="w-full text-sm">
+            <thead className="border-b border-ink-700 bg-ink-900/40 text-[10px] uppercase tracking-wider text-ink-500">
+              <tr>
+                <th className="px-3 py-2 text-left">{t("settings.tags.name")}</th>
+                <th className="px-3 py-2 text-left">{t("settings.tags.parent")}</th>
+                <th className="px-3 py-2 text-right">{t("settings.tags.cards")}</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {tree.map(({ tag, depth }) => (
+                <tr key={tag.id} className="border-t border-ink-800">
+                  <td className="px-3 py-2">
+                    <span style={{ paddingLeft: depth * 16 }} className="inline-flex items-center gap-1.5 text-ink-100">
+                      {depth > 0 && <ChevronRight className="h-3 w-3 text-ink-500" />}
+                      <Hash className="h-3 w-3 text-ink-400" />
+                      {tag.name}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-ink-300">
+                    <select
+                      value={tag.parent_id ?? ""}
+                      onChange={(e) => void onChangeParent(tag, e.target.value || null)}
+                      className="rounded-md border border-ink-700 bg-ink-900/40 px-2 py-0.5 text-xs text-ink-200"
+                    >
+                      <option value="">—</option>
+                      {tags
+                        .filter((other) => other.id !== tag.id && !isDescendant(tags, other.id, tag.id))
+                        .map((other) => (
+                          <option key={other.id} value={other.id}>
+                            {other.name}
+                          </option>
+                        ))}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink-300">{tag.count}</td>
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void onRename(tag)}
+                        className="rounded p-1 text-ink-400 hover:bg-ink-700/40 hover:text-ink-100"
+                        title={t("settings.tags.rename") ?? ""}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onDelete(tag)}
+                        className="rounded p-1 text-ink-400 hover:bg-red-500/10 hover:text-red-300"
+                        title={t("settings.tags.delete") ?? ""}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+interface FlatTagRow {
+  tag: TagWithCount;
+  depth: number;
+}
+
+function buildTagTree(tags: TagWithCount[]): FlatTagRow[] {
+  const byParent = new Map<string | null, TagWithCount[]>();
+  for (const t of tags) {
+    const key = t.parent_id ?? null;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key)!.push(t);
+  }
+  const result: FlatTagRow[] = [];
+  const walk = (parentId: string | null, depth: number) => {
+    const children = (byParent.get(parentId) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
+    for (const c of children) {
+      result.push({ tag: c, depth });
+      walk(c.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return result;
+}
+
+function isDescendant(tags: TagWithCount[], candidateId: string, ancestorId: string): boolean {
+  const byId = new Map(tags.map((t) => [t.id, t]));
+  let cur = byId.get(candidateId);
+  while (cur && cur.parent_id) {
+    if (cur.parent_id === ancestorId) return true;
+    cur = byId.get(cur.parent_id);
+  }
+  return false;
 }
 
 function AboutTab() {

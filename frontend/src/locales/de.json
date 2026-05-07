@@ -81,7 +81,20 @@
     "tab": {
       "account": "Account",
       "appearance": "Erscheinungsbild",
+      "tags": "Tags",
       "about": "Über"
+    },
+    "tags": {
+      "subtitle": "Verwalte deine Tag-Hierarchie. Umbenennen, verschieben oder löschen.",
+      "add": "Anlegen",
+      "rename": "Umbenennen",
+      "delete": "Löschen",
+      "name": "Name",
+      "parent": "Übergeordnet",
+      "cards": "Cards",
+      "renamePrompt": "Umbenennen in:",
+      "confirmDelete": "Tag löschen",
+      "empty": "Noch keine Tags. Lege oben den ersten an."
     },
     "appearance": {
       "theme": "Theme",

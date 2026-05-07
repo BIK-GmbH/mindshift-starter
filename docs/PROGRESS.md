@@ -16,8 +16,8 @@ commit + push and a verified browser test.
 | 1 | ✅ | **Light-mode polish** — tuned the light ink scale for more contrast in mid-tones; theme-aware graph canvas backgrounds (CardGraph, GraphPage). |
 | 2 | ✅ | **Graph context sidebar** — Recall-style left sidebar with Search / Filters (source, tag, hide-isolated) / Display (color-by + legend) / Tools (path, timeline) / Stats footer. |
 | 3 | ✅ | **Chat conversation history** — backend `chat_sessions` + `chat_messages` tables (migration 0005), CRUD endpoints under `/api/chat/sessions`, persistence wired into both `/api/chat` and `/api/cards/{id}/chat`. ChatPage now has a Recall-style sidebar grouping sessions by day; click loads a conversation, delete removes it. |
-| 4 | 🟡 | **Tag manager page** — under settings or as standalone route; list all user tags as a tree, allow rename / move / delete, show card-counts per tag. |
-| 5 | ⬜ | **Bulk re-tag** — CLI script (`backend/scripts/retag_existing.py`) that re-runs the OpenAI tagging step on already-completed cards, using the new hierarchical-tag prompt and the user's existing top-level tags as context. |
+| 4 | ✅ | **Tag manager** — new "Tags" tab in the settings modal. Lists all tags hierarchically with card-counts; supports add (form), rename (prompt), parent-reparent (select with cycle prevention), and delete (confirm). |
+| 5 | 🟡 | **Bulk re-tag** — CLI script (`backend/scripts/retag_existing.py`) that re-runs the OpenAI tagging step on already-completed cards, using the new hierarchical-tag prompt and the user's existing top-level tags as context. |
 | 6 | ⬜ | **KB Markdown export** — `/api/export/markdown` endpoint that streams a ZIP of one Markdown file per card, organised in folders matching the tag hierarchy. Frontend trigger in Settings → Account → Export. |
 
 ## Working agreement

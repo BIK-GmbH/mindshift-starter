@@ -81,7 +81,20 @@
     "tab": {
       "account": "Account",
       "appearance": "Appearance",
+      "tags": "Tags",
       "about": "About"
+    },
+    "tags": {
+      "subtitle": "Manage your tag hierarchy. Rename, move, or delete tags here.",
+      "add": "Add",
+      "rename": "Rename",
+      "delete": "Delete",
+      "name": "Name",
+      "parent": "Parent",
+      "cards": "Cards",
+      "renamePrompt": "Rename to:",
+      "confirmDelete": "Delete tag",
+      "empty": "No tags yet. Add your first one above."
     },
     "appearance": {
       "theme": "Theme",
