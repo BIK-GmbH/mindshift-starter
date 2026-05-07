@@ -54,6 +54,7 @@ class Connection:
     thumbnail_url: str | None
     score: float
     reasons: list[Reason] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -62,6 +63,8 @@ class GraphNode:
     title: str
     source_type: str
     thumbnail_url: str | None
+    tags: list[str] = field(default_factory=list)
+    degree: int = 0
 
 
 @dataclass(slots=True)
@@ -97,8 +100,14 @@ def get_connections(
     _accumulate_shared_tags(db, source, candidates, user_id)
     _accumulate_manual_relations(db, source, candidates, user_id)
 
-    ordered = sorted(candidates.values(), key=lambda c: c.score, reverse=True)
-    return ordered[:limit]
+    ordered = sorted(candidates.values(), key=lambda c: c.score, reverse=True)[:limit]
+
+    # Bulk-fetch tags for the returned candidates so the UI can colour them.
+    if ordered:
+        tag_map = _bulk_card_tags(db, [c.card_id for c in ordered])
+        for conn in ordered:
+            conn.tags = tag_map.get(conn.card_id, [])
+    return ordered
 
 
 def get_global_graph(
@@ -132,11 +141,18 @@ def get_global_graph(
     if not cards:
         return GraphView(nodes=[], edges=[])
 
+    tags_by_card = _bulk_card_tags(db, [c.id for c in cards])
     visible_ids: set[UUID] = {c.id for c in cards}
-    nodes = [
-        GraphNode(id=c.id, title=c.title, source_type=c.source_type, thumbnail_url=c.thumbnail_url)
+    nodes_by_id: dict[UUID, GraphNode] = {
+        c.id: GraphNode(
+            id=c.id,
+            title=c.title,
+            source_type=c.source_type,
+            thumbnail_url=c.thumbnail_url,
+            tags=tags_by_card.get(c.id, []),
+        )
         for c in cards
-    ]
+    }
 
     edges: dict[tuple[str, str], GraphEdge] = {}
     for card in cards:
@@ -159,7 +175,30 @@ def get_global_graph(
                     reasons=conn.reasons,
                 )
 
-    return GraphView(nodes=nodes, edges=list(edges.values()))
+    # Compute node degree from the deduped edges
+    for edge in edges.values():
+        if edge.source in nodes_by_id:
+            nodes_by_id[edge.source].degree += 1
+        if edge.target in nodes_by_id:
+            nodes_by_id[edge.target].degree += 1
+
+    return GraphView(nodes=list(nodes_by_id.values()), edges=list(edges.values()))
+
+
+def _bulk_card_tags(db: Session, card_ids: list[UUID]) -> dict[UUID, list[str]]:
+    """Fetch tags for many cards in one round-trip."""
+    if not card_ids:
+        return {}
+    rows = db.execute(
+        select(CardTag.card_id, Tag.name)
+        .join(Tag, Tag.id == CardTag.tag_id)
+        .where(CardTag.card_id.in_(card_ids))
+        .order_by(CardTag.card_id, Tag.name)
+    ).all()
+    out: dict[UUID, list[str]] = {}
+    for cid, name in rows:
+        out.setdefault(cid, []).append(name)
+    return out
 
 
 # --- accumulators -----------------------------------------------------------

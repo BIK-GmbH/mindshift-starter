@@ -34,6 +34,8 @@ def global_graph(
                 title=n.title,
                 source_type=n.source_type,
                 thumbnail_url=n.thumbnail_url,
+                tags=n.tags,
+                degree=n.degree,
             )
             for n in view.nodes
         ],

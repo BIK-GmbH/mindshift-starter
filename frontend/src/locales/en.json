@@ -71,6 +71,19 @@
     "filter": {
       "all": "All"
     },
+    "color": {
+      "source": "By source",
+      "tag": "By tag"
+    },
+    "controls": {
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "fit": "Fit to view"
+    },
+    "drawer": {
+      "title": "Card preview",
+      "openCard": "Open card"
+    },
     "empty": {
       "title": "No cards yet",
       "body": "Add a few cards to your library — the graph will show their connections."

@@ -343,6 +343,7 @@ def card_connections(
             title=c.title,
             source_type=c.source_type,
             thumbnail_url=c.thumbnail_url,
+            tags=c.tags,
             score=c.score,
             reasons=[ReasonOut(kind=r.kind, label=r.label, weight=r.weight) for r in c.reasons],
         )

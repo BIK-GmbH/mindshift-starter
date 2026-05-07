@@ -202,6 +202,8 @@ export interface GraphNode {
   title: string;
   source_type: string;
   thumbnail_url: string | null;
+  tags: string[];
+  degree: number;
 }
 
 export interface GraphEdge {
@@ -227,6 +229,7 @@ export interface Connection {
   title: string;
   source_type: string;
   thumbnail_url: string | null;
+  tags: string[];
   score: number;
   reasons: ConnectionReason[];
 }

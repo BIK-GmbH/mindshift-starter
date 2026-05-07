@@ -14,6 +14,7 @@ class ConnectionOut(BaseModel):
     title: str
     source_type: str
     thumbnail_url: str | None = None
+    tags: list[str] = []
     score: float
     reasons: list[ReasonOut]
 
@@ -23,6 +24,8 @@ class GraphNodeOut(BaseModel):
     title: str
     source_type: str
     thumbnail_url: str | None = None
+    tags: list[str] = []
+    degree: int = 0
 
 
 class GraphEdgeOut(BaseModel):

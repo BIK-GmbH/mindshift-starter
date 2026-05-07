@@ -71,6 +71,19 @@
     "filter": {
       "all": "Alle"
     },
+    "color": {
+      "source": "Nach Quelle",
+      "tag": "Nach Tag"
+    },
+    "controls": {
+      "zoomIn": "Reinzoomen",
+      "zoomOut": "Rauszoomen",
+      "fit": "Ansicht anpassen"
+    },
+    "drawer": {
+      "title": "Card-Vorschau",
+      "openCard": "Card öffnen"
+    },
     "empty": {
       "title": "Noch keine Cards",
       "body": "Füge ein paar Cards zur Bibliothek hinzu — der Graph zeigt dann ihre Verbindungen."
