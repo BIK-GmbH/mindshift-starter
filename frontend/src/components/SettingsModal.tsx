@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../lib/AuthContext";
+import { useDialog } from "../lib/DialogContext";
 import { useSettingsModal } from "../lib/SettingsModalContext";
 import { useTheme } from "../lib/ThemeContext";
 import { api, type TagWithCount } from "../lib/api";
@@ -308,6 +309,7 @@ function ThemeChoice({
 
 function TagsTab() {
   const { t } = useTranslation();
+  const { confirm, prompt } = useDialog();
   const [tags, setTags] = useState<TagWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -342,19 +344,31 @@ function TagsTab() {
   };
 
   const onRename = async (tag: TagWithCount) => {
-    const next = window.prompt(t("settings.tags.renamePrompt") ?? "Rename to:", tag.name);
-    if (!next || next.trim() === tag.name) return;
-    await api.updateTag(tag.id, { name: next.trim() });
+    const next = await prompt({
+      title: t("settings.tags.renameTitle", { defaultValue: "Rename tag" }),
+      body: t("settings.tags.renameBody", {
+        defaultValue: "Pick a new name. Cards stay attached to the tag.",
+      }),
+      defaultValue: tag.name,
+      confirmLabel: t("common.save"),
+    });
+    const trimmed = next?.trim();
+    if (!trimmed || trimmed === tag.name) return;
+    await api.updateTag(tag.id, { name: trimmed });
     void refresh();
   };
 
   const onDelete = async (tag: TagWithCount) => {
-    if (
-      !window.confirm(
-        (t("settings.tags.confirmDelete") ?? "Delete tag") + ` “${tag.name}”?`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: t("settings.tags.confirmDelete") + ` "${tag.name}"?`,
+      body: t("settings.tags.deleteBody", {
+        defaultValue:
+          "Cards keep their content but lose this tag. Children of the tag move up one level.",
+      }),
+      confirmLabel: t("common.delete"),
+      danger: true,
+    });
+    if (!ok) return;
     await api.deleteTag(tag.id);
     void refresh();
   };

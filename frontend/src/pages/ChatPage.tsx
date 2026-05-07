@@ -3,10 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import ChatPanel from "../components/ChatPanel";
+import { useDialog } from "../lib/DialogContext";
 import { api, type ChatSessionDetail, type ChatSessionItem } from "../lib/api";
 
 export default function ChatPage() {
   const { t } = useTranslation();
+  const { confirm } = useDialog();
   const [sessions, setSessions] = useState<ChatSessionItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<ChatSessionDetail | null>(null);
@@ -67,6 +69,18 @@ export default function ChatPage() {
   );
 
   const onDelete = async (id: string) => {
+    const target = sessions.find((s) => s.id === id);
+    const ok = await confirm({
+      title: t("chat.history.confirmDeleteTitle", { defaultValue: "Delete this conversation?" }),
+      body: t("chat.history.confirmDeleteBody", {
+        defaultValue: target
+          ? `“${target.title}” will be removed along with all its messages.`
+          : "This conversation and all its messages will be removed.",
+      }),
+      confirmLabel: t("common.delete"),
+      danger: true,
+    });
+    if (!ok) return;
     await api.deleteChatSession(id);
     if (activeId === id) startNew();
     void refreshSessions();

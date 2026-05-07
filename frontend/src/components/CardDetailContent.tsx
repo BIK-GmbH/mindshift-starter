@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import CardGraph from "./CardGraph";
 import ChatPanel from "./ChatPanel";
 import StatusBadge from "./StatusBadge";
+import { useDialog } from "../lib/DialogContext";
 import { api, type Card, type QuizQuestion } from "../lib/api";
 
 export type CardDetailTab =
@@ -64,6 +65,7 @@ export default function CardDetailContent({
   hideChatTab = false,
 }: Props) {
   const { t } = useTranslation();
+  const { confirm } = useDialog();
   const [card, setCard] = useState<Card | null>(null);
   const [tab, setTab] = useState<CardDetailTab>(initialTab);
   const [transcript, setTranscript] = useState<string | null>(null);
@@ -127,7 +129,16 @@ export default function CardDetailContent({
   };
 
   const handleDelete = async () => {
-    if (!confirm(t("common.delete") + "?")) return;
+    const ok = await confirm({
+      title: t("card.deleteTitle", { defaultValue: "Delete this card?" }),
+      body: t("card.deleteBody", {
+        defaultValue:
+          "This permanently removes the card, its transcript, summaries, notes and quiz items. The action cannot be undone.",
+      }),
+      confirmLabel: t("common.delete"),
+      danger: true,
+    });
+    if (!ok) return;
     await api.deleteCard(cardId);
     onBack();
   };
