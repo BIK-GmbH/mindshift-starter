@@ -1,4 +1,5 @@
 import {
+  ChevronDown,
   FileText,
   Globe,
   Hash,
@@ -76,6 +77,8 @@ export default function LibraryPage() {
   const tag = params.get("tag");
   const untaggedFilter = params.get("untagged") === "1";
   const selectedCardId = params.get("card");
+  const sourceFilter = params.get("src") ?? "";
+  const sort = (params.get("sort") as "newest" | "oldest" | "title" | null) ?? "newest";
   const [rightPaneOpen, setRightPaneOpen] = useState(() => {
     try {
       const v = localStorage.getItem(RIGHT_PANE_KEY);
@@ -95,6 +98,8 @@ export default function LibraryPage() {
       const list = await api.listCards({
         tag: tag ?? undefined,
         untagged: untaggedFilter || undefined,
+        source_type: sourceFilter || undefined,
+        sort,
       });
       setCards(list);
       setError(null);
@@ -103,7 +108,7 @@ export default function LibraryPage() {
     } finally {
       setLoading(false);
     }
-  }, [tag, untaggedFilter]);
+  }, [tag, untaggedFilter, sourceFilter, sort]);
 
   useEffect(() => {
     void fetchCards();
@@ -114,6 +119,13 @@ export default function LibraryPage() {
     next.delete("tag");
     next.delete("untagged");
     setParams(next);
+  };
+
+  const setSearchParam = (key: string, value: string | null) => {
+    const next = new URLSearchParams(params);
+    if (value === null || value === "") next.delete(key);
+    else next.set(key, value);
+    setParams(next, { replace: true });
   };
 
   useEffect(() => {
@@ -228,42 +240,14 @@ export default function LibraryPage() {
     <div className="flex h-full">
       <LibraryTagsSidebar />
       <div className="flex flex-1 min-w-0 flex-col">
-      {/* Sticky header */}
+      {/* Sticky header — toolbar layout (Variant C) */}
       <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/85 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-8 pb-4 pt-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-ink-100">
-                {t("nav.library")}
-              </h1>
-              <p className="mt-1 text-sm text-ink-400">{t("app.tagline")}</p>
-              {counts.total > 0 && (
-                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-400">
-                  <span>
-                    <span className="font-medium tabular-nums text-ink-200">{counts.total}</span>{" "}
-                    {t("library.stats.cards")}
-                  </span>
-                  {counts.completed > 0 && (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      {counts.completed} {t("library.stats.completed")}
-                    </span>
-                  )}
-                  {counts.inflight > 0 && (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
-                      {counts.inflight} {t("library.stats.processing")}
-                    </span>
-                  )}
-                  {counts.failed > 0 && (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                      {counts.failed} {t("library.stats.failed")}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+        <div className="mx-auto max-w-6xl px-8 pb-3 pt-5">
+          {/* Title row */}
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="text-2xl font-semibold tracking-tight text-ink-100">
+              {t("nav.library")}
+            </h1>
             <button
               type="button"
               onClick={() => setModalOpen(true)}
@@ -274,42 +258,103 @@ export default function LibraryPage() {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={openSearch}
-            className="mt-4 flex w-full items-center gap-2 rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2 text-left text-sm text-ink-500 transition hover:border-ink-500 hover:bg-ink-800/80"
-          >
-            <SearchIcon className="h-4 w-4 text-ink-500" />
-            <span className="flex-1">{t("library.search")}</span>
-            <kbd className="hidden rounded border border-ink-700 bg-ink-900/50 px-1.5 py-0.5 text-[10px] font-mono text-ink-400 sm:inline-block">
-              ⌘K
-            </kbd>
-          </button>
-
-          {(tag || untaggedFilter) && (
-            <div className="mt-3 flex items-center gap-2 text-[11px]">
-              <span className="text-ink-500">{t("library.filteredBy")}:</span>
-              {tag && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2.5 py-0.5 font-medium text-ink-100 ring-1 ring-ink-600">
-                  <Hash className="h-3 w-3 text-ink-300" />
-                  {tag}
-                </span>
+          {/* Stats row — compact, inline, dot-separated */}
+          {counts.total > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-ink-400">
+              <span>
+                <span className="font-medium tabular-nums text-ink-200">{counts.total}</span>{" "}
+                {t("library.stats.cards")}
+              </span>
+              {counts.completed > 0 && (
+                <>
+                  <span className="text-ink-600">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    {counts.completed} {t("library.stats.completed")}
+                  </span>
+                </>
               )}
-              {untaggedFilter && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2.5 py-0.5 font-medium italic text-ink-100 ring-1 ring-ink-600">
-                  {t("tags.untagged")}
-                </span>
+              {counts.inflight > 0 && (
+                <>
+                  <span className="text-ink-600">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                    {counts.inflight} {t("library.stats.processing")}
+                  </span>
+                </>
               )}
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="ml-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
-              >
-                <X className="h-3 w-3" />
-                {t("library.clearAll")}
-              </button>
+              {counts.failed > 0 && (
+                <>
+                  <span className="text-ink-600">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                    {counts.failed} {t("library.stats.failed")}
+                  </span>
+                </>
+              )}
             </div>
           )}
+
+          {/* Toolbar — search trigger + source filter + sort */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={openSearch}
+              className="inline-flex flex-1 min-w-[200px] max-w-md items-center gap-2 rounded-md border border-ink-700 bg-ink-800/60 px-3 py-1.5 text-left text-sm text-ink-500 transition hover:border-ink-500 hover:bg-ink-800/80"
+            >
+              <SearchIcon className="h-3.5 w-3.5 text-ink-500" />
+              <span className="flex-1 truncate">{t("library.search")}</span>
+              <kbd className="hidden rounded border border-ink-700 bg-ink-900/50 px-1.5 py-0.5 text-[10px] font-mono text-ink-400 sm:inline-block">
+                ⌘K
+              </kbd>
+            </button>
+
+            <SelectPill
+              value={sourceFilter}
+              onChange={(v) => setSearchParam("src", v)}
+              options={[
+                { value: "", label: t("library.toolbar.allSources", { defaultValue: "All sources" }) },
+                { value: "youtube", label: "YouTube" },
+                { value: "article", label: t("addContent.article") },
+                { value: "pdf", label: "PDF" },
+                { value: "note", label: t("addContent.tab.note") },
+              ]}
+            />
+
+            <SelectPill
+              value={sort}
+              onChange={(v) => setSearchParam("sort", v === "newest" ? "" : v)}
+              options={[
+                { value: "newest", label: t("library.toolbar.newest", { defaultValue: "Newest first" }) },
+                { value: "oldest", label: t("library.toolbar.oldest", { defaultValue: "Oldest first" }) },
+                { value: "title", label: t("library.toolbar.title", { defaultValue: "Title A–Z" }) },
+              ]}
+            />
+
+            {(tag || untaggedFilter) && (
+              <div className="flex items-center gap-1.5 text-[11px]">
+                {tag && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2.5 py-0.5 font-medium text-ink-100 ring-1 ring-ink-600">
+                    <Hash className="h-3 w-3 text-ink-300" />
+                    {tag}
+                  </span>
+                )}
+                {untaggedFilter && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2.5 py-0.5 font-medium italic text-ink-100 ring-1 ring-ink-600">
+                    {t("tags.untagged")}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+                  title={t("library.clearAll") ?? ""}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -351,6 +396,37 @@ export default function LibraryPage() {
 }
 
 // --- Sub-components ---------------------------------------------------------
+
+function SelectPill({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  // Custom-styled wrapper around a native <select> so the toolbar pill
+  // gets ink-themed colours but keeps native keyboard + accessibility.
+  const current = options.find((o) => o.value === value) ?? options[0];
+  return (
+    <div className="relative inline-flex items-center">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 cursor-pointer appearance-none rounded-md border border-ink-700 bg-ink-800/60 pl-3 pr-7 text-xs text-ink-200 transition hover:border-ink-500 focus:border-ink-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-700/40"
+        aria-label={current?.label ?? ""}
+      >
+        {options.map((o) => (
+          <option key={o.value || "__default"} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-2 h-3 w-3 text-ink-400" />
+    </div>
+  );
+}
 
 function LibraryTagsSidebar() {
   const { t } = useTranslation();

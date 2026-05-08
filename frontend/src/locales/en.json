@@ -32,6 +32,12 @@
       "hide": "Hide chat pane",
       "show": "Show chat pane"
     },
+    "toolbar": {
+      "allSources": "All sources",
+      "newest": "Newest first",
+      "oldest": "Oldest first",
+      "title": "Title A–Z"
+    },
     "stats": {
       "cards": "cards",
       "completed": "completed",

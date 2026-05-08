@@ -124,7 +124,14 @@ export const api = {
     }),
   me: () => request<UserOut>("/api/auth/me"),
 
-  listCards: (params: { q?: string; status?: string; tag?: string; untagged?: boolean; sort?: string } = {}) => {
+  listCards: (params: {
+    q?: string;
+    status?: string;
+    tag?: string;
+    untagged?: boolean;
+    source_type?: string;
+    sort?: "newest" | "oldest" | "title";
+  } = {}) => {
     const search = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
       if (v === undefined || v === null || v === "" || v === false) return;

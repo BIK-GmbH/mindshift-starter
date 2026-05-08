@@ -32,6 +32,12 @@
       "hide": "Chat-Pane ausblenden",
       "show": "Chat-Pane einblenden"
     },
+    "toolbar": {
+      "allSources": "Alle Quellen",
+      "newest": "Neueste zuerst",
+      "oldest": "Älteste zuerst",
+      "title": "Titel A–Z"
+    },
     "stats": {
       "cards": "Cards",
       "completed": "fertig",
