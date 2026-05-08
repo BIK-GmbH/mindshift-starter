@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom";
 
 import RailFooterButtons from "../components/RailFooterButtons";
 import { api, type PublicProfileOut } from "../lib/api";
+import { setMetaTags } from "../lib/metaTags";
 
 const SOURCE_ICONS: Record<string, LucideIcon> = {
   youtube: Youtube,
@@ -57,6 +58,30 @@ export default function PublicProfilePage() {
       document.head.removeChild(meta);
     };
   }, []);
+
+  // Mirror OG/Twitter tags so JS-aware bots (Slack, modern Google) get
+  // a preview even without the server-side OG endpoint in play.
+  useEffect(() => {
+    if (!profile) return;
+    const title = profile.display_name || profile.username;
+    const desc = profile.bio || `@${profile.username}'s public knowledge base on Mindshift.`;
+    const image = profile.avatar_file_id
+      ? `${window.location.origin}${api.publicAvatarUrl(profile.avatar_file_id).replace(window.location.origin, "")}`
+      : null;
+    const url = `${window.location.origin}/u/${profile.username}`;
+    return setMetaTags({
+      "og:type": "profile",
+      "og:title": title,
+      "og:description": desc,
+      "og:url": url,
+      "og:site_name": "Mindshift",
+      "og:image": image ?? undefined,
+      "twitter:card": image ? "summary_large_image" : "summary",
+      "twitter:title": title,
+      "twitter:description": desc,
+      "twitter:image": image ?? undefined,
+    });
+  }, [profile]);
 
   return (
     <div className="flex h-full bg-ink-900">

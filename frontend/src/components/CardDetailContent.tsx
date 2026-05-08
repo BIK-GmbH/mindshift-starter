@@ -6,6 +6,7 @@ import {
   Copy,
   Download,
   FileText,
+  Globe,
   Hash,
   Loader2,
   MessageSquare,
@@ -301,6 +302,20 @@ export default function CardDetailContent({
                 <h1 className="text-lg font-semibold leading-tight tracking-tight text-ink-100">
                   {card.title}
                 </h1>
+                {card.is_public && card.public_via_tags && card.public_via_tags.length > 0 && (
+                  <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300 ring-1 ring-emerald-500/30">
+                    <Globe className="h-3 w-3" />
+                    {t("card.publicVia", { defaultValue: "Public via" })}
+                    {card.public_via_tags.slice(0, 2).map((p) => (
+                      <span key={p} className="font-mono">#{p}</span>
+                    ))}
+                    {card.public_via_tags.length > 2 && (
+                      <span className="text-emerald-400/80">
+                        +{card.public_via_tags.length - 2}
+                      </span>
+                    )}
+                  </p>
+                )}
                 {card.error_message && (
                   <p className="mt-2 rounded bg-red-500/10 px-2 py-1 text-xs text-red-300">
                     {card.error_message}
@@ -411,6 +426,15 @@ export default function CardDetailContent({
 
             {tab === "notes" && (
               <div className="space-y-3">
+                {card.is_public && (
+                  <p className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-1.5 text-[11px] text-emerald-300">
+                    <Globe className="h-3 w-3" />
+                    {t("card.publicEditHint", {
+                      defaultValue:
+                        "Heads up — this card is reachable via a public tag. Edits go live immediately.",
+                    })}
+                  </p>
+                )}
                 <RichTextEditor
                   markdown={notes}
                   onChange={setNotes}

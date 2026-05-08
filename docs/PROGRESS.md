@@ -7,7 +7,14 @@ When a new session starts, read this first to know where to pick up.
 
 ## Active sprint — Recall-pattern follow-ups
 
-**Status:** Phases 1-26 done. Phases 27-28 next.
+**Status:** Phases 1-28 done. Phases 29-32 next (public-page polish).
+
+| Phase | Status | Description |
+|---|---|---|
+| 29 | ✅ | **Public-edit warning** — `CardOut` returns `is_public` + `public_via_tags` (resolved by walking each public tag tree). Card header gets a green "Public via #tag" pill; the notes editor shows an inline "edits are visible immediately" hint. |
+| 30 | ✅ | **OG / Twitter cards** — new `/og/u/:username` and `/og/u/:username/:slug` render crawler-friendly HTML with og:/twitter: meta + refresh-redirect to the SPA. Frontend `setMetaTags` helper mirrors the same tags into `document.head` for JS-aware bots. `docs/DEPLOYMENT.md` documents nginx + Caddy snippets to route social-bot UAs. |
+| 31 | ✅ | **RSS feeds per public tag** — `/api/public/users/:username/feeds/:slug.rss` returns RSS 2.0 of the most recent 40 cards in the tag tree. Tag page exposes a subscribe button linked to it. |
+| 32 | ✅ | **Anonymous reactions** — `card_reactions` table (migration 0009). `POST /api/public/.../cards/:id/reactions` toggles a reaction (kinds: `like` / `insightful` / `mindblown`), keyed by `sha256(JWT_SECRET + ip)` so we never store raw IPs. 60-per-IP-hour rate limit. `<Reactions>` bar appears below the card body on the public viewer. |
 
 | Phase | Status | Description |
 |---|---|---|

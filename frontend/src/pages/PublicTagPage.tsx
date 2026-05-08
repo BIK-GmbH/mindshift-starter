@@ -1,11 +1,13 @@
-import { ArrowLeft, Brain, FileText, Globe, Hash, Loader2, Youtube, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Brain, FileText, Globe, Hash, Loader2, Rss, Youtube, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import MarkdownView from "../components/MarkdownView";
 import RailFooterButtons from "../components/RailFooterButtons";
+import Reactions from "../components/Reactions";
 import { api, type PublicCard, type PublicTagDetail } from "../lib/api";
+import { setMetaTags } from "../lib/metaTags";
 
 const SOURCE_ICONS: Record<string, LucideIcon> = {
   youtube: Youtube,
@@ -57,6 +59,23 @@ export default function PublicTagPage() {
       document.head.removeChild(meta);
     };
   }, []);
+
+  useEffect(() => {
+    if (!tag) return;
+    const title = `#${tag.name} — @${username}`;
+    const desc = `Public collection #${tag.name} curated by @${username} on Mindshift.`;
+    const url = `${window.location.origin}/u/${username}/${slug}`;
+    return setMetaTags({
+      "og:type": "article",
+      "og:title": title,
+      "og:description": desc,
+      "og:url": url,
+      "og:site_name": "Mindshift",
+      "twitter:card": "summary",
+      "twitter:title": title,
+      "twitter:description": desc,
+    });
+  }, [tag, username, slug]);
 
   const openCard = async (id: string) => {
     setCardLoading(true);
@@ -110,14 +129,26 @@ export default function PublicTagPage() {
 
           {tag && (
             <>
-              <header className="mb-6">
-                <h1 className="text-3xl font-semibold tracking-tight text-ink-100">
-                  <Hash className="-mt-1 mr-1 inline h-6 w-6 text-ink-500" />
-                  {tag.name}
-                </h1>
-                <p className="mt-1 text-sm text-ink-400">
-                  {tag.card_count} {t("library.stats.cards")}
-                </p>
+              <header className="mb-6 flex items-end justify-between gap-3">
+                <div>
+                  <h1 className="text-3xl font-semibold tracking-tight text-ink-100">
+                    <Hash className="-mt-1 mr-1 inline h-6 w-6 text-ink-500" />
+                    {tag.name}
+                  </h1>
+                  <p className="mt-1 text-sm text-ink-400">
+                    {tag.card_count} {t("library.stats.cards")}
+                  </p>
+                </div>
+                <a
+                  href={api.publicTagRssUrl(username, slug)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
+                  title={t("share.public.rss", { defaultValue: "Subscribe via RSS" })}
+                >
+                  <Rss className="h-3.5 w-3.5" />
+                  RSS
+                </a>
               </header>
 
               {activeCard ? (
@@ -164,6 +195,9 @@ export default function PublicTagPage() {
                   {activeCard.detailed_summary_md && (
                     <MarkdownView source={activeCard.detailed_summary_md} />
                   )}
+                  <div className="mt-5 border-t border-ink-700/60 pt-4">
+                    <Reactions username={username} cardId={activeCard.id} />
+                  </div>
                 </section>
               ) : (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">

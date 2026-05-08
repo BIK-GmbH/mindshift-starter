@@ -11,6 +11,7 @@ from app.api.public import router as public_router
 from app.api.health import router as health_router
 from app.api.imports import router as import_router
 from app.api.jobs import router as jobs_router
+from app.api.og import router as og_router
 from app.api.review import router as review_router
 from app.api.search import router as search_router
 from app.api.share import router as share_router
@@ -50,6 +51,10 @@ app.include_router(import_router, prefix="/api")
 app.include_router(share_router, prefix="/api")
 app.include_router(files_router, prefix="/api")
 app.include_router(public_router, prefix="/api")
+# OG / Twitter card pages — note: NO /api prefix. These render HTML
+# directly at /og/u/... so social-bot UAs can be routed there with a
+# simple proxy rule (see docs/DEPLOYMENT.md).
+app.include_router(og_router)
 
 
 @app.get("/")

@@ -19,13 +19,21 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+import hashlib
+import html as _html
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.card import Card
 from app.models.file import File
+from app.models.reaction import CardReaction
 from app.models.tag import CardTag, Tag
 from app.models.user import User
 from app.schemas.auth import (
@@ -258,6 +266,189 @@ def get_public_card(
         "detailed_summary_md": out["detailed_summary_md"],
         "key_takeaways_json": out["key_takeaways_json"],
         "notes_md": out["notes_md"],
+    }
+
+
+@router.get("/users/{username}/feeds/{slug:path}.rss")
+def get_public_tag_rss(
+    username: str,
+    slug: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Response:
+    """RSS 2.0 feed for a public tag tree. One <item> per card,
+    newest first. Use any RSS reader (Feedly, NetNewsWire) to follow.
+    """
+    user = _load_public_user(db, username)
+    tag = _resolve_tag_by_slug(db, user.id, slug)
+    subtree_ids = _walk_public_subtree(db, user.id, tag)
+    cards = db.execute(
+        select(Card)
+        .where(
+            Card.user_id == user.id,
+            Card.status == "completed",
+            Card.id.in_(select(CardTag.card_id).where(CardTag.tag_id.in_(subtree_ids))),
+        )
+        .order_by(Card.created_at.desc())
+        .limit(40)
+    ).scalars().all()
+
+    base = f"{request.url.scheme}://{request.url.netloc}"
+    feed_url = f"{base}/api/public/users/{username}/tags/{slug}.rss"
+    site_url = f"{base}/u/{username}/{slug}"
+    title = f"#{tag.name} — @{username}"
+    desc = (user.bio or f"Public collection #{tag.name} on Mindshift.")[:300]
+
+    def _item(card: Card) -> str:
+        item_url = f"{base}/u/{username}/cards/{card.id}"
+        pub = format_datetime((card.created_at or datetime.now(timezone.utc)).astimezone(timezone.utc))
+        body = card.concise_summary_md or ""
+        return (
+            "<item>"
+            f"<title>{_html.escape(card.title)}</title>"
+            f"<link>{_html.escape(item_url)}</link>"
+            f"<guid isPermaLink=\"true\">{_html.escape(item_url)}</guid>"
+            f"<pubDate>{pub}</pubDate>"
+            f"<description>{_html.escape(body)}</description>"
+            "</item>"
+        )
+
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">'
+        "<channel>"
+        f"<title>{_html.escape(title)}</title>"
+        f"<link>{_html.escape(site_url)}</link>"
+        f'<atom:link href="{_html.escape(feed_url)}" rel="self" type="application/rss+xml" />'
+        f"<description>{_html.escape(desc)}</description>"
+        "<language>en</language>"
+        + "".join(_item(c) for c in cards)
+        + "</channel></rss>"
+    )
+    return Response(content=body, media_type="application/rss+xml")
+
+
+REACTION_KINDS = {"like", "insightful", "mindblown"}
+
+
+class ReactionRequest(BaseModel):
+    kind: str = Field(pattern=r"^(like|insightful|mindblown)$")
+
+
+def _ip_hash(request: Request) -> str:
+    """Stable per-installation hash. Salted with JWT_SECRET so the
+    raw IP never leaves memory and the hash isn't transferable.
+    """
+    fwd = request.headers.get("x-forwarded-for", "")
+    ip = (fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "")) or "anon"
+    salt = get_settings().jwt_secret
+    return hashlib.sha256(f"{salt}|{ip}".encode("utf-8")).hexdigest()
+
+
+def _aggregate_reactions(db: Session, card_id) -> dict[str, int]:
+    rows = db.execute(
+        select(CardReaction.kind, func.count(CardReaction.id))
+        .where(CardReaction.card_id == card_id)
+        .group_by(CardReaction.kind)
+    ).all()
+    counts = {k: 0 for k in REACTION_KINDS}
+    for kind, n in rows:
+        if kind in counts:
+            counts[kind] = int(n or 0)
+    return counts
+
+
+def _user_reactions(db: Session, card_id, ip_hash: str) -> list[str]:
+    rows = db.execute(
+        select(CardReaction.kind).where(
+            CardReaction.card_id == card_id, CardReaction.ip_hash == ip_hash
+        )
+    ).scalars().all()
+    return list(rows)
+
+
+@router.post("/users/{username}/cards/{card_id}/reactions")
+def react_to_card(
+    username: str,
+    card_id,
+    payload: ReactionRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Toggle the visitor's reaction on a public card. The same IP can
+    only have one row per (card, kind) — re-posting removes it (toggle
+    behaviour). Per-IP hourly cap of 60 to keep abuse boring.
+    """
+    user = _load_public_user(db, username)
+    card = db.get(Card, card_id)
+    if card is None or card.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    # Reachable via any public tag?
+    public_roots = db.execute(
+        select(Tag).where(Tag.user_id == user.id, Tag.is_public.is_(True))
+    ).scalars().all()
+    visible: set = set()
+    for root in public_roots:
+        visible |= _walk_public_subtree(db, user.id, root)
+    if not visible:
+        raise HTTPException(status_code=404, detail="Card not found")
+    if not db.execute(
+        select(CardTag).where(CardTag.card_id == card.id, CardTag.tag_id.in_(visible))
+    ).first():
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    iph = _ip_hash(request)
+
+    # Hourly rate limit per IP (any kind, any card).
+    one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+    recent = db.execute(
+        select(func.count(CardReaction.id)).where(
+            CardReaction.ip_hash == iph, CardReaction.created_at >= one_hour_ago
+        )
+    ).scalar_one()
+    if int(recent or 0) >= 60:
+        raise HTTPException(status_code=429, detail="Too many reactions, slow down.")
+
+    existing = db.execute(
+        select(CardReaction).where(
+            CardReaction.card_id == card.id,
+            CardReaction.ip_hash == iph,
+            CardReaction.kind == payload.kind,
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        db.delete(existing)
+        db.commit()
+        active = False
+    else:
+        db.add(CardReaction(card_id=card.id, ip_hash=iph, kind=payload.kind))
+        db.commit()
+        active = True
+
+    return {
+        "kind": payload.kind,
+        "active": active,
+        "counts": _aggregate_reactions(db, card.id),
+        "mine": _user_reactions(db, card.id, iph),
+    }
+
+
+@router.get("/users/{username}/cards/{card_id}/reactions")
+def get_reactions(
+    username: str,
+    card_id,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
+    user = _load_public_user(db, username)
+    card = db.get(Card, card_id)
+    if card is None or card.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Card not found")
+    iph = _ip_hash(request)
+    return {
+        "counts": _aggregate_reactions(db, card.id),
+        "mine": _user_reactions(db, card.id, iph),
     }
 
 

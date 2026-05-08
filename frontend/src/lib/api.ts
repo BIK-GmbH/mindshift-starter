@@ -88,6 +88,8 @@ export interface Card extends CardListItem {
   key_takeaways_json: string[] | null;
   notes_md: string | null;
   error_message: string | null;
+  is_public?: boolean;
+  public_via_tags?: string[];
 }
 
 export interface JobOut {
@@ -272,6 +274,17 @@ export const api = {
     request<PublicCard>(
       `/api/public/users/${encodeURIComponent(username)}/cards/${cardId}`,
     ),
+  getPublicCardReactions: (username: string, cardId: string) =>
+    request<ReactionsState>(
+      `/api/public/users/${encodeURIComponent(username)}/cards/${cardId}/reactions`,
+    ),
+  reactToPublicCard: (username: string, cardId: string, kind: ReactionKind) =>
+    request<ReactionsState & { kind: ReactionKind; active: boolean }>(
+      `/api/public/users/${encodeURIComponent(username)}/cards/${cardId}/reactions`,
+      { method: "POST", body: JSON.stringify({ kind }) },
+    ),
+  publicTagRssUrl: (username: string, slug: string) =>
+    `${BASE_URL || window.location.origin}/api/public/users/${encodeURIComponent(username)}/feeds/${encodeURI(slug)}.rss`,
   createExtensionToken: () =>
     request<{ access_token: string; token_type: string }>("/api/auth/extension-token", {
       method: "POST",
@@ -549,6 +562,13 @@ export interface PublicTagDetail {
   slug: string;
   card_count: number;
   cards: PublicCardSummary[];
+}
+
+export type ReactionKind = "like" | "insightful" | "mindblown";
+
+export interface ReactionsState {
+  counts: Record<ReactionKind, number>;
+  mine: ReactionKind[];
 }
 
 export interface SearchHit {

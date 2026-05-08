@@ -256,14 +256,53 @@ def list_cards(
     return list(db.execute(stmt).scalars().all())
 
 
+def _public_state_for_card(db: Session, card: Card) -> tuple[bool, list[str]]:
+    """Names of public tags that make this card publicly reachable.
+
+    Walks each public tag tree and checks whether the card sits in it.
+    Returns (is_public, [public_tag_path]).
+    """
+    from app.api.public import _walk_public_subtree, _slug_path
+    from app.models.tag import CardTag, Tag
+
+    roots = db.execute(
+        select(Tag).where(Tag.user_id == card.user_id, Tag.is_public.is_(True))
+    ).scalars().all()
+    if not roots:
+        return False, []
+
+    card_tag_ids = set(
+        db.execute(
+            select(CardTag.tag_id).where(CardTag.card_id == card.id)
+        ).scalars().all()
+    )
+    if not card_tag_ids:
+        return False, []
+
+    paths: list[str] = []
+    for root in roots:
+        subtree = _walk_public_subtree(db, card.user_id, root)
+        if card_tag_ids & subtree:
+            paths.append(_slug_path(db, card.user_id, root))
+    return bool(paths), sorted(paths)
+
+
+def _card_response(db: Session, card: Card) -> CardOut:
+    is_public, paths = _public_state_for_card(db, card)
+    out = CardOut.model_validate(card)
+    out.is_public = is_public
+    out.public_via_tags = paths
+    return out
+
+
 @router.get("/{card_id}", response_model=CardOut)
 def get_card(
     card_id: UUID,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> Card:
+) -> CardOut:
     card = _get_owned_card(db, card_id, current_user.id)
-    return card
+    return _card_response(db, card)
 
 
 @router.patch("/{card_id}", response_model=CardOut)
@@ -272,7 +311,7 @@ def update_card(
     payload: CardUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> Card:
+) -> CardOut:
     card = _get_owned_card(db, card_id, current_user.id)
     if payload.title is not None:
         card.title = payload.title
@@ -280,7 +319,7 @@ def update_card(
         card.notes_md = payload.notes_md
     db.commit()
     db.refresh(card)
-    return card
+    return _card_response(db, card)
 
 
 @router.patch("/{card_id}/notes", response_model=CardOut)
@@ -289,12 +328,12 @@ def update_notes(
     payload: NotesUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> Card:
+) -> CardOut:
     card = _get_owned_card(db, card_id, current_user.id)
     card.notes_md = payload.notes_md
     db.commit()
     db.refresh(card)
-    return card
+    return _card_response(db, card)
 
 
 @router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
