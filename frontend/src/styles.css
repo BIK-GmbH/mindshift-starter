@@ -337,6 +337,19 @@
     animation-duration: 380ms;
     animation-timing-function: cubic-bezier(0.22, 0.9, 0.28, 1);
   }
+  /* Add-content modal — when the active tab changes the body's bounding
+     box can shrink/grow (URL form is small, Note tab fills 80vh). The
+     browser morphs the box smoothly via the shared name, and the
+     image-pair just crossfades content. */
+  ::view-transition-group(addmodal-body) {
+    animation-duration: 280ms;
+    animation-timing-function: cubic-bezier(0.22, 0.9, 0.28, 1);
+  }
+  ::view-transition-old(addmodal-body),
+  ::view-transition-new(addmodal-body) {
+    animation-duration: 200ms;
+    animation-timing-function: ease-out;
+  }
   ::view-transition-old(rte-backdrop),
   ::view-transition-new(rte-backdrop) {
     animation-duration: 240ms;

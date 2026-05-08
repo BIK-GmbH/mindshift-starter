@@ -237,7 +237,7 @@ export default function AddContentModal({ open, onClose, onCreated }: Props) {
         className="absolute inset-0 bg-ink-900/40 backdrop-blur-md modal-backdrop-enter"
       />
 
-      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
+      <div className="relative flex h-[80vh] max-h-[760px] min-h-[520px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">
           <h2 className="text-base font-semibold text-ink-100">{t("library.addContent")}</h2>
@@ -264,7 +264,19 @@ export default function AddContentModal({ open, onClose, onCreated }: Props) {
               <button
                 key={id}
                 type="button"
-                onClick={() => setTab(id)}
+                onClick={() => {
+                  if (id === tab) return;
+                  // Smooth crossfade between tab bodies via View Transitions.
+                  type DocVT = Document & {
+                    startViewTransition?: (cb: () => void) => unknown;
+                  };
+                  const doc = document as DocVT;
+                  if (typeof doc.startViewTransition === "function") {
+                    doc.startViewTransition(() => setTab(id));
+                  } else {
+                    setTab(id);
+                  }
+                }}
                 className={[
                   "inline-flex items-center gap-1.5 border-b-2 px-3 pb-2.5 pt-1 text-xs font-medium uppercase tracking-wide transition",
                   active
@@ -280,7 +292,10 @@ export default function AddContentModal({ open, onClose, onCreated }: Props) {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div
+          className="flex flex-1 min-h-0 flex-col overflow-y-auto px-6 py-6"
+          style={{ viewTransitionName: "addmodal-body" }}
+        >
           {tab === "url" && (
             <UrlTab
               url={url}
@@ -756,21 +771,21 @@ function NoteTab({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="space-y-4">
+    <div className="flex h-full flex-col gap-4">
       <input
         autoFocus
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder={t("addContent.notePlaceholderTitle", { defaultValue: "Title" })}
-        className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+        className="flex-shrink-0 w-full rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
       />
       <RichTextEditor
         markdown={body}
         onChange={setBody}
         placeholder={t("addContent.notePlaceholderBody", { defaultValue: "Write your note — use the toolbar for formatting" })}
-        minHeight={220}
+        fillHeight
       />
-      <div className="flex items-center justify-between">
+      <div className="flex flex-shrink-0 items-center justify-between">
         <label className="inline-flex items-center gap-2 text-xs text-ink-300">
           <input
             type="checkbox"

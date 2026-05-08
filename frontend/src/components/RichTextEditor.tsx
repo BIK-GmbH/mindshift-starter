@@ -37,6 +37,12 @@ interface Props {
   showToolbar?: boolean;
   /** Auto-focus on mount. */
   autoFocus?: boolean;
+  /**
+   * If true, the editor occupies the full height of its (flex-col) parent
+   * with internal scroll instead of growing with content. Use when the
+   * parent layout has a defined height — e.g. inside a fixed-height modal.
+   */
+  fillHeight?: boolean;
 }
 
 const turndown = new TurndownService({
@@ -69,6 +75,7 @@ export default function RichTextEditor({
   minHeight = 200,
   showToolbar = true,
   autoFocus = false,
+  fillHeight = false,
 }: Props) {
   // Track the last markdown we emitted, so we don't loop the editor
   // when the parent re-passes the same string back.
@@ -194,9 +201,17 @@ export default function RichTextEditor({
 
   if (!editor) return null;
 
+  // Three layout modes:
+  //  - fullscreen: card morphs to full viewport, editor fills it with internal scroll
+  //  - fillHeight: editor stretches to its flex-col parent's free height
+  //  - default: editor grows with content (legacy behavior)
+  const stretchedClass =
+    "flex flex-1 min-h-0 flex-col overflow-y-auto rounded-md border border-ink-700 bg-ink-900/40 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40 [&>.ProseMirror]:flex-1 [&>.ProseMirror]:min-h-full";
   const editorClass = isFullscreen
-    ? "flex flex-1 min-h-0 flex-col overflow-y-auto rounded-md border border-ink-700 bg-ink-900/40 px-8 py-6 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40 [&>.ProseMirror]:flex-1 [&>.ProseMirror]:min-h-full"
-    : "rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40";
+    ? `${stretchedClass} px-8 py-6`
+    : fillHeight
+      ? `${stretchedClass} px-3 py-2`
+      : "rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40";
 
   const editorBlock = (
     <>
@@ -261,7 +276,7 @@ export default function RichTextEditor({
       )}
       <div
         className={
-          isFullscreen
+          isFullscreen || fillHeight
             ? "relative flex flex-1 min-h-0 flex-col"
             : "relative"
         }
@@ -300,7 +315,11 @@ export default function RichTextEditor({
 
   return (
     <div
-      className="flex flex-col gap-2"
+      className={
+        fillHeight
+          ? "flex h-full flex-1 min-h-0 flex-col gap-2"
+          : "flex flex-col gap-2"
+      }
       style={{ viewTransitionName: cardVtName }}
     >
       {editorBlock}
