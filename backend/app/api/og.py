@@ -23,13 +23,24 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.public import _resolve_tag_by_slug
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.user import User
 
 router = APIRouter(prefix="/og", tags=["og"])
 
 
-def _abs_url(request: Request, path: str) -> str:
+def _frontend_url(path: str) -> str:
+    """Public-facing URL the SPA serves at. Uses `FRONTEND_ORIGIN` so
+    `og:url` and the refresh-redirect always point at where real users
+    land — not at the backend host."""
+    origin = (get_settings().frontend_origin or "").rstrip("/")
+    return f"{origin}{path}" if origin else path
+
+
+def _backend_url(request: Request, path: str) -> str:
+    """Where the OG page itself lives (used for `og:image` avatar URLs
+    that need to be reachable by social-bot crawlers)."""
     return f"{request.url.scheme}://{request.url.netloc}{path}"
 
 
@@ -66,7 +77,7 @@ def _render(meta: dict[str, str], canonical: str) -> str:
 def _avatar_url(request: Request, file_id: UUID | None) -> str | None:
     if file_id is None:
         return None
-    return _abs_url(request, f"/api/public/avatars/{file_id}")
+    return _backend_url(request, f"/api/public/avatars/{file_id}")
 
 
 @router.get("/u/{username}", response_class=Response)
@@ -78,7 +89,7 @@ def og_profile(
     user = db.execute(
         select(User).where(User.username == username.lower(), User.public_profile.is_(True))
     ).scalar_one_or_none()
-    canonical = _abs_url(request, f"/u/{username}")
+    canonical = _frontend_url(f"/u/{username}")
     if user is None:
         return Response(
             content=_render(
@@ -115,7 +126,7 @@ def og_tag(
     request: Request,
     db: Session = Depends(get_db),
 ) -> Response:
-    canonical = _abs_url(request, f"/u/{username}/{slug}")
+    canonical = _frontend_url(f"/u/{username}/{slug}")
     user = db.execute(
         select(User).where(User.username == username.lower(), User.public_profile.is_(True))
     ).scalar_one_or_none()
