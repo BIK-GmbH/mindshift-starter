@@ -312,55 +312,61 @@
       border-color 180ms,
       box-shadow 220ms;
     box-shadow:
-      0 1px 0 rgb(255 255 255 / 0.04) inset,
-      0 1px 2px rgb(0 0 0 / 0.25),
-      0 4px 10px -6px rgb(0 0 0 / 0.4);
+      0 1px 0 rgb(255 255 255 / 0.09) inset,
+      0 -1px 0 rgb(0 0 0 / 0.4) inset,
+      0 2px 6px rgb(0 0 0 / 0.4),
+      0 12px 24px -8px rgb(0 0 0 / 0.55);
   }
   :root.light .card-hover {
     box-shadow:
-      0 1px 1px rgb(15 23 42 / 0.04),
-      0 2px 6px -2px rgb(15 23 42 / 0.08);
+      0 1px 2px rgb(15 23 42 / 0.08),
+      0 6px 14px -4px rgb(15 23 42 / 0.14),
+      0 18px 36px -12px rgb(15 23 42 / 0.18);
   }
   .card-hover:hover {
-    transform: translateY(-2px);
+    transform: translateY(-3px);
     box-shadow:
-      0 1px 0 rgb(255 255 255 / 0.07) inset,
-      0 2px 4px rgb(0 0 0 / 0.3),
-      0 14px 28px -10px rgb(0 0 0 / 0.55);
+      0 1px 0 rgb(255 255 255 / 0.13) inset,
+      0 -1px 0 rgb(0 0 0 / 0.5) inset,
+      0 4px 10px rgb(0 0 0 / 0.45),
+      0 24px 48px -12px rgb(0 0 0 / 0.7);
   }
   :root.light .card-hover:hover {
     box-shadow:
-      0 1px 2px rgb(15 23 42 / 0.06),
-      0 16px 32px -10px rgb(15 23 42 / 0.18);
+      0 2px 4px rgb(15 23 42 / 0.1),
+      0 12px 24px -6px rgb(15 23 42 / 0.18),
+      0 32px 56px -16px rgb(15 23 42 / 0.28);
   }
 
   /* Side panels (tags sidebar, chat history, graph settings).
-     Dark mode picks up a faint inner highlight at the top edge so the
-     panel reads as a slightly raised surface against the page bg.
-     Light mode gets a tiny right-side drop-shadow so the panel casts
-     onto the content area. Both subtle — depth, not drama. */
+     Dark mode → inner highlight strip on top + a strong outer halo
+     that reads as the panel casting onto the page. Light mode → a
+     visible right-edge line + soft drop shadow on the content side. */
   .panel-elevated {
     box-shadow:
-      0 1px 0 rgb(255 255 255 / 0.03) inset,
-      0 0 24px rgb(0 0 0 / 0.18);
+      0 1px 0 rgb(255 255 255 / 0.07) inset,
+      4px 0 16px -2px rgb(0 0 0 / 0.45),
+      8px 0 32px -8px rgb(0 0 0 / 0.55);
   }
   :root.light .panel-elevated {
     box-shadow:
-      1px 0 0 rgb(15 23 42 / 0.04),
-      4px 0 14px -8px rgb(15 23 42 / 0.08);
+      1px 0 0 rgb(15 23 42 / 0.08),
+      6px 0 16px -4px rgb(15 23 42 / 0.14),
+      12px 0 28px -10px rgb(15 23 42 / 0.18);
   }
 
-  /* Right-side panel variant (chat pane in library). Mirror the
-     direction so the cast goes the OTHER way. */
+  /* Right-side panel variant (chat pane in library). Mirror the cast. */
   .panel-elevated-right {
     box-shadow:
-      0 1px 0 rgb(255 255 255 / 0.03) inset,
-      0 0 24px rgb(0 0 0 / 0.18);
+      0 1px 0 rgb(255 255 255 / 0.07) inset,
+      -4px 0 16px -2px rgb(0 0 0 / 0.45),
+      -8px 0 32px -8px rgb(0 0 0 / 0.55);
   }
   :root.light .panel-elevated-right {
     box-shadow:
-      -1px 0 0 rgb(15 23 42 / 0.04),
-      -4px 0 14px -8px rgb(15 23 42 / 0.08);
+      -1px 0 0 rgb(15 23 42 / 0.08),
+      -6px 0 16px -4px rgb(15 23 42 / 0.14),
+      -12px 0 28px -10px rgb(15 23 42 / 0.18);
   }
 
   /* Drag-drop file dropzone state. */
