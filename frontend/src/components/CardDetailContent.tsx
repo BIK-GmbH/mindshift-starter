@@ -662,7 +662,7 @@ function ExportMenu({
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-md border border-ink-700 bg-ink-800 shadow-xl modal-card-enter">
+        <div className="absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-md border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
           <MenuItem
             Icon={Copy}
             label={t("card.export.copyMd", { defaultValue: "Copy markdown" })}

@@ -37,7 +37,7 @@ export default function GraphCardDrawer({ cardId, onClose }: Props) {
   if (!cardId) return null;
 
   return (
-    <aside className="absolute right-0 top-0 z-20 flex h-full w-96 flex-col border-l border-ink-700 bg-ink-800 shadow-2xl">
+    <aside className="absolute right-0 top-0 z-20 flex h-full w-96 flex-col border-l border-ink-700 bg-ink-800 surface-elevated">
       <header className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
         <span className="text-[10px] uppercase tracking-wide text-ink-400">
           {t("graph.drawer.title")}

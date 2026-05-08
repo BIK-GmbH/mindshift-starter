@@ -205,7 +205,7 @@ function ReviewCard({
   const stageBadge = STAGE_COLORS[item.stage] ?? "bg-ink-700 text-ink-200";
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-ink-700 bg-gradient-to-b from-ink-800/60 to-ink-800/30 shadow-xl shadow-black/30">
+    <div className="overflow-hidden rounded-2xl border border-ink-700 bg-gradient-to-b from-ink-800/60 to-ink-800/30 surface-elevated">
       <div className="flex items-center justify-between border-b border-ink-800 bg-ink-800/40 px-5 py-2.5">
         <button
           type="button"

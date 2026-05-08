@@ -133,7 +133,7 @@ export default function GlobalSearchModal() {
         aria-label="Close"
       />
 
-      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 shadow-2xl modal-card-enter">
+      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">
           <h2 className="text-base font-semibold text-ink-100">{t("search.global.title")}</h2>

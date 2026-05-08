@@ -371,6 +371,25 @@
       12px 0 28px -10px rgb(15 23 42 / 0.18);
   }
 
+  /* Floating surfaces — modals, dropdowns, drawers, popovers.
+     Same vignette idea as cards but stronger and omnidirectional
+     because these elements float over arbitrary content. The bottom
+     drop is heavier so the surface reads as physically lifted. */
+  .surface-elevated {
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.06),
+      0 0 36px rgb(255 255 255 / 0.06),
+      0 0 90px rgb(255 255 255 / 0.04),
+      0 24px 48px -12px rgb(0 0 0 / 0.7);
+  }
+  :root.light .surface-elevated {
+    box-shadow:
+      0 0 0 1px rgb(15 23 42 / 0.06),
+      0 0 40px rgb(15 23 42 / 0.1),
+      0 0 100px rgb(15 23 42 / 0.08),
+      0 32px 64px -16px rgb(15 23 42 / 0.3);
+  }
+
   /* Right-side panel variant (chat pane in library). Mirror the cast. */
   .panel-elevated-right {
     box-shadow:

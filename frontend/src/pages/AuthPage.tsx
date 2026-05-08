@@ -47,14 +47,14 @@ export default function AuthPage() {
       <div className="relative w-full max-w-sm">
         {/* Brand */}
         <div className="mb-6 flex flex-col items-center gap-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ink-800 ring-1 ring-ink-700 shadow-lg shadow-black/20">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ink-800 ring-1 ring-ink-700 surface-elevated">
             <Brain className="h-6 w-6 text-ink-100" />
           </div>
           <h1 className="text-lg font-semibold tracking-tight text-ink-100">{t("app.name")}</h1>
           <p className="text-xs text-ink-400">{t("app.tagline")}</p>
         </div>
 
-        <div className="rounded-2xl border border-ink-800 bg-ink-800/60 p-6 shadow-xl shadow-black/30 backdrop-blur-sm">
+        <div className="rounded-2xl border border-ink-800 bg-ink-800/60 p-6 surface-elevated backdrop-blur-sm">
           <div className="mb-5 flex gap-1 rounded-lg border border-ink-700 bg-ink-900/50 p-1 text-sm">
             {(["signIn", "signUp"] as Mode[]).map((m) => (
               <button

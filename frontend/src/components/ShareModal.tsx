@@ -112,7 +112,7 @@ export default function ShareModal({ cardId, onClose }: Props) {
         className="absolute inset-0 bg-ink-900/40 backdrop-blur-md modal-backdrop-enter"
       />
 
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 shadow-2xl modal-card-enter">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
         <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">
           <h2 className="text-base font-semibold text-ink-100">{t("share.title")}</h2>
           <button

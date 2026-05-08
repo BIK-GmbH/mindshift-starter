@@ -59,7 +59,7 @@ export default function DialogHost() {
         className="absolute inset-0 bg-ink-900/40 backdrop-blur-md modal-backdrop-enter"
       />
 
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 shadow-2xl modal-card-enter">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
         <div className="flex items-start gap-3 px-5 pt-5">
           {danger && (
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-red-500/15 ring-1 ring-red-500/30">
