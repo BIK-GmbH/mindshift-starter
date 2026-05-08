@@ -187,6 +187,7 @@
       "empty": "Noch keine Presets",
       "choose": "Preset wählen…",
       "delete": "Preset löschen",
+      "unload": "Entladen (auf Standard zurücksetzen)",
       "confirmDelete": "Preset „{{name}}“ löschen?"
     },
     "filtersHeading": "Filter",

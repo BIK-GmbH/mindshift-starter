@@ -187,6 +187,7 @@
       "empty": "No presets yet",
       "choose": "Choose preset…",
       "delete": "Delete preset",
+      "unload": "Unload (reset to defaults)",
       "confirmDelete": "Delete preset \"{{name}}\"?"
     },
     "filtersHeading": "Filters",

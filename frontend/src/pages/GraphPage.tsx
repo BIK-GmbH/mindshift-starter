@@ -9,6 +9,7 @@ import {
   Lock,
   Maximize2,
   Plus,
+  RotateCcw,
   Route,
   Search as SearchIcon,
   Trash2,
@@ -144,19 +145,50 @@ export default function GraphPage() {
     }
   };
 
+  // Reset every Graph-sidebar setting to its default — used when the user
+  // unloads a preset so they get a clean slate, not whatever the previous
+  // preset left behind.
+  const resetGraphSettings = useCallback(() => {
+    setSearchQuery("");
+    setSourceType("");
+    setTags([]);
+    setHideIsolated(false);
+    setColorMode("source");
+    setSpacing(50);
+  }, []);
+
   const applyPreset = (id: string) => {
     setActivePresetId(id);
-    if (!id) return;
+    if (!id) {
+      // Empty selection = unload. Reset everything to defaults so the
+      // graph shows the "blank" filter state instead of stale values from
+      // a previously-active preset.
+      resetGraphSettings();
+      return;
+    }
     const preset = presets.find((p) => p.id === id);
     if (!preset) return;
-    const s = preset.settings;
-    if (typeof s.searchQuery === "string") setSearchQuery(s.searchQuery);
-    if (typeof s.sourceType === "string") setSourceType(s.sourceType);
-    if (Array.isArray(s.tags)) setTags(s.tags.filter((x): x is string => typeof x === "string"));
-    else if (typeof s.tag === "string") setTags(s.tag ? [s.tag] : []);
-    if (typeof s.hideIsolated === "boolean") setHideIsolated(s.hideIsolated);
-    if (s.colorMode === "source" || s.colorMode === "tag") setColorMode(s.colorMode);
-    if (typeof s.nodeSpacing === "number") setSpacing(s.nodeSpacing);
+    const s = preset.settings ?? {};
+    // Apply with explicit fallback to defaults so a preset stored without
+    // a given key still resets that key (rather than inheriting from the
+    // previously-active preset).
+    setSearchQuery(typeof s.searchQuery === "string" ? s.searchQuery : "");
+    setSourceType(typeof s.sourceType === "string" ? s.sourceType : "");
+    if (Array.isArray(s.tags)) {
+      setTags(s.tags.filter((x): x is string => typeof x === "string"));
+    } else if (typeof s.tag === "string" && s.tag) {
+      setTags([s.tag]);
+    } else {
+      setTags([]);
+    }
+    setHideIsolated(typeof s.hideIsolated === "boolean" ? s.hideIsolated : false);
+    setColorMode(s.colorMode === "tag" ? "tag" : "source");
+    setSpacing(typeof s.nodeSpacing === "number" ? s.nodeSpacing : 50);
+  };
+
+  const unloadPreset = () => {
+    setActivePresetId("");
+    resetGraphSettings();
   };
 
   const deleteActivePreset = async () => {
@@ -169,6 +201,7 @@ export default function GraphPage() {
     await api.deleteGraphPreset(activePresetId);
     setPresets((prev) => prev.filter((p) => p.id !== activePresetId));
     setActivePresetId("");
+    resetGraphSettings();
   };
 
   // Reload-counter so we can ignore stale responses when filters change
@@ -485,14 +518,24 @@ export default function GraphPage() {
                   <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-300" />
                 </div>
                 {activePresetId && (
-                  <button
-                    type="button"
-                    onClick={() => void deleteActivePreset()}
-                    title={t("graph.preset.delete", { defaultValue: "Delete preset" }) ?? ""}
-                    className="inline-flex items-center justify-center rounded-md border border-ink-700 px-1.5 py-1.5 text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={unloadPreset}
+                      title={t("graph.preset.unload", { defaultValue: "Unload (reset to defaults)" }) ?? ""}
+                      className="inline-flex items-center justify-center rounded-md border border-ink-700 px-1.5 py-1.5 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteActivePreset()}
+                      title={t("graph.preset.delete", { defaultValue: "Delete preset" }) ?? ""}
+                      className="inline-flex items-center justify-center rounded-md border border-ink-700 px-1.5 py-1.5 text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </>
                 )}
               </div>
             )}
