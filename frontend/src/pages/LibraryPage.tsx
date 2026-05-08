@@ -534,7 +534,7 @@ function SelectPill({
 function LibraryTagsSidebar() {
   const { t } = useTranslation();
   return (
-    <aside className="panel-elevated hidden md:flex w-60 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
+    <aside className="panel-elevated hidden md:flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
       <div className="flex items-center justify-between border-b border-ink-800 px-4 py-3">
         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
           {t("nav.tags")}

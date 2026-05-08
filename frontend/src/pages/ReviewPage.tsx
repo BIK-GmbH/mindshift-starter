@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCheck, Eye, Loader2, RefreshCw } from "lucide-react";
+import { ArrowRight, CheckCheck, Eye, Flame, Loader2, RefreshCw, Target } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -47,6 +47,14 @@ export default function ReviewPage() {
   const [submitting, setSubmitting] = useState<ReviewRating | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionStart] = useState(0);
+  // Tally of self-ratings within the current session. Resets when the
+  // queue is reloaded (refresh).
+  const [sessionTally, setSessionTally] = useState<Record<ReviewRating, number>>({
+    again: 0,
+    hard: 0,
+    good: 0,
+    easy: 0,
+  });
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -56,6 +64,7 @@ export default function ReviewPage() {
       setQueue(q);
       setPos(0);
       setRevealed(false);
+      setSessionTally({ again: 0, hard: 0, good: 0, easy: 0 });
       setError(null);
     } catch (err) {
       setError((err as Error).message || t("common.error"));
@@ -80,6 +89,7 @@ export default function ReviewPage() {
     try {
       await api.submitReviewAnswer(current.id, rating);
       setStats((s) => (s ? { ...s, due_now: Math.max(0, s.due_now - 1) } : s));
+      setSessionTally((prev) => ({ ...prev, [rating]: prev[rating] + 1 }));
       if (pos + 1 < queue.length) {
         setPos(pos + 1);
         setRevealed(false);
@@ -94,92 +104,202 @@ export default function ReviewPage() {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Sticky header + stats */}
-      <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/85 backdrop-blur-md">
-        <div className="mx-auto max-w-3xl px-8 pb-4 pt-6">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-ink-100">
-                {t("nav.review")}
-              </h1>
-              <p className="mt-1 text-sm text-ink-400">{t("review.subtitle")}</p>
-            </div>
-            {sessionTotal > 0 && (
-              <div className="text-right text-xs text-ink-400">
-                <div className="tabular-nums text-ink-200">
-                  {sessionDone} / {sessionTotal}
-                </div>
-                <div className="mt-1 h-1.5 w-32 overflow-hidden rounded-full bg-ink-800">
-                  <div
-                    className="h-full rounded-full bg-emerald-400/80 transition-[width] duration-500"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-              </div>
+    <div className="flex h-full">
+      {/* Session sidebar — same width as chat history / tags */}
+      <ReviewSidebar
+        stats={stats}
+        sessionTally={sessionTally}
+        sessionDone={sessionDone}
+        sessionTotal={sessionTotal}
+        progressPct={progressPct}
+      />
+
+      {/* Main column */}
+      <div className="flex flex-1 min-w-0 flex-col">
+        <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/85 backdrop-blur-md">
+          <div className="mx-auto max-w-3xl px-8 pb-4 pt-6">
+            <h1 className="text-2xl font-semibold tracking-tight text-ink-100">
+              {t("nav.review")}
+            </h1>
+            <p className="mt-1 text-sm text-ink-400">{t("review.subtitle")}</p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-8 pb-12 pt-6">
+            {error && (
+              <p className="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                {error}
+              </p>
+            )}
+
+            {loading ? (
+              <ReviewSkeleton />
+            ) : current ? (
+              <ReviewCard
+                item={current}
+                revealed={revealed}
+                submitting={submitting}
+                onReveal={() => setRevealed(true)}
+                onRate={onRating}
+                onOpenCard={() => navigate(`/cards/${current.card_id}`)}
+                progress={{ current: pos + 1, total: queue.length }}
+              />
+            ) : (
+              <DoneState onCheckAgain={() => void refresh()} />
             )}
           </div>
-
-          {stats && <StatsBar stats={stats} />}
-        </div>
-      </div>
-
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-8 pb-12 pt-6">
-          {error && (
-            <p className="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
-              {error}
-            </p>
-          )}
-
-          {loading ? (
-            <ReviewSkeleton />
-          ) : current ? (
-            <ReviewCard
-              item={current}
-              revealed={revealed}
-              submitting={submitting}
-              onReveal={() => setRevealed(true)}
-              onRate={onRating}
-              onOpenCard={() => navigate(`/cards/${current.card_id}`)}
-              progress={{ current: pos + 1, total: queue.length }}
-            />
-          ) : (
-            <DoneState onCheckAgain={() => void refresh()} />
-          )}
         </div>
       </div>
     </div>
   );
 }
 
-function StatsBar({ stats }: { stats: ReviewStats }) {
+function ReviewSidebar({
+  stats,
+  sessionTally,
+  sessionDone,
+  sessionTotal,
+  progressPct,
+}: {
+  stats: ReviewStats | null;
+  sessionTally: Record<ReviewRating, number>;
+  sessionDone: number;
+  sessionTotal: number;
+  progressPct: number;
+}) {
   const { t } = useTranslation();
-  const items: { key: keyof ReviewStats; labelKey: string; accent?: string }[] = [
-    { key: "due_now", labelKey: "review.stats.due", accent: "text-amber-300" },
-    { key: "new", labelKey: "review.stats.new" },
-    { key: "learning", labelKey: "review.stats.learning" },
-    { key: "practiced", labelKey: "review.stats.practiced" },
-    { key: "confident", labelKey: "review.stats.confident" },
-    { key: "mastered", labelKey: "review.stats.mastered", accent: "text-violet-300" },
-    { key: "total", labelKey: "review.stats.total" },
+  const stages: { key: keyof ReviewStats; labelKey: string; dot: string }[] = [
+    { key: "new", labelKey: "review.stats.new", dot: "bg-ink-500" },
+    { key: "learning", labelKey: "review.stats.learning", dot: "bg-amber-400" },
+    { key: "practiced", labelKey: "review.stats.practiced", dot: "bg-emerald-400" },
+    { key: "confident", labelKey: "review.stats.confident", dot: "bg-sky-400" },
+    { key: "mastered", labelKey: "review.stats.mastered", dot: "bg-violet-400" },
   ];
+  const totalAcross =
+    stats != null
+      ? stages.reduce((sum, s) => sum + Number(stats[s.key] || 0), 0) || 1
+      : 1;
+
   return (
-    <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-      {items.map((item) => (
-        <div
-          key={item.key}
-          className="rounded-lg border border-ink-800 bg-ink-800/40 px-3 py-2"
-        >
-          <div className={`text-lg font-semibold tabular-nums ${item.accent ?? "text-ink-100"}`}>
-            {stats[item.key]}
+    <aside className="panel-elevated hidden md:flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
+      <div className="flex-shrink-0 border-b border-ink-800 px-4 py-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
+          {t("review.sidebar.heading", { defaultValue: "This session" })}
+        </span>
+      </div>
+
+      <div className="flex-1 space-y-5 overflow-y-auto p-4">
+        {/* Today / due */}
+        <section className="space-y-2 rounded-lg border border-ink-800 bg-ink-800/40 p-3">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+            <Target className="h-3 w-3" />
+            {t("review.sidebar.due", { defaultValue: "Due now" })}
           </div>
-          <div className="text-[10px] uppercase tracking-[0.12em] text-ink-500">
-            {t(item.labelKey)}
+          <div className="flex items-end justify-between">
+            <span className="text-2xl font-semibold tabular-nums text-amber-300">
+              {stats?.due_now ?? 0}
+            </span>
+            <span className="text-[10px] text-ink-500">
+              / {stats?.total ?? 0} {t("review.stats.total")}
+            </span>
           </div>
-        </div>
-      ))}
+          {sessionTotal > 0 && (
+            <>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-800">
+                <div
+                  className="h-full rounded-full bg-emerald-400/80 transition-[width] duration-500"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-ink-500">
+                {sessionDone} / {sessionTotal} {t("review.sidebar.reviewed", { defaultValue: "reviewed" })}
+              </p>
+            </>
+          )}
+        </section>
+
+        {/* Mastery distribution — proportional bars */}
+        {stats && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+              {t("review.sidebar.mastery", { defaultValue: "Mastery" })}
+            </div>
+            <div className="space-y-1.5">
+              {stages.map(({ key, labelKey, dot }) => {
+                const value = Number(stats[key] || 0);
+                const pct = (value / totalAcross) * 100;
+                return (
+                  <div key={key} className="space-y-0.5">
+                    <div className="flex items-center justify-between text-[11px] text-ink-300">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+                        {t(labelKey)}
+                      </span>
+                      <span className="tabular-nums text-ink-400">{value}</span>
+                    </div>
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-ink-800/60">
+                      <div
+                        className={`h-full rounded-full ${dot} opacity-70`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Session tally */}
+        {sessionDone > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+              <Flame className="h-3 w-3" />
+              {t("review.sidebar.tally", { defaultValue: "Your answers" })}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <TallyTile
+                label={t("review.rating.again")}
+                value={sessionTally.again}
+                tone="text-red-300 bg-red-500/10 ring-red-500/30"
+              />
+              <TallyTile
+                label={t("review.rating.hard")}
+                value={sessionTally.hard}
+                tone="text-amber-300 bg-amber-500/10 ring-amber-500/30"
+              />
+              <TallyTile
+                label={t("review.rating.good")}
+                value={sessionTally.good}
+                tone="text-emerald-300 bg-emerald-500/10 ring-emerald-500/30"
+              />
+              <TallyTile
+                label={t("review.rating.easy")}
+                value={sessionTally.easy}
+                tone="text-sky-300 bg-sky-500/10 ring-sky-500/30"
+              />
+            </div>
+          </section>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function TallyTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+}) {
+  return (
+    <div className={`rounded-md px-2 py-1.5 text-center ring-1 ${tone}`}>
+      <div className="text-base font-semibold tabular-nums">{value}</div>
+      <div className="text-[9px] uppercase tracking-wider opacity-70">{label}</div>
     </div>
   );
 }
