@@ -82,6 +82,13 @@ class ProduceRequest(BaseModel):
     narrative_text: str = Field(min_length=20)
     voice: str | None = None
     generate_cover: bool = True
+    # Free-form description of what the cover should show / mood / style.
+    # Appended to the base template (not a replacement).
+    cover_style: str | None = None
+    # Optional text to render onto the cover. gpt-image-2 handles
+    # in-image text well. None / empty → no text overlay.
+    cover_text: str | None = None
+    # Power-user complete override of the prompt (skips template + hints).
     cover_prompt: str | None = None
 
 

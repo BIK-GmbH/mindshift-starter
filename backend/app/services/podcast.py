@@ -261,13 +261,18 @@ Return strict JSON only:
 {{"title": "...", "narrative_text": "..."}}"""
 
 
-COVER_PROMPT_TEMPLATE = (
+COVER_PROMPT_BASE = (
     "Podcast cover artwork for an episode titled '{title}'. "
-    "{summary} "
-    "Style: editorial illustration, sophisticated color palette, "
-    "high-contrast composition, no text overlays, no faces, "
-    "abstract conceptual feel — suitable as a podcast cover thumbnail. "
-    "Square aspect ratio."
+    "Square aspect ratio, suitable as a thumbnail at 200×200 px and "
+    "still readable. Editorial illustration with a sophisticated color "
+    "palette, high-contrast composition, abstract / conceptual feel. "
+    "No faces."
+)
+COVER_PROMPT_NO_TEXT = " No text, letters, words, or signage anywhere in the image."
+COVER_PROMPT_WITH_TEXT = (
+    " Render the following text on the cover in clean stylized typography, "
+    'integrated tastefully into the design (large, legible): "{text}". '
+    "No other text or letters anywhere."
 )
 
 
@@ -324,7 +329,34 @@ def synthesize_episode_audio(narrative_text: str, voice: Optional[str] = None) -
     return wav, chosen_voice
 
 
-def generate_cover_image(title: str, summary_hint: str = "", custom_prompt: Optional[str] = None) -> bytes:
+def _build_cover_prompt(
+    *,
+    title: str,
+    summary_hint: str = "",
+    style_hint: Optional[str] = None,
+    cover_text: Optional[str] = None,
+) -> str:
+    """Compose the cover prompt from base + optional hints + text overlay."""
+    parts = [COVER_PROMPT_BASE.format(title=title)]
+    if summary_hint:
+        parts.append(f"Topic context: {summary_hint[:300]}")
+    if style_hint and style_hint.strip():
+        parts.append(f"Visual direction: {style_hint.strip()[:400]}")
+    if cover_text and cover_text.strip():
+        parts.append(COVER_PROMPT_WITH_TEXT.format(text=cover_text.strip()[:80]))
+    else:
+        parts.append(COVER_PROMPT_NO_TEXT)
+    return " ".join(parts)
+
+
+def generate_cover_image(
+    title: str,
+    summary_hint: str = "",
+    custom_prompt: Optional[str] = None,
+    *,
+    style_hint: Optional[str] = None,
+    cover_text: Optional[str] = None,
+) -> bytes:
     """Generate a square podcast cover via OpenAI gpt-image-2. Returns PNG bytes."""
     settings = get_settings()
     if not settings.openai_api_key:
@@ -334,8 +366,11 @@ def generate_cover_image(title: str, summary_hint: str = "", custom_prompt: Opti
 
     client = OpenAI(api_key=settings.openai_api_key)
 
-    prompt = custom_prompt or COVER_PROMPT_TEMPLATE.format(
-        title=title, summary=summary_hint[:300]
+    prompt = custom_prompt or _build_cover_prompt(
+        title=title,
+        summary_hint=summary_hint,
+        style_hint=style_hint,
+        cover_text=cover_text,
     )
 
     # gpt-image-2 returns base64 by default. 1024x1024 is the canonical

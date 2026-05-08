@@ -420,6 +420,8 @@ export const api = {
       voice?: string;
       generate_cover?: boolean;
       cover_prompt?: string;
+      cover_style?: string;
+      cover_text?: string;
     },
   ) =>
     request<PodcastEpisodeOut>(

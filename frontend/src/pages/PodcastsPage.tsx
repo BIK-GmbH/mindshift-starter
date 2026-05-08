@@ -335,6 +335,8 @@ function PlaylistDetailView({
   const [draftText, setDraftText] = useState(detail.draft_narrative_text ?? "");
   const [voice, setVoice] = useState("Kore");
   const [generateCover, setGenerateCover] = useState(true);
+  const [coverStyle, setCoverStyle] = useState("");
+  const [coverText, setCoverText] = useState("");
   const [targetMinutes, setTargetMinutes] = useState(detail.draft_target_minutes ?? 5);
   const [draftSaving, setDraftSaving] = useState(false);
   const lastSavedRef = useRef<{ title: string; text: string } | null>(null);
@@ -489,6 +491,8 @@ function PlaylistDetailView({
         narrative_text: draftText,
         voice,
         generate_cover: generateCover,
+        cover_style: coverStyle.trim() || undefined,
+        cover_text: coverText.trim() || undefined,
       });
       // Backend already cleared the draft on success. Refresh + sync local.
       const updated = await api.getPlaylist(detail.id);
@@ -695,6 +699,48 @@ function PlaylistDetailView({
                 <ImageIcon className="h-3 w-3" />
                 {t("podcastPage.generateCover", { defaultValue: "Generate cover art" })}
               </label>
+              {generateCover && (
+                <div className="flex w-full flex-col gap-2 rounded-md border border-ink-800 bg-ink-900/40 p-2.5">
+                  <label className="flex flex-col gap-1 text-[10px] text-ink-400">
+                    <span>
+                      {t("podcastPage.coverStyle", {
+                        defaultValue: "Cover style — what should it look like?",
+                      })}
+                    </span>
+                    <input
+                      type="text"
+                      value={coverStyle}
+                      onChange={(e) => setCoverStyle(e.target.value)}
+                      placeholder={
+                        t("podcastPage.coverStylePh", {
+                          defaultValue:
+                            "e.g. retro 70s warm tones, blueprint sketch, minimalist Bauhaus…",
+                        }) ?? ""
+                      }
+                      className="rounded-md border border-ink-700 bg-ink-900/60 px-2 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-[10px] text-ink-400">
+                    <span>
+                      {t("podcastPage.coverText", {
+                        defaultValue: "Cover text — leave empty for none",
+                      })}
+                    </span>
+                    <input
+                      type="text"
+                      value={coverText}
+                      onChange={(e) => setCoverText(e.target.value)}
+                      maxLength={80}
+                      placeholder={
+                        t("podcastPage.coverTextPh", {
+                          defaultValue: "e.g. EPISODE 03 · OPEN AI",
+                        }) ?? ""
+                      }
+                      className="rounded-md border border-ink-700 bg-ink-900/60 px-2 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none"
+                    />
+                  </label>
+                </div>
+              )}
               <div className="ml-auto flex items-center gap-2">
                 <button
                   type="button"

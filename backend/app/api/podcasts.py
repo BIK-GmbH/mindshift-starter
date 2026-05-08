@@ -438,6 +438,8 @@ def _run_episode_job(
     voice: str | None,
     generate_cover: bool,
     cover_prompt: str | None,
+    cover_style: str | None,
+    cover_text: str | None,
 ) -> None:
     """Background worker for episode synthesis. Owns its own DB session."""
     db = SessionLocal()
@@ -467,6 +469,8 @@ def _run_episode_job(
                         title=ep.title,
                         summary_hint=ep.narrative_text[:500],
                         custom_prompt=cover_prompt,
+                        style_hint=cover_style,
+                        cover_text=cover_text,
                     )
                     cover_file = storage.save(
                         db,
@@ -530,6 +534,8 @@ def produce_episode(
         voice=payload.voice,
         generate_cover=payload.generate_cover,
         cover_prompt=payload.cover_prompt,
+        cover_style=payload.cover_style,
+        cover_text=payload.cover_text,
     )
     return _episode_to_out(ep)
 
