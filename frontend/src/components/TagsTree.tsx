@@ -1,7 +1,11 @@
 import {
+  Check,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
+  Copy,
+  ExternalLink,
+  EyeOff,
   FileText,
   Globe,
   Hash,
@@ -27,6 +31,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from "react-arborist";
 
 import { api, type TagCard, type TagsTree as TagsTreeData } from "../lib/api";
+import { useAuth } from "../lib/AuthContext";
 import { playHover } from "../lib/sounds";
 
 const SOURCE_ICONS: Record<string, FC<{ className?: string }>> = {
@@ -53,6 +58,8 @@ interface TagItem {
   count: number;
   parentTagId: string | null;
   isPublic: boolean;
+  /** "parent/child/leaf" slug path used to build the public URL. */
+  slugPath: string;
   children: TreeItem[];
 }
 
@@ -90,6 +97,7 @@ function buildTreeData(
       count: t.cards.length,
       parentTagId: t.parent_id,
       isPublic: t.is_public ?? false,
+      slugPath: t.name, // resolved in second pass once parents are wired
       children: t.cards.map((c) => makeCardItem(c, t.id)),
     });
   }
@@ -116,6 +124,17 @@ function buildTreeData(
   };
   for (const r of roots) sortChildren(r);
   roots.sort((a, b) => a.name.localeCompare(b.name));
+
+  // Resolve slug paths now that parents are wired.
+  const resolveSlug = (t: TagItem): string => {
+    if (!t.parentTagId) return t.name;
+    const parent = tagsById.get(t.parentTagId);
+    if (!parent) return t.name;
+    return `${resolveSlug(parent)}/${t.name}`;
+  };
+  for (const t of tagsById.values()) {
+    t.slugPath = resolveSlug(t);
+  }
 
   const out: TreeItem[] = [...roots];
   if (tagsData.untagged.length > 0) {
@@ -189,6 +208,12 @@ export interface TagsTreeHandle {
 
 const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const publicUrlFor = (slugPath: string): string | null => {
+    if (!user?.username) return null;
+    if (typeof window === "undefined") return null;
+    return `${window.location.origin}/u/${user.username}/${slugPath}`;
+  };
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
@@ -570,6 +595,7 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
                 onPickCard={(id) => openCard(id)}
                 onPickUntagged={() => select(null, true)}
                 onTogglePublic={togglePublic}
+                publicUrlFor={publicUrlFor}
               />
             )}
           </Tree>
@@ -600,6 +626,7 @@ interface NodeExtras {
   onPickCard: (rawId: string) => void;
   onPickUntagged: () => void;
   onTogglePublic: (rawId: string, next: boolean) => void;
+  publicUrlFor: (slugPath: string) => string | null;
 }
 
 function TreeNode({
@@ -619,11 +646,25 @@ function TreeNode({
   onPickCard,
   onPickUntagged,
   onTogglePublic,
+  publicUrlFor,
 }: NodeRendererProps<TreeItem> & NodeExtras) {
   const item = node.data;
   const isInternal = node.isInternal;
   const isOpen = node.isOpen;
   const willReceiveDrop = node.willReceiveDrop;
+  const [sharePopoverOpen, setSharePopoverOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!sharePopoverOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!popoverRef.current?.contains(e.target as Node)) {
+        setSharePopoverOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [sharePopoverOpen]);
 
   if (item.kind === "card") {
     const Icon = SOURCE_ICONS[item.sourceType] ?? Type;
@@ -741,27 +782,106 @@ function TreeNode({
         <Hash className="h-3 w-3 flex-shrink-0 text-ink-500" />
         <span className="flex-1 truncate">{item.name}</span>
 
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onTogglePublic(item.rawId, !item.isPublic);
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          className={[
-            "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded transition",
-            item.isPublic
-              ? "text-emerald-400 opacity-100 hover:bg-emerald-500/10"
-              : "text-ink-500 opacity-0 hover:bg-ink-700 hover:text-ink-100 group-hover:opacity-100",
-          ].join(" ")}
-          title={
-            item.isPublic
-              ? "Public — click to make private"
-              : "Click to make this tag (and its sub-tree) public"
-          }
-        >
-          <Globe className="h-3 w-3" />
-        </button>
+        <div className="relative flex-shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!item.isPublic) onTogglePublic(item.rawId, true);
+              setSharePopoverOpen((v) => !v);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={[
+              "flex h-5 w-5 items-center justify-center rounded transition",
+              item.isPublic
+                ? "text-emerald-400 opacity-100 hover:bg-emerald-500/10"
+                : "text-ink-500 opacity-0 hover:bg-ink-700 hover:text-ink-100 group-hover:opacity-100",
+            ].join(" ")}
+            title={
+              item.isPublic
+                ? "Public — share menu"
+                : "Click to make this tag (and its sub-tree) public"
+            }
+          >
+            <Globe className="h-3 w-3" />
+          </button>
+
+          {sharePopoverOpen && (
+            <div
+              ref={popoverRef}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="panel-elevated absolute right-0 top-[calc(100%+4px)] z-30 w-64 rounded-md border border-ink-700 bg-ink-900 p-2 shadow-xl"
+            >
+              {(() => {
+                const url = publicUrlFor(item.slugPath);
+                if (!url) {
+                  return (
+                    <p className="px-1 py-1 text-[10px] text-ink-400">
+                      Set a username + enable public profile in Settings → Account first.
+                    </p>
+                  );
+                }
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        readOnly
+                        value={url}
+                        onFocus={(e) => e.currentTarget.select()}
+                        className="flex-1 rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1 font-mono text-[10px] text-ink-200 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(url);
+                            setCopied(true);
+                            window.setTimeout(() => setCopied(false), 1500);
+                          } catch {
+                            /* ignore */
+                          }
+                        }}
+                        title="Copy"
+                        className={[
+                          "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border transition",
+                          copied
+                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                            : "border-ink-700 text-ink-300 hover:bg-ink-800",
+                        ].join(" ")}
+                      >
+                        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] text-ink-200 transition hover:bg-ink-800"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Open
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onTogglePublic(item.rawId, false);
+                          setSharePopoverOpen(false);
+                        }}
+                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
+                      >
+                        <EyeOff className="h-3 w-3" />
+                        Make private
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
 
         <button
           type="button"
