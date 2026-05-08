@@ -19,6 +19,7 @@ class TagOut(BaseModel):
     name: str
     parent_id: UUID | None = None
     count: int = 0
+    is_public: bool = False
 
 
 class CreateTagRequest(BaseModel):
@@ -29,6 +30,7 @@ class CreateTagRequest(BaseModel):
 class UpdateTagRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     parent_id: UUID | None = None
+    is_public: bool | None = None
 
 
 class UntaggedCount(BaseModel):
@@ -48,6 +50,7 @@ class TagWithCardsOut(BaseModel):
     name: str
     parent_id: UUID | None = None
     count: int
+    is_public: bool = False
     cards: list[TagCardOut] = []
 
 
@@ -80,7 +83,7 @@ def list_tags(
         .order_by(Tag.name)
     ).all()
     return [
-        TagOut(id=t.id, name=t.name, parent_id=t.parent_id, count=int(c or 0))
+        TagOut(id=t.id, name=t.name, parent_id=t.parent_id, count=int(c or 0), is_public=t.is_public)
         for t, c in rows
     ]
 
@@ -124,6 +127,7 @@ def tag_tree(
             name=t.name,
             parent_id=t.parent_id,
             count=len(cards_per_tag.get(t.id, [])),
+            is_public=t.is_public,
             cards=cards_per_tag.get(t.id, []),
         )
         for t in tags
@@ -190,7 +194,7 @@ def create_tag(
     db.add(tag)
     db.commit()
     db.refresh(tag)
-    return TagOut(id=tag.id, name=tag.name, parent_id=tag.parent_id, count=0)
+    return TagOut(id=tag.id, name=tag.name, parent_id=tag.parent_id, count=0, is_public=tag.is_public)
 
 
 @router.patch("/{tag_id}", response_model=TagOut)
@@ -235,13 +239,22 @@ def update_tag(
                 cursor = db.get(Tag, cursor.parent_id) if cursor.parent_id else None
             tag.parent_id = new_parent_id
 
+    if "is_public" in payload.model_fields_set and payload.is_public is not None:
+        tag.is_public = payload.is_public
+
     db.commit()
     db.refresh(tag)
 
     count = db.execute(
         select(func.count(CardTag.card_id)).where(CardTag.tag_id == tag.id)
     ).scalar_one()
-    return TagOut(id=tag.id, name=tag.name, parent_id=tag.parent_id, count=int(count or 0))
+    return TagOut(
+        id=tag.id,
+        name=tag.name,
+        parent_id=tag.parent_id,
+        count=int(count or 0),
+        is_public=tag.is_public,
+    )
 
 
 @router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)

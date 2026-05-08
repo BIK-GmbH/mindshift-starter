@@ -8,6 +8,8 @@ import ChatPage from "./pages/ChatPage";
 import GraphPage from "./pages/GraphPage";
 import LibraryPage from "./pages/LibraryPage";
 import PublicCardPage from "./pages/PublicCardPage";
+import PublicProfilePage from "./pages/PublicProfilePage";
+import PublicTagPage from "./pages/PublicTagPage";
 import ReviewPage from "./pages/ReviewPage";
 
 export default function App() {
@@ -21,12 +23,14 @@ export default function App() {
 function RootRoutes() {
   const { user, loading } = useAuth();
 
-  // Public share routes don't require auth.
+  // Public routes don't require auth.
   const path = window.location.pathname;
-  if (path.startsWith("/share/")) {
+  if (path.startsWith("/share/") || path.startsWith("/u/")) {
     return (
       <Routes>
         <Route path="share/:token" element={<PublicCardPage />} />
+        <Route path="u/:username" element={<PublicProfilePage />} />
+        <Route path="u/:username/*" element={<PublicTagPage />} />
       </Routes>
     );
   }
@@ -42,6 +46,8 @@ function RootRoutes() {
   return (
     <Routes>
       <Route path="share/:token" element={<PublicCardPage />} />
+      <Route path="u/:username" element={<PublicProfilePage />} />
+      <Route path="u/:username/*" element={<PublicTagPage />} />
       <Route element={<AppLayout />}>
         <Route index element={<LibraryPage />} />
         <Route path="cards/:cardId" element={<CardDetailPage />} />

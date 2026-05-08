@@ -6,6 +6,10 @@ interface User {
   id: string;
   email: string;
   display_name: string | null;
+  username?: string | null;
+  bio?: string | null;
+  avatar_file_id?: string | null;
+  public_profile?: boolean;
 }
 
 interface AuthState {
@@ -14,6 +18,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName?: string) => Promise<void>;
   signOut: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -62,8 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, signIn, signUp, signOut }),
-    [user, loading, signIn, signUp, signOut],
+    () => ({ user, loading, signIn, signUp, signOut, refreshUser: refresh }),
+    [user, loading, signIn, signUp, signOut, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

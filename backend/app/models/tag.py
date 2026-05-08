@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,6 +23,7 @@ class Tag(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
 
 
 class CardTag(Base):

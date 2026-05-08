@@ -120,7 +120,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
-  me: () => request<{ id: string; email: string; display_name: string | null }>("/api/auth/me"),
+  me: () => request<UserOut>("/api/auth/me"),
 
   listCards: (params: { q?: string; status?: string; tag?: string; untagged?: boolean; sort?: string } = {}) => {
     const search = new URLSearchParams();
@@ -233,6 +233,45 @@ export const api = {
     request<void>(`/api/chat/sessions/${id}`, { method: "DELETE" }),
   exportMarkdownUrl: () => `${BASE_URL}/api/export/markdown`,
   fileDownloadUrl: (fileId: string) => `${BASE_URL}/api/files/${fileId}`,
+  publicAvatarUrl: (fileId: string) => `${BASE_URL}/api/public/avatars/${fileId}`,
+  updateProfile: (body: {
+    display_name?: string | null;
+    username?: string | null;
+    bio?: string | null;
+    public_profile?: boolean | null;
+  }) =>
+    request<UserOut>("/api/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  uploadAvatar: async (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const headers: Record<string, string> = {};
+    const token = tokenStorage.get();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${BASE_URL}/api/auth/me/avatar`, { method: "POST", body: form, headers });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const detail =
+        data && typeof data === "object" && "detail" in data
+          ? String((data as { detail?: unknown }).detail)
+          : res.statusText;
+      throw new ApiError(res.status, detail, data);
+    }
+    return data as UserOut;
+  },
+  removeAvatar: () => request<UserOut>("/api/auth/me/avatar", { method: "DELETE" }),
+  getPublicProfile: (username: string) =>
+    request<PublicProfileOut>(`/api/public/users/${encodeURIComponent(username)}`),
+  getPublicTag: (username: string, slug: string) =>
+    request<PublicTagDetail>(
+      `/api/public/users/${encodeURIComponent(username)}/tags/${encodeURI(slug)}`,
+    ),
+  getPublicProfileCard: (username: string, cardId: string) =>
+    request<PublicCard>(
+      `/api/public/users/${encodeURIComponent(username)}/cards/${cardId}`,
+    ),
   createExtensionToken: () =>
     request<{ access_token: string; token_type: string }>("/api/auth/extension-token", {
       method: "POST",
@@ -261,7 +300,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ name, parent_id: parentId ?? null }),
     }),
-  updateTag: (id: string, body: { name?: string; parent_id?: string | null }) =>
+  updateTag: (
+    id: string,
+    body: { name?: string; parent_id?: string | null; is_public?: boolean },
+  ) =>
     request<TagWithCount>(`/api/tags/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
@@ -334,6 +376,7 @@ export interface TagWithCount {
   name: string;
   parent_id: string | null;
   count: number;
+  is_public?: boolean;
 }
 
 export interface TagCard {
@@ -467,6 +510,45 @@ export interface PublicCard {
   detailed_summary_md: string | null;
   key_takeaways_json: unknown[] | null;
   notes_md: string | null;
+}
+
+export interface UserOut {
+  id: string;
+  email: string;
+  display_name: string | null;
+  username: string | null;
+  bio: string | null;
+  avatar_file_id: string | null;
+  public_profile: boolean;
+}
+
+export interface PublicProfileTagOut {
+  name: string;
+  slug: string;
+  card_count: number;
+}
+
+export interface PublicProfileOut {
+  username: string;
+  display_name: string | null;
+  bio: string | null;
+  avatar_file_id: string | null;
+  tags: PublicProfileTagOut[];
+}
+
+export interface PublicCardSummary {
+  id: string;
+  title: string;
+  source_type: string;
+  thumbnail_url: string | null;
+  concise_summary_md: string | null;
+}
+
+export interface PublicTagDetail {
+  name: string;
+  slug: string;
+  card_count: number;
+  cards: PublicCardSummary[];
 }
 
 export interface SearchHit {
