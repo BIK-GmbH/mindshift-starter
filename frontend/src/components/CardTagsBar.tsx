@@ -119,7 +119,7 @@ export default function CardTagsBar({ cardId, initialTags, onTagsChanged }: Prop
   return (
     <div
       ref={wrapperRef}
-      className="relative flex min-h-[2.75rem] flex-wrap content-start items-start gap-1.5"
+      className="relative flex min-h-[3.5rem] flex-wrap content-start items-start gap-1.5"
     >
       {tags.map((name) => (
         <span
