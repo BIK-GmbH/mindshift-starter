@@ -316,11 +316,6 @@ export default function CardDetailContent({
                     )}
                   </p>
                 )}
-                {card.error_message && (
-                  <p className="mt-2 rounded bg-red-500/10 px-2 py-1 text-xs text-red-300">
-                    {card.error_message}
-                  </p>
-                )}
               </div>
             </div>
 
@@ -372,6 +367,31 @@ export default function CardDetailContent({
       {/* Scrolling content */}
       <div className="flex-1 overflow-y-auto">
         <div className={`mx-auto ${innerWidth} ${horizPad} pb-16 pt-6`}>
+          {/* Failed-ingestion banner: lives in the scrollable content
+              area so its presence/absence never bumps the sticky
+              header. Click "Retry" → it disappears and the skeleton
+              below takes over while the new run finishes. */}
+          {card.status === "failed" && card.error_message && (
+            <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-300">
+              <RefreshCw className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-red-200">
+                  {t("card.ingestionFailed", { defaultValue: "Ingestion failed" })}
+                </p>
+                <p className="mt-1 break-words text-xs text-red-300/80">{card.error_message}</p>
+              </div>
+              {canRegenerate && (
+                <button
+                  type="button"
+                  onClick={handleRegenerate}
+                  className="flex-shrink-0 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
+                >
+                  {t("card.retry")}
+                </button>
+              )}
+            </div>
+          )}
+
           <div key={tab} className="tab-content-enter">
             {tab === "summary" && (
               <div className="space-y-8 text-sm leading-relaxed">

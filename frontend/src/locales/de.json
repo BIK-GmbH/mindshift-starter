@@ -105,6 +105,7 @@
     "tags": "Tags",
     "deleteTitle": "Diese Card löschen?",
     "deleteBody": "Card, Transkript, Zusammenfassung, Notizen und Quiz werden unwiderruflich entfernt.",
+    "ingestionFailed": "Verarbeitung fehlgeschlagen",
     "status": {
       "queued": "Wartet",
       "processing": "Wird verarbeitet",

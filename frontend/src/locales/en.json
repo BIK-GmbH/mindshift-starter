@@ -105,6 +105,7 @@
     "tags": "Tags",
     "deleteTitle": "Delete this card?",
     "deleteBody": "This permanently removes the card, its transcript, summaries, notes and quiz items. The action cannot be undone.",
+    "ingestionFailed": "Ingestion failed",
     "status": {
       "queued": "Queued",
       "processing": "Processing",
