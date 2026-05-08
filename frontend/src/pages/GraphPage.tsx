@@ -91,6 +91,9 @@ export default function GraphPage() {
   );
   const [drawerCardId, setDrawerCardId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // null = no level filter (all nodes full opacity); 1..N = highlight
+  // BFS reachable within N hops, dim everything else.
+  const [selectedLevel, setSelectedLevel] = useState<number | null>(2);
 
   // Path finder
   const [pathMode, setPathMode] = useState(false);
@@ -341,6 +344,37 @@ export default function GraphPage() {
     return { nodes, links };
   }, [data, focusedNeighbours, focusedNodeId, hideIsolated, locked]);
 
+  // BFS the graph from the selected node up to `selectedLevel` hops.
+  // Returns the set of node IDs that should render at full opacity;
+  // every other node is dimmed. `null` when no selection or "All" mode.
+  const highlightedNodeIds = useMemo<Set<string> | null>(() => {
+    if (!selectedNodeId || !data || selectedLevel == null) return null;
+    // Build adjacency once.
+    const adj = new Map<string, Set<string>>();
+    for (const e of data.edges) {
+      if (!adj.has(e.source)) adj.set(e.source, new Set());
+      adj.get(e.source)!.add(e.target);
+      if (!adj.has(e.target)) adj.set(e.target, new Set());
+      adj.get(e.target)!.add(e.source);
+    }
+    const visited = new Set<string>([selectedNodeId]);
+    let frontier = new Set<string>([selectedNodeId]);
+    for (let depth = 0; depth < selectedLevel; depth += 1) {
+      const next = new Set<string>();
+      for (const id of frontier) {
+        for (const n of adj.get(id) ?? []) {
+          if (!visited.has(n)) {
+            visited.add(n);
+            next.add(n);
+          }
+        }
+      }
+      if (next.size === 0) break;
+      frontier = next;
+    }
+    return visited;
+  }, [selectedNodeId, data, selectedLevel]);
+
   // Selected node detail — pulls neighbours from the full edge list
   // (not the focus-restricted view) so the sidebar always shows what
   // a node is actually connected to in the current graph snapshot.
@@ -589,6 +623,46 @@ export default function GraphPage() {
                   >
                     <X className="h-3 w-3" />
                   </button>
+                </div>
+
+                {/* Level / hop filter — dim everything outside N hops. */}
+                <div>
+                  <p className="mb-1 text-[10px] uppercase tracking-wider text-ink-500">
+                    {t("graph.selected.level", { defaultValue: "Levels" })}
+                  </p>
+                  <div className="grid grid-cols-5 gap-1 text-[11px]">
+                    {[1, 2, 3, 4].map((lvl) => {
+                      const isActive = selectedLevel === lvl;
+                      return (
+                        <button
+                          key={lvl}
+                          type="button"
+                          onClick={() => setSelectedLevel(lvl)}
+                          className={[
+                            "rounded-md px-2 py-1 text-center transition",
+                            isActive
+                              ? "bg-ink-100 text-ink-900"
+                              : "bg-ink-800/40 text-ink-300 ring-1 ring-ink-700 hover:bg-ink-700/60",
+                          ].join(" ")}
+                        >
+                          {lvl}
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLevel(null)}
+                      title={t("graph.selected.allTooltip", { defaultValue: "Show all (no dimming)" }) ?? ""}
+                      className={[
+                        "rounded-md px-2 py-1 text-center transition",
+                        selectedLevel === null
+                          ? "bg-ink-100 text-ink-900"
+                          : "bg-ink-800/40 text-ink-300 ring-1 ring-ink-700 hover:bg-ink-700/60",
+                      ].join(" ")}
+                    >
+                      ∞
+                    </button>
+                  </div>
                 </div>
 
                 {selectedNodeDetail.edges.length === 0 ? (
@@ -952,6 +1026,14 @@ export default function GraphPage() {
                 ) {
                   return "rgba(255,255,255,0.85)";
                 }
+                // Level filter: dim edges where at least one endpoint
+                // is outside the highlighted set (BFS within N hops).
+                if (highlightedNodeIds) {
+                  const sIn = highlightedNodeIds.has(l.source as unknown as string);
+                  const tIn = highlightedNodeIds.has(l.target as unknown as string);
+                  if (!(sIn && tIn)) return "rgba(140,150,170,0.08)";
+                  return "rgba(140,150,170,0.7)";
+                }
                 if (
                   searchQuery &&
                   !matchSet.has(l.source as unknown as string) &&
@@ -1029,7 +1111,10 @@ export default function GraphPage() {
                 const isPathNode = pathSet.has(n.id);
                 const isPathEndpoint =
                   pathFrom?.id === n.id || pathTo?.id === n.id;
+                const outsideLevel =
+                  highlightedNodeIds !== null && !highlightedNodeIds.has(n.id);
                 const isDimmed =
+                  outsideLevel ||
                   (searchQuery !== "" && !isMatch) ||
                   (pathResult.length > 0 && !isPathNode);
                 const radius = 4 + Math.sqrt(Math.max(0, n.degree)) * 2.2;

@@ -198,7 +198,9 @@
     "selected": {
       "heading": "Ausgewählt",
       "connections": "Verbindungen",
-      "noEdges": "Dieser Knoten hat noch keine Verbindungen."
+      "noEdges": "Dieser Knoten hat noch keine Verbindungen.",
+      "level": "Ebenen",
+      "allTooltip": "Alle anzeigen (kein Ausblenden)"
     },
     "filtersHeading": "Filter",
     "filterSource": "Quelle",

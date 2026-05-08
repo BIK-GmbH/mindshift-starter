@@ -198,7 +198,9 @@
     "selected": {
       "heading": "Selected",
       "connections": "connections",
-      "noEdges": "This node has no connections yet."
+      "noEdges": "This node has no connections yet.",
+      "level": "Levels",
+      "allTooltip": "Show all (no dimming)"
     },
     "filtersHeading": "Filters",
     "filterSource": "Source",
