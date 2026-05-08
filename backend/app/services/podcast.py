@@ -329,6 +329,52 @@ def synthesize_episode_audio(narrative_text: str, voice: Optional[str] = None) -
     return wav, chosen_voice
 
 
+COVER_SUGGEST_PROMPT = """You are an art director for a podcast. Given an
+episode TITLE and SCRIPT, propose:
+
+1. cover_style — a short visual brief (≤ 30 words, English, prose) describing
+   what should be on the cover: subject, palette, art style, mood. Be
+   concrete and evocative ("brutalist concrete tower wrapped in golden ivy,
+   warm dusk palette, editorial illustration"). NO mentions of text/letters.
+
+2. cover_text — a SHORT teaser headline (≤ 5 words, ALL CAPS, language matched
+   to the script) that captures the episode's hook. Think magazine cover
+   pull-quote, not the full title. Avoid the literal episode title verbatim
+   — distill its punch.
+
+Return strict JSON only:
+{"cover_style": "...", "cover_text": "..."}"""
+
+
+def suggest_cover_meta(title: str, narrative_text: str) -> dict[str, str]:
+    """Ask gpt-5.4-mini for a cover style brief + short teaser text."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY not configured")
+
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.openai_api_key)
+    user_msg = f"TITLE: {title}\n\nSCRIPT:\n{narrative_text[:6000]}"
+    response = client.chat.completions.create(
+        model=settings.openai_model,
+        messages=[
+            {"role": "system", "content": COVER_SUGGEST_PROMPT},
+            {"role": "user", "content": user_msg},
+        ],
+        response_format={"type": "json_object"},
+    )
+    raw = response.choices[0].message.content or "{}"
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Cover suggest returned non-JSON: {raw[:200]}") from exc
+    return {
+        "cover_style": str(data.get("cover_style", "")).strip(),
+        "cover_text": str(data.get("cover_text", "")).strip().upper()[:80],
+    }
+
+
 def _build_cover_prompt(
     *,
     title: str,

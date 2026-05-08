@@ -32,6 +32,8 @@ from app.models.user import User
 from app.schemas.podcast import (
     AddCardRequest,
     AddCardsBulkRequest,
+    CoverSuggestRequest,
+    CoverSuggestResponse,
     DraftRequest,
     DraftResponse,
     EpisodeOut,
@@ -49,6 +51,7 @@ from app.schemas.podcast import (
 from app.services.podcast import (
     generate_cover_image,
     generate_episode_draft,
+    suggest_cover_meta,
     synthesize_episode_audio,
 )
 from app.services.storage import get_storage
@@ -382,6 +385,25 @@ def reorder_playlist(
 
 
 # --- Episode draft + produce ------------------------------------------------
+
+
+@router.post(
+    "/episodes/cover-suggest",
+    response_model=CoverSuggestResponse,
+)
+def episode_cover_suggest(
+    payload: CoverSuggestRequest,
+    _user: User = Depends(get_current_user),
+) -> CoverSuggestResponse:
+    """Propose cover_style + cover_text from the episode title + script."""
+    try:
+        result = suggest_cover_meta(payload.title, payload.narrative_text)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return CoverSuggestResponse(
+        cover_style=result.get("cover_style", ""),
+        cover_text=result.get("cover_text", ""),
+    )
 
 
 @router.post(

@@ -114,3 +114,13 @@ class FromTagRequest(BaseModel):
     tag_name: str = Field(min_length=1)
     include_subtags: bool = True
     name: str | None = None
+
+
+class CoverSuggestRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    narrative_text: str = Field(min_length=20)
+
+
+class CoverSuggestResponse(BaseModel):
+    cover_style: str
+    cover_text: str

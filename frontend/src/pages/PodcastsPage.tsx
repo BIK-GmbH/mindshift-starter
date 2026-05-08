@@ -337,6 +337,21 @@ function PlaylistDetailView({
   const [generateCover, setGenerateCover] = useState(true);
   const [coverStyle, setCoverStyle] = useState("");
   const [coverText, setCoverText] = useState("");
+  const [coverSuggestBusy, setCoverSuggestBusy] = useState(false);
+
+  const suggestCover = async () => {
+    if (!draftTitle.trim() || draftText.trim().length < 20) return;
+    setCoverSuggestBusy(true);
+    try {
+      const out = await api.suggestCoverMeta(draftTitle.trim(), draftText);
+      setCoverStyle(out.cover_style);
+      setCoverText(out.cover_text);
+    } catch (err) {
+      onError((err as Error).message);
+    } finally {
+      setCoverSuggestBusy(false);
+    }
+  };
   const [targetMinutes, setTargetMinutes] = useState(detail.draft_target_minutes ?? 5);
   const [draftSaving, setDraftSaving] = useState(false);
   const lastSavedRef = useRef<{ title: string; text: string } | null>(null);
@@ -701,6 +716,26 @@ function PlaylistDetailView({
               </label>
               {generateCover && (
                 <div className="flex w-full flex-col gap-2 rounded-md border border-ink-800 bg-ink-900/40 p-2.5">
+                  <button
+                    type="button"
+                    onClick={() => void suggestCover()}
+                    disabled={
+                      coverSuggestBusy ||
+                      !draftTitle.trim() ||
+                      draftText.trim().length < 20
+                    }
+                    className="inline-flex items-center justify-center gap-1.5 self-start rounded-md border border-ink-700 px-2.5 py-1 text-[11px] text-ink-200 transition hover:bg-ink-800 disabled:opacity-50"
+                    title={t("podcastPage.suggestCoverTitle", { defaultValue: "Generate style + teaser text from the script" }) ?? ""}
+                  >
+                    {coverSuggestBusy ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3 w-3" />
+                    )}
+                    {t("podcastPage.suggestCover", {
+                      defaultValue: "Suggest style + cover text",
+                    })}
+                  </button>
                   <label className="flex flex-col gap-1 text-[10px] text-ink-400">
                     <span>
                       {t("podcastPage.coverStyle", {

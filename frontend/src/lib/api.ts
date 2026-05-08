@@ -407,6 +407,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ card_ids: cardIds }),
     }),
+  suggestCoverMeta: (title: string, narrativeText: string) =>
+    request<{ cover_style: string; cover_text: string }>(
+      "/api/podcasts/episodes/cover-suggest",
+      {
+        method: "POST",
+        body: JSON.stringify({ title, narrative_text: narrativeText }),
+      },
+    ),
   draftEpisode: (playlistId: string, targetMinutes = 5) =>
     request<{ title: string; narrative_text: string }>(
       `/api/podcasts/playlists/${playlistId}/episodes/draft`,
