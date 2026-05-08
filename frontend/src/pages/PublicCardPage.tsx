@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 
+import MarkdownView from "../components/MarkdownView";
 import RailFooterButtons from "../components/RailFooterButtons";
 import { api, type PublicCard } from "../lib/api";
 
@@ -178,9 +179,9 @@ function CardView({ card }: { card: PublicCard }) {
           <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
             {t("share.public.summary", { defaultValue: "Summary" })}
           </h2>
-          <pre className="whitespace-pre-wrap break-words rounded-lg border border-ink-800 bg-ink-800/40 p-4 font-sans text-sm leading-relaxed text-ink-200">
-            {card.detailed_summary_md}
-          </pre>
+          <div className="rounded-lg border border-ink-800 bg-ink-800/40 px-5 py-4">
+            <MarkdownView source={card.detailed_summary_md} />
+          </div>
         </section>
       )}
 
@@ -189,9 +190,9 @@ function CardView({ card }: { card: PublicCard }) {
           <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
             {t("share.public.notes", { defaultValue: "Notes" })}
           </h2>
-          <pre className="whitespace-pre-wrap break-words rounded-lg border border-ink-800 bg-ink-800/40 p-4 font-sans text-sm leading-relaxed text-ink-200">
-            {card.notes_md}
-          </pre>
+          <div className="rounded-lg border border-ink-800 bg-ink-800/40 px-5 py-4">
+            <MarkdownView source={card.notes_md} />
+          </div>
         </section>
       )}
 

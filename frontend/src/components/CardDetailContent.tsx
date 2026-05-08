@@ -1,6 +1,9 @@
 import {
   ArrowLeft,
   BookOpen,
+  Check,
+  ChevronDown,
+  Copy,
   Download,
   FileText,
   Hash,
@@ -15,11 +18,12 @@ import {
   Type,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type FC } from "react";
+import { useCallback, useEffect, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 
 import CardGraph from "./CardGraph";
 import ChatPanel from "./ChatPanel";
+import MarkdownView, { markdownToPlainText } from "./MarkdownView";
 import RichTextEditor from "./RichTextEditor";
 import ShareModal from "./ShareModal";
 import StatusBadge from "./StatusBadge";
@@ -177,6 +181,37 @@ export default function CardDetailContent({
       });
   };
 
+  const buildMarkdown = (): string => {
+    if (!card) return "";
+    const lines: string[] = [`# ${card.title}`, ""];
+    if (card.concise_summary_md) {
+      lines.push("## TL;DR", "", card.concise_summary_md.trim(), "");
+    }
+    if (card.key_takeaways_json && card.key_takeaways_json.length > 0) {
+      lines.push("## Key takeaways", "");
+      for (const item of card.key_takeaways_json) {
+        const text = typeof item === "string" ? item : (item as { text?: string })?.text;
+        if (text) lines.push(`- ${text}`);
+      }
+      lines.push("");
+    }
+    if (card.detailed_summary_md) {
+      lines.push("## Summary", "", card.detailed_summary_md.trim(), "");
+    }
+    if (card.notes_md) {
+      lines.push("## Notes", "", card.notes_md.trim(), "");
+    }
+    return lines.join("\n").trim() + "\n";
+  };
+
+  const copyMarkdown = async () => {
+    await navigator.clipboard.writeText(buildMarkdown());
+  };
+
+  const copyPlainText = async () => {
+    await navigator.clipboard.writeText(markdownToPlainText(buildMarkdown()));
+  };
+
   if (!card) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-ink-300">
@@ -259,6 +294,8 @@ export default function CardDetailContent({
               canRegenerate={canRegenerate}
               onRegenerate={handleRegenerate}
               onDownload={downloadMarkdown}
+              onCopyMarkdown={copyMarkdown}
+              onCopyPlain={copyPlainText}
               onShare={() => setShareOpen(true)}
               onDelete={handleDelete}
               t={t}
@@ -330,9 +367,7 @@ export default function CardDetailContent({
 
                 {card.detailed_summary_md && (
                   <Section icon={FileText} label={t("card.summary")}>
-                    <pre className="whitespace-pre-wrap font-sans leading-relaxed text-ink-200">
-                      {card.detailed_summary_md}
-                    </pre>
+                    <MarkdownView source={card.detailed_summary_md} />
                   </Section>
                 )}
               </div>
@@ -446,6 +481,8 @@ function ActionBar({
   canRegenerate,
   onRegenerate,
   onDownload,
+  onCopyMarkdown,
+  onCopyPlain,
   onShare,
   onDelete,
   t,
@@ -453,9 +490,11 @@ function ActionBar({
   canRegenerate: boolean;
   onRegenerate: () => void;
   onDownload: (e: React.MouseEvent) => void;
+  onCopyMarkdown: () => Promise<void>;
+  onCopyPlain: () => Promise<void>;
   onShare: () => void;
   onDelete: () => void;
-  t: (key: string) => string;
+  t: (key: string, opts?: { defaultValue?: string }) => string;
 }) {
   return (
     <div className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-ink-800 bg-ink-800/40 p-1">
@@ -470,15 +509,12 @@ function ActionBar({
           <span className="hidden sm:inline">{t("card.retry")}</span>
         </button>
       )}
-      <button
-        type="button"
-        onClick={onDownload}
-        title={t("card.exportMarkdown")}
-        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-ink-200 transition hover:bg-ink-700"
-      >
-        <Download className="h-3 w-3" />
-        <span className="hidden sm:inline">{t("card.exportMarkdown")}</span>
-      </button>
+      <ExportMenu
+        onDownload={onDownload}
+        onCopyMarkdown={onCopyMarkdown}
+        onCopyPlain={onCopyPlain}
+        t={t}
+      />
       <button
         type="button"
         onClick={onShare}
@@ -499,6 +535,111 @@ function ActionBar({
         <Trash2 className="h-3.5 w-3.5" />
       </button>
     </div>
+  );
+}
+
+function ExportMenu({
+  onDownload,
+  onCopyMarkdown,
+  onCopyPlain,
+  t,
+}: {
+  onDownload: (e: React.MouseEvent) => void;
+  onCopyMarkdown: () => Promise<void>;
+  onCopyPlain: () => Promise<void>;
+  t: (key: string, opts?: { defaultValue?: string }) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState<"md" | "txt" | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click + ESC
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const fire = async (kind: "md" | "txt") => {
+    if (kind === "md") await onCopyMarkdown();
+    else await onCopyPlain();
+    setCopied(kind);
+    setOpen(false);
+    window.setTimeout(() => setCopied(null), 1600);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title={t("card.export.menu", { defaultValue: "Export" })}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 transition hover:bg-ink-700"
+      >
+        {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Download className="h-3 w-3" />}
+        <span className="hidden sm:inline">
+          {copied === "md"
+            ? t("card.export.copiedMd", { defaultValue: "MD copied" })
+            : copied === "txt"
+            ? t("card.export.copiedTxt", { defaultValue: "Text copied" })
+            : t("card.exportMarkdown")}
+        </span>
+        <ChevronDown className="h-3 w-3 opacity-60" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-md border border-ink-700 bg-ink-800 shadow-xl modal-card-enter">
+          <MenuItem
+            Icon={Copy}
+            label={t("card.export.copyMd", { defaultValue: "Copy markdown" })}
+            onClick={() => void fire("md")}
+          />
+          <MenuItem
+            Icon={Type}
+            label={t("card.export.copyText", { defaultValue: "Copy plain text" })}
+            onClick={() => void fire("txt")}
+          />
+          <div className="my-0.5 border-t border-ink-700" />
+          <MenuItem
+            Icon={Download}
+            label={t("card.export.downloadMd", { defaultValue: "Download .md" })}
+            onClick={(e) => {
+              onDownload(e);
+              setOpen(false);
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({
+  Icon,
+  label,
+  onClick,
+}: {
+  Icon: typeof Copy;
+  label: string;
+  onClick: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-ink-200 transition hover:bg-ink-700/60"
+    >
+      <Icon className="h-3.5 w-3.5 text-ink-400" />
+      {label}
+    </button>
   );
 }
 

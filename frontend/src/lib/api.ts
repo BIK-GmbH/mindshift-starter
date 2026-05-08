@@ -231,6 +231,10 @@ export const api = {
   deleteChatSession: (id: string) =>
     request<void>(`/api/chat/sessions/${id}`, { method: "DELETE" }),
   exportMarkdownUrl: () => `${BASE_URL}/api/export/markdown`,
+  createExtensionToken: () =>
+    request<{ access_token: string; token_type: string }>("/api/auth/extension-token", {
+      method: "POST",
+    }),
   reviewQueue: (limit = 20) => request<ReviewQueueItem[]>(`/api/review/queue?limit=${limit}`),
   reviewStats: () => request<ReviewStats>("/api/review/stats"),
   submitReviewAnswer: (questionId: string, rating: ReviewRating) =>

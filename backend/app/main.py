@@ -23,6 +23,11 @@ app = FastAPI(title="Mindshift API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_origin],
+    # Browser extensions surface as `chrome-extension://<id>` and
+    # `moz-extension://<id>` origins — allow any extension origin so the
+    # popup can call the API without bouncing every install through CORS
+    # config.
+    allow_origin_regex=r"^(chrome-extension|moz-extension|safari-web-extension)://.*$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

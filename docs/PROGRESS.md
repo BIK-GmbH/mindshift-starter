@@ -7,7 +7,13 @@ When a new session starts, read this first to know where to pick up.
 
 ## Active sprint — Recall-pattern follow-ups
 
-**Status:** Phases 1-23 done.
+**Status:** Phases 1-26 done.
+
+| Phase | Status | Description |
+|---|---|---|
+| 24 | ✅ | **Browser extension** — Manifest V3 popup in `extension/`. "Add this page" → `from-url`/`from-youtube`. "Import bookmarks" → reads `chrome.bookmarks` and POSTs a Netscape-format file to `/api/import/bookmarks`. New `/api/auth/extension-token` mints a 1-year JWT. CORS now allows `(chrome|moz|safari-web)-extension://*` origins. Settings → API & Extension reveals/copies the token. |
+| 25 | ✅ | **Markdown rendering** — new `<MarkdownView>` (marked + scoped `.markdown-body` styles) renders detailed_summary_md and notes_md in card detail and the public viewer. |
+| 26 | ✅ | **Copy variants** — `<ExportMenu>` dropdown in the card-detail action bar with Copy markdown / Copy plain text / Download .md. Plain-text path uses `markdownToPlainText` to strip md syntax. |
 
 | Phase | Status | Description |
 |---|---|---|

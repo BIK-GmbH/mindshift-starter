@@ -123,7 +123,17 @@
       "account": "Account",
       "appearance": "Appearance",
       "tags": "Tags",
+      "extension": "API & Extension",
       "about": "About"
+    },
+    "extension": {
+      "title": "Browser extension",
+      "body": "Save the current page or your bookmarks tree from a single click in the toolbar. Install the unpacked extension from the extension/ folder, then paste the API URL + token below into its popup.",
+      "apiHeading": "API URL",
+      "tokenHeading": "Token",
+      "tokenBody": "Long-lived (1 year). Treat it like a password — anyone with the token can write to your knowledge base.",
+      "reveal": "Reveal token",
+      "rotate": "Rotate"
     },
     "export": {
       "heading": "Data",

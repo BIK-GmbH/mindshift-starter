@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mindshift</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="hdr">
+      <div class="brand">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path>
+          <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path>
+        </svg>
+        <span>Mindshift</span>
+      </div>
+      <button id="settingsBtn" type="button" class="icon-btn" title="Settings" aria-label="Settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </header>
+
+    <!-- Connected pane -->
+    <main id="connectedPane" class="hidden">
+      <section class="card current-page">
+        <div class="page-meta">
+          <p id="pageTitle" class="title"></p>
+          <p id="pageUrl" class="url"></p>
+        </div>
+        <button id="addPageBtn" type="button" class="primary">Add this page</button>
+      </section>
+
+      <section class="card bookmarks">
+        <div>
+          <p class="subhead">Bookmarks</p>
+          <p class="muted">Import every link from your browser's bookmarks tree.</p>
+        </div>
+        <div class="row">
+          <button id="importBookmarksBtn" type="button" class="secondary">Import all bookmarks</button>
+          <span id="bookmarkCount" class="count"></span>
+        </div>
+      </section>
+
+      <p id="status" class="status"></p>
+    </main>
+
+    <!-- Settings pane -->
+    <main id="settingsPane">
+      <p class="muted">Connect this extension to your Mindshift instance.</p>
+      <label class="field">
+        <span>API URL</span>
+        <input id="apiUrl" type="url" placeholder="http://localhost:8001" />
+      </label>
+      <label class="field">
+        <span>Token</span>
+        <input id="apiToken" type="password" placeholder="Paste token from Settings → API & Extension" />
+      </label>
+      <button id="saveBtn" type="button" class="primary full">Save & test</button>
+      <p id="settingsStatus" class="status"></p>
+      <details class="howto">
+        <summary>Where do I get the token?</summary>
+        <ol>
+          <li>Open Mindshift in your browser and sign in.</li>
+          <li>Click the gear icon (lower-left) → <strong>API & Extension</strong>.</li>
+          <li>Click <strong>Reveal token</strong> and copy it here.</li>
+        </ol>
+      </details>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

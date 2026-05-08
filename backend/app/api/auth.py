@@ -39,3 +39,16 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
+
+
+@router.post("/extension-token", response_model=TokenResponse)
+def extension_token(current_user: User = Depends(get_current_user)) -> TokenResponse:
+    """Mint a long-lived JWT for the browser extension.
+
+    The extension stores this in `chrome.storage.local`. The token is
+    valid for 365 days; revocation is via the user changing their
+    password (which doesn't currently invalidate JWTs — this is a
+    single-user app, accept the risk for now).
+    """
+    long_lived_minutes = 60 * 24 * 365  # 1 year
+    return TokenResponse(access_token=create_access_token(current_user.id, expires_minutes=long_lived_minutes))

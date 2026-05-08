@@ -84,6 +84,112 @@
   }
 }
 
+/* Markdown-rendered content. Scopes typography so the rendered
+   summary reads like a document without bleeding into surrounding UI. */
+@layer components {
+  .markdown-body h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: rgb(var(--ink-100));
+    margin: 1.4rem 0 0.6rem;
+  }
+  .markdown-body h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: rgb(var(--ink-100));
+    margin: 1.2rem 0 0.5rem;
+  }
+  .markdown-body h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgb(var(--ink-100));
+    margin: 1rem 0 0.4rem;
+  }
+  .markdown-body p {
+    margin: 0.65rem 0;
+  }
+  .markdown-body ul,
+  .markdown-body ol {
+    margin: 0.5rem 0 0.5rem 1.25rem;
+  }
+  .markdown-body ul {
+    list-style: disc;
+  }
+  .markdown-body ol {
+    list-style: decimal;
+  }
+  .markdown-body li {
+    margin: 0.2rem 0;
+  }
+  .markdown-body strong {
+    color: rgb(var(--ink-100));
+    font-weight: 600;
+  }
+  .markdown-body em {
+    font-style: italic;
+  }
+  .markdown-body a {
+    color: rgb(var(--ink-100));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .markdown-body a:hover {
+    color: rgb(var(--ink-200));
+  }
+  .markdown-body code {
+    background: rgb(var(--ink-700) / 0.6);
+    color: rgb(var(--ink-100));
+    padding: 0 0.3rem;
+    border-radius: 4px;
+    font-size: 0.86em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .markdown-body pre {
+    background: rgb(var(--ink-800) / 0.6);
+    border: 1px solid rgb(var(--ink-700));
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    margin: 0.75rem 0;
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+  .markdown-body pre code {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    color: inherit;
+  }
+  .markdown-body blockquote {
+    border-left: 3px solid rgb(var(--ink-600));
+    margin: 0.75rem 0;
+    padding: 0.1rem 0 0.1rem 0.85rem;
+    color: rgb(var(--ink-300));
+  }
+  .markdown-body hr {
+    border: none;
+    border-top: 1px solid rgb(var(--ink-700));
+    margin: 1.25rem 0;
+  }
+  .markdown-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.75rem 0;
+    font-size: 0.86rem;
+  }
+  .markdown-body th,
+  .markdown-body td {
+    border: 1px solid rgb(var(--ink-700));
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+  }
+  .markdown-body th {
+    background: rgb(var(--ink-800) / 0.6);
+    color: rgb(var(--ink-100));
+    font-weight: 600;
+  }
+}
+
 @layer utilities {
   /* Hide scrollbars on a horizontal-scrolling container (Firefox + WebKit). */
   .no-scrollbar {

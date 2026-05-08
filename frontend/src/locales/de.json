@@ -123,7 +123,17 @@
       "account": "Account",
       "appearance": "Erscheinungsbild",
       "tags": "Tags",
+      "extension": "API & Extension",
       "about": "Über"
+    },
+    "extension": {
+      "title": "Browser-Extension",
+      "body": "Speichere die aktuelle Seite oder den ganzen Bookmarks-Baum mit einem Klick aus der Toolbar. Installiere die Extension aus dem extension/-Ordner und füge dann API-URL + Token unten in das Popup ein.",
+      "apiHeading": "API-URL",
+      "tokenHeading": "Token",
+      "tokenBody": "Langlebig (1 Jahr). Behandle ihn wie ein Passwort — wer den Token hat, kann in deine Knowledge Base schreiben.",
+      "reveal": "Token anzeigen",
+      "rotate": "Erneuern"
     },
     "export": {
       "heading": "Daten",
