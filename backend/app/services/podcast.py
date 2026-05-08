@@ -91,8 +91,68 @@ def _pcm_to_wav(pcm_bytes: bytes, sample_rate: int = 24000) -> bytes:
     return buf.getvalue()
 
 
-def _synthesize_speech(text: str, voice: str = DEFAULT_VOICE) -> bytes:
-    """Call Gemini TTS, return WAV bytes."""
+def _chunk_for_tts(text: str, max_chars: int = 1400) -> list[str]:
+    """Split into chunks at paragraph boundaries (then sentence boundaries
+    inside oversized paragraphs). Each chunk stays under `max_chars` so
+    the TTS call comfortably finishes within the per-request timeout."""
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    chunks: list[str] = []
+    current = ""
+
+    def flush() -> None:
+        nonlocal current
+        if current:
+            chunks.append(current)
+            current = ""
+
+    def add_atom(atom: str) -> None:
+        nonlocal current
+        candidate = f"{current}\n\n{atom}".strip() if current else atom
+        if len(candidate) <= max_chars:
+            current = candidate
+        else:
+            flush()
+            current = atom
+
+    for p in paragraphs:
+        if len(p) <= max_chars:
+            add_atom(p)
+            continue
+        # Break long paragraph at sentence ends.
+        sentences = []
+        buf = ""
+        for ch in p:
+            buf += ch
+            if ch in ".!?…\n" and len(buf) > 40:
+                sentences.append(buf.strip())
+                buf = ""
+        if buf.strip():
+            sentences.append(buf.strip())
+        # Pack sentences into chunks of max_chars.
+        sub = ""
+        for s in sentences:
+            cand = f"{sub} {s}".strip() if sub else s
+            if len(cand) <= max_chars:
+                sub = cand
+            else:
+                if sub:
+                    add_atom(sub)
+                sub = s
+        if sub:
+            add_atom(sub)
+
+    flush()
+    return chunks
+
+
+def _extract_pcm_from_wav(wav_bytes: bytes) -> bytes:
+    """Pull raw PCM frames out of a WAV blob (we always emit 24 kHz mono 16-bit)."""
+    with io.BytesIO(wav_bytes) as bio, wave.open(bio, "rb") as w:
+        return w.readframes(w.getnframes())
+
+
+def _tts_request(text: str, voice: str) -> bytes:
+    """Single Gemini TTS call → WAV bytes for this chunk."""
     settings = get_settings()
     if not settings.gemini_api_key:
         raise RuntimeError("GEMINI_API_KEY not configured")
@@ -109,13 +169,15 @@ def _synthesize_speech(text: str, voice: str = DEFAULT_VOICE) -> bytes:
             },
         },
     }
-
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": settings.gemini_api_key,
     }
 
-    with httpx.Client(timeout=httpx.Timeout(120.0)) as client:
+    # Generous read timeout per chunk — Gemini sometimes streams the
+    # PCM at < real-time. With ~1400 char chunks each call usually
+    # returns in 15-40 s; 240 s gives lots of headroom.
+    with httpx.Client(timeout=httpx.Timeout(connect=15.0, read=240.0, write=30.0, pool=15.0)) as client:
         resp = client.post(url, headers=headers, json=payload)
         if resp.status_code >= 400:
             raise RuntimeError(
@@ -129,9 +191,30 @@ def _synthesize_speech(text: str, voice: str = DEFAULT_VOICE) -> bytes:
         raise RuntimeError(
             f"Unexpected Gemini TTS response shape: {json.dumps(data)[:300]}"
         ) from exc
-
     pcm = base64.b64decode(b64_audio)
     return _pcm_to_wav(pcm, sample_rate=24000)
+
+
+def _synthesize_speech(text: str, voice: str = DEFAULT_VOICE) -> bytes:
+    """Synthesize arbitrarily long text by chunking + concatenating PCM.
+
+    The Gemini TTS endpoint chokes on long inputs (and our HTTP read
+    times out before it even responds). We split at paragraph boundaries,
+    issue one TTS call per chunk, then re-wrap the concatenated PCM in a
+    single WAV. The 24 kHz/mono/16-bit format is identical across calls
+    so concat is a no-op.
+    """
+    chunks = _chunk_for_tts(text)
+    if not chunks:
+        raise RuntimeError("Empty text for TTS")
+    if len(chunks) == 1:
+        return _tts_request(chunks[0], voice)
+
+    all_pcm = bytearray()
+    for chunk in chunks:
+        wav = _tts_request(chunk, voice)
+        all_pcm.extend(_extract_pcm_from_wav(wav))
+    return _pcm_to_wav(bytes(all_pcm), sample_rate=24000)
 
 
 def generate_card_podcast(
