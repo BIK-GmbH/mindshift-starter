@@ -12,9 +12,10 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import RichTextEditor from "./RichTextEditor";
 import { api, type ImportSummary, type WikiHit } from "../lib/api";
 
 type Tab = "url" | "wiki" | "pdf" | "import" | "note";
@@ -33,13 +34,13 @@ const tabs: { id: Tab; Icon: typeof LinkIcon; labelKey: string }[] = [
   { id: "note", Icon: Edit3, labelKey: "addContent.tab.note" },
 ];
 
-const URL_EXAMPLES = [
-  { Icon: ExternalLink, label: "YouTube videos" },
-  { Icon: ExternalLink, label: "Spotify Podcasts" },
-  { Icon: ExternalLink, label: "Apple Podcasts" },
-  { Icon: ExternalLink, label: "Websites" },
-  { Icon: ExternalLink, label: "Google Docs" },
-  { Icon: ExternalLink, label: "TikTok" },
+const URL_EXAMPLES: { label: string; sample: string }[] = [
+  { label: "YouTube videos", sample: "https://www.youtube.com/watch?v=" },
+  { label: "Spotify Podcasts", sample: "https://open.spotify.com/episode/" },
+  { label: "Apple Podcasts", sample: "https://podcasts.apple.com/" },
+  { label: "Websites", sample: "https://" },
+  { label: "Google Docs", sample: "https://docs.google.com/document/d/" },
+  { label: "TikTok", sample: "https://www.tiktok.com/@" },
 ];
 
 const WIKI_EXAMPLES = ["Sam Altman", "Interstellar", "Atomic Habits", "Peptide", "Machu Picchu", "Stoicism"];
@@ -305,6 +306,8 @@ export default function AddContentModal({ open, onClose, onCreated }: Props) {
               message={importMessage}
               onPickBookmarks={() => bookmarksRef.current?.click()}
               onPickMarkdown={() => markdownRef.current?.click()}
+              onDropBookmarks={(f) => void handleImport("bookmarks", f)}
+              onDropMarkdown={(f) => void handleImport("markdown", f)}
             />
           )}
           {tab === "note" && (
@@ -394,12 +397,17 @@ function UrlTab({
         <p className="mb-2 text-center text-[10px] uppercase tracking-[0.18em] text-ink-500">
           {t("addContent.examples", { defaultValue: "Examples" })}
         </p>
-        <div className="grid grid-cols-2 gap-2 text-xs text-ink-300">
-          {URL_EXAMPLES.map(({ Icon, label }) => (
-            <span key={label} className="inline-flex items-center gap-2 rounded-md px-2 py-1.5">
-              <Icon className="h-3.5 w-3.5 text-ink-500" />
+        <div className="grid grid-cols-2 gap-1 text-xs text-ink-300">
+          {URL_EXAMPLES.map(({ label, sample }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setUrl(sample)}
+              className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-ink-700/40 hover:text-ink-100 focus-visible:outline-none focus-visible:bg-ink-700/40"
+            >
+              <ExternalLink className="h-3.5 w-3.5 text-ink-500" />
               {label}
-            </span>
+            </button>
           ))}
         </div>
       </div>
@@ -516,7 +524,9 @@ function PdfTab({
             {(file.size / 1024 / 1024).toFixed(2)} MB
           </span>
         )}
-        <span className="mt-1 text-[10px] text-ink-500">PDF · max 25 MB</span>
+        <span className="mt-1 text-[10px] text-ink-500">
+          {t("addContent.pdfHint", { defaultValue: "PDF · max 25 MB" })}
+        </span>
       </button>
       <input
         ref={fileRef}
@@ -545,71 +555,176 @@ function ImportTab({
   message,
   onPickBookmarks,
   onPickMarkdown,
+  onDropBookmarks,
+  onDropMarkdown,
 }: {
   busy: boolean;
   message: string | null;
   onPickBookmarks: () => void;
   onPickMarkdown: () => void;
+  onDropBookmarks: (file: File) => void;
+  onDropMarkdown: (file: File) => void;
 }) {
   const { t } = useTranslation();
-  const tiles = useMemo(
-    () => [
-      {
-        Icon: Bookmark,
-        title: t("addContent.import.bookmarks.title"),
-        body: t("addContent.import.bookmarks.body"),
-        onClick: onPickBookmarks,
-        disabled: false,
-      },
-      {
-        Icon: Pocket,
-        title: t("addContent.import.pocket.title"),
-        body: t("addContent.import.pocket.body"),
-        onClick: () => undefined,
-        disabled: true,
-      },
-      {
-        Icon: FileIcon,
-        title: t("addContent.import.markdown.title"),
-        body: t("addContent.import.markdown.body"),
-        onClick: onPickMarkdown,
-        disabled: false,
-      },
-    ],
-    [t, onPickBookmarks, onPickMarkdown],
-  );
+  const [showHint, setShowHint] = useState(false);
 
   return (
-    <div className="space-y-2">
-      {tiles.map(({ Icon, title, body, onClick, disabled }) => (
-        <button
-          key={title}
-          type="button"
-          onClick={onClick}
-          disabled={busy || disabled}
-          className="flex w-full items-start gap-3 rounded-lg border border-ink-700 bg-ink-900/30 px-4 py-3 text-left transition hover:border-ink-500 hover:bg-ink-900/50 disabled:opacity-50"
-        >
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-ink-700/60">
-            <Icon className="h-4 w-4 text-ink-200" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-ink-100">
-              {title}
-              {disabled && <span className="ml-2 text-[10px] uppercase text-ink-500">soon</span>}
-            </p>
-            <p className="text-xs text-ink-400">{body}</p>
-          </div>
-        </button>
-      ))}
+    <div className="space-y-3">
+      <ImportTile
+        Icon={Bookmark}
+        title={t("addContent.import.bookmarks.title")}
+        body={t("addContent.import.bookmarks.body")}
+        accept=".html,.htm,text/html"
+        busy={busy}
+        onPick={onPickBookmarks}
+        onDropFile={onDropBookmarks}
+      />
+      <ImportTile
+        Icon={Pocket}
+        title={t("addContent.import.pocket.title")}
+        body={t("addContent.import.pocket.body")}
+        soon
+        busy={busy}
+      />
+      <ImportTile
+        Icon={FileIcon}
+        title={t("addContent.import.markdown.title")}
+        body={t("addContent.import.markdown.body")}
+        accept=".zip,application/zip"
+        busy={busy}
+        onPick={onPickMarkdown}
+        onDropFile={onDropMarkdown}
+      />
+
       {message && (
         <p className="rounded-md border border-ink-700 bg-ink-700/30 px-3 py-2 text-xs text-ink-200">
           {message}
         </p>
       )}
+
+      <button
+        type="button"
+        onClick={() => setShowHint((v) => !v)}
+        className="inline-flex items-center gap-1 rounded text-[11px] text-ink-400 underline-offset-2 hover:text-ink-100 hover:underline focus-visible:outline-none focus-visible:underline"
+      >
+        {showHint
+          ? t("addContent.import.hideHowto", { defaultValue: "Hide export instructions" })
+          : t("addContent.import.showHowto", { defaultValue: "How do I export bookmarks from my browser?" })}
+      </button>
+
+      {showHint && (
+        <div className="space-y-1.5 rounded-md border border-ink-700/60 bg-ink-900/30 px-3 py-2.5 text-[11px] leading-relaxed text-ink-300">
+          <p className="text-ink-400">
+            {t("addContent.import.howtoIntro", {
+              defaultValue:
+                "Mindshift can't read your browser's live bookmarks directly — that requires a browser extension. Export them to an HTML file, then drop it above:",
+            })}
+          </p>
+          <ul className="list-disc space-y-0.5 pl-4">
+            <li>
+              <strong>Chrome / Edge:</strong>{" "}
+              {t("addContent.import.howtoChrome", {
+                defaultValue: "chrome://bookmarks → ⋮ menu → Export bookmarks",
+              })}
+            </li>
+            <li>
+              <strong>Firefox:</strong>{" "}
+              {t("addContent.import.howtoFirefox", {
+                defaultValue: "Library → Bookmarks → Show all bookmarks → Import and Backup → Export Bookmarks to HTML",
+              })}
+            </li>
+            <li>
+              <strong>Safari:</strong>{" "}
+              {t("addContent.import.howtoSafari", {
+                defaultValue: "File → Export → Bookmarks (saves an HTML file)",
+              })}
+            </li>
+          </ul>
+        </div>
+      )}
+
       <p className="rounded-md border border-ink-700/60 bg-ink-900/30 px-3 py-2 text-[11px] leading-relaxed text-ink-400">
         {t("addContent.import.note")}
       </p>
     </div>
+  );
+}
+
+function ImportTile({
+  Icon,
+  title,
+  body,
+  busy,
+  soon,
+  accept,
+  onPick,
+  onDropFile,
+}: {
+  Icon: typeof Bookmark;
+  title: string;
+  body: string;
+  busy: boolean;
+  soon?: boolean;
+  accept?: string;
+  onPick?: () => void;
+  onDropFile?: (file: File) => void;
+}) {
+  const { t } = useTranslation();
+  const [hover, setHover] = useState(false);
+
+  const onDragOver = (e: React.DragEvent) => {
+    if (soon || !onDropFile) return;
+    e.preventDefault();
+    setHover(true);
+  };
+  const onDragLeave = () => setHover(false);
+  const onDrop = (e: React.DragEvent) => {
+    if (soon || !onDropFile) return;
+    e.preventDefault();
+    setHover(false);
+    const f = e.dataTransfer.files?.[0];
+    if (!f) return;
+    if (accept && !accept.split(",").some((a) => f.name.toLowerCase().endsWith(a.replace(/^\./, "").trim()) || f.type === a.trim())) {
+      // best-effort filter — let the backend reject anything weird
+    }
+    onDropFile(f);
+  };
+
+  const disabled = busy || soon;
+
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      disabled={disabled}
+      className={[
+        "flex w-full items-start gap-3 rounded-lg border bg-ink-900/30 px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-300",
+        hover ? "dropzone-active border-ink-300" : "border-ink-700 hover:border-ink-500 hover:bg-ink-900/50",
+        disabled ? "opacity-50" : "",
+      ].join(" ")}
+      title={soon ? t("addContent.import.comingSoon", { defaultValue: "Coming soon" }) : undefined}
+    >
+      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-ink-700/60">
+        <Icon className="h-4 w-4 text-ink-200" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-ink-100">
+          {title}
+          {soon && (
+            <span className="ml-2 text-[10px] uppercase tracking-wider text-ink-500">soon</span>
+          )}
+        </p>
+        <p className="text-xs text-ink-400">{body}</p>
+        {!soon && onDropFile && (
+          <p className="mt-1 text-[10px] text-ink-500">
+            {t("addContent.import.dropHint", { defaultValue: "Click or drop a file here" })}
+          </p>
+        )}
+      </div>
+    </button>
   );
 }
 
@@ -642,12 +757,11 @@ function NoteTab({
         placeholder={t("addContent.notePlaceholderTitle", { defaultValue: "Title" })}
         className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
       />
-      <textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder={t("addContent.notePlaceholderBody", { defaultValue: "Write your note in markdown… *italic*, **bold**, lists, links" })}
-        rows={10}
-        className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+      <RichTextEditor
+        markdown={body}
+        onChange={setBody}
+        placeholder={t("addContent.notePlaceholderBody", { defaultValue: "Write your note — use the toolbar for formatting" })}
+        minHeight={220}
       />
       <div className="flex items-center justify-between">
         <label className="inline-flex items-center gap-2 text-xs text-ink-300">

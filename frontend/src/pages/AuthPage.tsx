@@ -155,7 +155,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         required={required}
         minLength={minLength}
-        className="w-full rounded-lg border border-ink-700 bg-ink-900/60 py-2 pl-9 pr-3 text-sm text-ink-100 placeholder:text-ink-500 transition focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+        className="w-full rounded-lg border border-ink-700 bg-ink-900/60 py-2 pl-9 pr-3 text-sm text-ink-100 placeholder:text-ink-500 transition focus:border-ink-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-700/40"
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import { Brain, FileText, Globe, Loader2, Youtube, type LucideIcon } from "lucide-react";
+import { Brain, Check, Copy, FileText, Globe, Loader2, Share2, Youtube, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
@@ -85,19 +85,53 @@ export default function PublicCardPage() {
 function CardView({ card }: { card: PublicCard }) {
   const { t } = useTranslation();
   const Icon = SOURCE_ICONS[card.source_type] ?? FileText;
+  const [copied, setCopied] = useState(false);
+
+  const onShare = async () => {
+    const url = window.location.href;
+    const title = card.title;
+    const text = card.concise_summary_md ?? "";
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch {
+        /* user cancelled — fall back to copy */
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* ignore */
+    }
+  };
 
   return (
     <article className="space-y-6">
-      <header>
-        <p className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-ink-500">
-          <Icon className="h-3 w-3" />
-          {card.source_type}
-          <span className="mx-2 text-ink-600">·</span>
-          <span>{t("share.public.tag", { defaultValue: "Shared via Mindshift" })}</span>
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-ink-100">
-          {card.title}
-        </h1>
+      <header className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-ink-500">
+            <Icon className="h-3 w-3" />
+            {card.source_type}
+            <span className="mx-2 text-ink-600">·</span>
+            <span>{t("share.public.tag", { defaultValue: "Shared via Mindshift" })}</span>
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-ink-100">
+            {card.title}
+          </h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => void onShare()}
+          className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md border border-ink-700 bg-ink-800/40 px-3 py-1.5 text-xs text-ink-200 transition hover:bg-ink-700/40 hover:text-ink-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-300"
+        >
+          {copied ? <Check className="h-3.5 w-3.5" /> : "share" in (typeof navigator !== "undefined" ? navigator : {}) ? <Share2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied
+            ? t("share.copied", { defaultValue: "Link copied" })
+            : t("share.public.shareAction", { defaultValue: "Share" })}
+        </button>
       </header>
 
       {card.thumbnail_url && (

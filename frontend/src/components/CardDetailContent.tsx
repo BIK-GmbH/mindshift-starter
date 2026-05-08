@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 
 import CardGraph from "./CardGraph";
 import ChatPanel from "./ChatPanel";
+import RichTextEditor from "./RichTextEditor";
 import ShareModal from "./ShareModal";
 import StatusBadge from "./StatusBadge";
 import { useDialog } from "../lib/DialogContext";
@@ -306,7 +307,7 @@ export default function CardDetailContent({
             {tab === "summary" && (
               <div className="space-y-8 text-sm leading-relaxed">
                 {card.concise_summary_md && (
-                  <Section icon={BookOpen} label="TL;DR">
+                  <Section icon={BookOpen} label={t("card.tldr", { defaultValue: "TL;DR" })}>
                     <p className="text-base text-ink-100/90">{card.concise_summary_md}</p>
                   </Section>
                 )}
@@ -351,12 +352,13 @@ export default function CardDetailContent({
 
             {tab === "notes" && (
               <div className="space-y-3">
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={18}
-                  className="w-full resize-y rounded-lg border border-ink-700 bg-ink-900 p-4 font-mono text-sm leading-relaxed text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
-                  placeholder="# Notizen in Markdown …"
+                <RichTextEditor
+                  markdown={notes}
+                  onChange={setNotes}
+                  placeholder={t("card.notesPlaceholder", {
+                    defaultValue: "Write your notes here — bold, lists, headings, links",
+                  })}
+                  minHeight={360}
                 />
                 <div className="flex items-center justify-between text-xs text-ink-400">
                   <span>{notes.length} chars</span>
@@ -377,10 +379,16 @@ export default function CardDetailContent({
               <div className="space-y-3">
                 {quiz.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-ink-700 p-8 text-center text-sm text-ink-400">
-                    —
+                    {card.status === "completed"
+                      ? t("card.quiz.empty", {
+                          defaultValue: "No quiz questions for this card.",
+                        })
+                      : t("card.quiz.processing", {
+                          defaultValue: "Quiz will appear once the card finishes processing.",
+                        })}
                   </p>
                 ) : (
-                  quiz.map((q, i) => <QuizCard key={q.id} index={i + 1} question={q} />)
+                  quiz.map((q, i) => <QuizCard key={q.id} index={i + 1} question={q} t={t} />)
                 )}
               </div>
             )}
@@ -494,7 +502,7 @@ function ActionBar({
   );
 }
 
-function QuizCard({ index, question }: { index: number; question: QuizQuestion }) {
+function QuizCard({ index, question, t }: { index: number; question: QuizQuestion; t: (k: string) => string }) {
   const [revealed, setRevealed] = useState(false);
   return (
     <div className="group rounded-lg border border-ink-800 bg-ink-800/50 p-4 text-sm transition hover:border-ink-700">
@@ -515,7 +523,7 @@ function QuizCard({ index, question }: { index: number; question: QuizQuestion }
               className="mt-2 inline-flex items-center gap-1.5 text-xs text-ink-300 transition hover:text-ink-100"
             >
               <Hash className="h-3 w-3" />
-              Reveal
+              {t("card.reveal")}
             </button>
           )}
         </div>

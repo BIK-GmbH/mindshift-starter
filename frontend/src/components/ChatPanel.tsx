@@ -217,6 +217,7 @@ function AssistantMessage({
   citations: Citation[];
   onOpen: (cardId: string) => void;
 }) {
+  const { t } = useTranslation();
   const byIndex = new Map(citations.map((c) => [c.index, c]));
 
   // Replace [#n] with clickable buttons.
@@ -255,7 +256,7 @@ function AssistantMessage({
       {citations.length > 0 && (
         <div className="border-t border-ink-700/60 pt-2">
           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-500">
-            Sources
+            {t("chat.sources", { defaultValue: "Sources" })}
           </p>
           <ul className="space-y-1">
             {citations.map((c) => (

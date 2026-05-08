@@ -7,7 +7,16 @@ When a new session starts, read this first to know where to pick up.
 
 ## Active sprint — Recall-pattern follow-ups
 
-**Status:** Phases 1-17 done.
+**Status:** Phases 1-23 done.
+
+| Phase | Status | Description |
+|---|---|---|
+| 18 | ✅ | **TipTap rich-text editor** — `<RichTextEditor>` with markdown round-trip via `marked` + `turndown`. Used in Add Content note tab + card detail notes tab. Toolbar: H2, bold, italic, strike, lists, quote, inline code, link. |
+| 19 | ✅ | **Web Share API** — public `/share/:token` page has a Share button using `navigator.share()` on mobile, copy-to-clipboard fallback on desktop. |
+| 20 | ✅ | **Bookmarks UX** — drag-and-drop file dropzone on import tiles, expandable "How do I export bookmarks" hint with Chrome/Edge/Firefox/Safari instructions, focus-visible rings. URL examples are now buttons that prefill sample patterns. |
+| 21 | ✅ | **Pane animations** — `.pane-enter-right` slide+fade for chat side pane; sidebars hidden on narrow viewports (`md:flex`). `prefers-reduced-motion` global override drops every animation to ~instant. |
+| 22 | ✅ | **Graph fixes** — request-id ref kills stale fetches that caused the "double load" flash; new node-spacing slider (0–100) maps to d3 linkDistance 30→250 px and charge -50→-400. Persisted to localStorage. |
+| 23 | ✅ | **UI/UX audit** — global `:focus-visible` ring; quiz empty/processing states; `Reveal` + `TL;DR` + `Sources` + `PDF max 25 MB` + notes placeholder all moved to i18n; SettingsModal joined the modal-pop animation; chat session delete button is touch-visible (max-sm:opacity-100); chat loading replaced with skeleton; Brain logo + graph control buttons got aria-labels; AuthPage `focus:` → `focus-visible:`; CardTile got `aria-label`. |
 
 | Phase | Status | Description |
 |---|---|---|

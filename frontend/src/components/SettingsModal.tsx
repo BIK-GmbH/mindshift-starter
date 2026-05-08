@@ -62,12 +62,12 @@ export default function SettingsModal() {
       <button
         type="button"
         onClick={closeModal}
-        className="absolute inset-0 bg-ink-900/40 backdrop-blur-md transition"
+        className="absolute inset-0 bg-ink-900/40 backdrop-blur-md modal-backdrop-enter"
         aria-label="Close settings"
       />
 
       {/* Modal */}
-      <div className="relative flex h-[640px] max-h-[85vh] w-[920px] max-w-[92vw] overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 shadow-2xl">
+      <div className="relative flex h-[640px] max-h-[85vh] w-[920px] max-w-[92vw] overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 shadow-2xl modal-card-enter">
         {/* Tabs sidebar */}
         <aside className="flex w-56 flex-shrink-0 flex-col border-r border-ink-700 bg-ink-900/40 p-3">
           <nav className="flex flex-1 flex-col gap-0.5" aria-label="settings sections">

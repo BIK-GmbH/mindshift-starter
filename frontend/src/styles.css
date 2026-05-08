@@ -40,6 +40,22 @@
     height: 100%;
   }
 
+  /* Global focus-visible ring — applies to every interactive element so
+     keyboard users see where focus is. Uses focus-visible (NOT focus)
+     so the ring doesn't appear on mouse clicks. */
+  *:focus-visible {
+    outline: 2px solid rgb(var(--ink-300));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Inputs already have a custom focus-ring via Tailwind; suppress the
+     global one for them so the look stays consistent. */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
+  }
+
   /* Custom scrollbars — subtle, themed, behave on both Firefox and WebKit. */
   * {
     scrollbar-width: thin;
@@ -164,6 +180,21 @@
     }
   }
 
+  /* Right-side pane (chat / context) — slides in from the right with a fade. */
+  .pane-enter-right {
+    animation: pane-slide-in 240ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  }
+  @keyframes pane-slide-in {
+    0% {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
   /* Card hover lift — replaces the sharp shadow with something softer. */
   .card-hover {
     transition:
@@ -181,5 +212,24 @@
     box-shadow:
       0 1px 0 rgb(var(--ink-100) / 0.06),
       0 16px 32px -14px rgb(15 23 42 / 0.18);
+  }
+
+  /* Drag-drop file dropzone state. */
+  .dropzone-active {
+    border-color: rgb(var(--ink-300));
+    background: rgb(var(--ink-700) / 0.45);
+  }
+}
+
+/* Honor prefers-reduced-motion — strip every animation defined above
+   plus Tailwind's transitions to ~instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

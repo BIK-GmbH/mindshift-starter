@@ -96,7 +96,7 @@ export default function ChatPage() {
   return (
     <div className="flex h-full">
       {/* Conversation history sidebar */}
-      <aside className="flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
+      <aside className="hidden md:flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
         <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
           <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
             {t("chat.history.heading")}
@@ -145,9 +145,7 @@ export default function ChatPage() {
 
         <div className="mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col px-8 pb-6 pt-4">
           {loadingDetail ? (
-            <p className="flex flex-1 items-center justify-center text-xs text-ink-400">
-              {t("common.loading")}
-            </p>
+            <ChatLoadingSkeleton />
           ) : (
             <ChatPanel
               key={activeId ?? "draft"}
@@ -161,6 +159,30 @@ export default function ChatPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ChatLoadingSkeleton() {
+  // Alternating left/right message-shaped placeholders to suggest a
+  // conversation while we load it.
+  return (
+    <div className="flex flex-1 flex-col gap-3 py-2">
+      <SkelMsg side="left" widthClass="w-3/5" />
+      <SkelMsg side="right" widthClass="w-1/2" delayMs={120} />
+      <SkelMsg side="left" widthClass="w-2/3" delayMs={240} />
+      <SkelMsg side="right" widthClass="w-2/5" delayMs={360} />
+    </div>
+  );
+}
+
+function SkelMsg({ side, widthClass, delayMs = 0 }: { side: "left" | "right"; widthClass: string; delayMs?: number }) {
+  return (
+    <div className={["flex", side === "right" ? "justify-end" : "justify-start"].join(" ")}>
+      <div
+        className={["h-10 animate-pulse rounded-2xl bg-ink-800/60", widthClass].join(" ")}
+        style={{ animationDelay: `${delayMs}ms` }}
+      />
     </div>
   );
 }
@@ -238,7 +260,7 @@ function SessionRow({
           onDelete();
         }}
         title="Delete"
-        className="flex-shrink-0 rounded p-1 text-ink-500 opacity-0 transition group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-300"
+        className="flex-shrink-0 rounded p-1 text-ink-500 opacity-0 transition focus-visible:opacity-100 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-300 sm:opacity-0 max-sm:opacity-100"
       >
         <Trash2 className="h-3 w-3" />
       </button>

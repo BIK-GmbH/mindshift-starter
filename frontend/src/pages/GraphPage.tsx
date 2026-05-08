@@ -99,7 +99,13 @@ export default function GraphPage() {
 
   const [size, setSize] = useState({ w: 800, h: 560 });
 
+  // Reload-counter so we can ignore stale responses when filters change
+  // mid-flight (and avoids the double-fetch flash that React Strict Mode
+  // otherwise produces in dev).
+  const reqIdRef = useRef(0);
+
   const fetchGraph = useCallback(async () => {
+    const myReq = ++reqIdRef.current;
     setLoading(true);
     try {
       const view = await api.globalGraph({
@@ -109,12 +115,14 @@ export default function GraphPage() {
         created_after: timelineEnabled && createdAfter ? createdAfter : undefined,
         created_before: timelineEnabled && createdBefore ? createdBefore : undefined,
       });
+      if (myReq !== reqIdRef.current) return; // stale
       setData(view);
       setError(null);
     } catch (err) {
+      if (myReq !== reqIdRef.current) return;
       setError((err as Error).message);
     } finally {
-      setLoading(false);
+      if (myReq === reqIdRef.current) setLoading(false);
     }
   }, [sourceType, tag, timelineEnabled, createdAfter, createdBefore]);
 
@@ -125,6 +133,36 @@ export default function GraphPage() {
   useEffect(() => {
     void api.listTags().then(setTagOptions).catch(() => undefined);
   }, []);
+
+  // Node spacing — 0..100. Drives linkDistance + chargeStrength.
+  const [spacing, setSpacing] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem("mindshift.graphSpacing");
+      return v ? Number(v) : 50;
+    } catch {
+      return 50;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("mindshift.graphSpacing", String(spacing));
+    } catch {
+      /* ignore */
+    }
+  }, [spacing]);
+
+  // Apply spacing → d3 forces on the running simulation.
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    const linkDistance = 30 + (spacing / 100) * 220; // 30 → 250 px
+    const charge = -50 - (spacing / 100) * 350; // -50 → -400 (more negative = more spread)
+    const linkForce = fg.d3Force("link") as { distance?: (d: number) => unknown } | null;
+    const chargeForce = fg.d3Force("charge") as { strength?: (s: number) => unknown } | null;
+    linkForce?.distance?.(linkDistance);
+    chargeForce?.strength?.(charge);
+    fg.d3ReheatSimulation();
+  }, [spacing, data]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -290,7 +328,7 @@ export default function GraphPage() {
   return (
     <div className="flex h-full">
       {/* Context sidebar — Recall-style graph settings */}
-      <aside className="flex w-72 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
+      <aside className="hidden md:flex w-72 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
         <div className="flex-shrink-0 border-b border-ink-800 px-4 py-3">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
             {t("graph.settingsHeading")}
@@ -441,6 +479,26 @@ export default function GraphPage() {
                 </span>
               </div>
             )}
+          </SidebarSection>
+
+          {/* Layout */}
+          <SidebarSection title={t("graph.layoutHeading", { defaultValue: "Layout" })}>
+            <label className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-wider text-ink-500">
+              <span>{t("graph.spacing", { defaultValue: "Node spacing" })}</span>
+              <span className="font-mono tabular-nums normal-case tracking-normal text-ink-300">
+                {spacing}
+              </span>
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={spacing}
+              onChange={(e) => setSpacing(Number(e.target.value))}
+              className="h-1 w-full cursor-pointer appearance-none rounded bg-ink-700 accent-ink-100"
+              aria-label={t("graph.spacing", { defaultValue: "Node spacing" })}
+            />
           </SidebarSection>
 
           {/* Tools */}
@@ -717,6 +775,7 @@ export default function GraphPage() {
               <button
                 type="button"
                 title={t("graph.controls.zoomIn") ?? ""}
+                aria-label={t("graph.controls.zoomIn") ?? "Zoom in"}
                 onClick={() => handleZoom(1.4)}
                 className="rounded p-1.5 text-ink-200 hover:bg-ink-700"
               >
@@ -725,6 +784,7 @@ export default function GraphPage() {
               <button
                 type="button"
                 title={t("graph.controls.zoomOut") ?? ""}
+                aria-label={t("graph.controls.zoomOut") ?? "Zoom out"}
                 onClick={() => handleZoom(0.7)}
                 className="rounded p-1.5 text-ink-200 hover:bg-ink-700"
               >
@@ -733,6 +793,7 @@ export default function GraphPage() {
               <button
                 type="button"
                 title={t("graph.controls.fit") ?? ""}
+                aria-label={t("graph.controls.fit") ?? "Fit to view"}
                 onClick={handleFit}
                 className="rounded p-1.5 text-ink-200 hover:bg-ink-700"
               >
@@ -741,6 +802,7 @@ export default function GraphPage() {
               <button
                 type="button"
                 title={t(locked ? "graph.controls.unlock" : "graph.controls.lock") ?? ""}
+                aria-label={t(locked ? "graph.controls.unlock" : "graph.controls.lock") ?? "Lock"}
                 onClick={toggleLock}
                 className={[
                   "rounded p-1.5",
