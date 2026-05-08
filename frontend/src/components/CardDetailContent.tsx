@@ -340,13 +340,6 @@ export default function CardDetailContent({
               t={t}
             />
           </header>
-
-          {(card.status === "queued" || card.status === "processing") && (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              {t(`card.status.${card.status}`)}…
-            </div>
-          )}
         </div>
 
         <div className={`mx-auto ${innerWidth} ${horizPad}`}>
