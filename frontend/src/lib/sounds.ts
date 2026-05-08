@@ -20,7 +20,7 @@
 const STORAGE_KEY = "mindshift.uiSounds";
 const MASTER_GAIN = 0.06;
 
-type SoundName = "tick" | "click" | "success" | "error" | "chime";
+type SoundName = "tick" | "click" | "success" | "error" | "chime" | "hover";
 
 let ctx: AudioContext | null = null;
 let enabledCache: boolean | null = null;
@@ -124,8 +124,23 @@ const PRESETS: Record<SoundName, ToneSpec[]> = {
     { freq: 880, startAt: 0.1, duration: 0.13, type: "sine", peak: 0.7 },
     { freq: 1175, startAt: 0.2, duration: 0.18, type: "sine", peak: 0.7 },
   ],
+  hover: [
+    // Whisper-quiet "ft" — short triangle blip, ~30 ms.
+    { freq: 1800, startAt: 0, duration: 0.03, type: "triangle", peak: 0.25 },
+  ],
 };
 
 export function playSound(name: SoundName): void {
   playTones(PRESETS[name]);
+}
+
+// Hover sounds need throttling — a fast cursor over a grid would otherwise
+// fire dozens of overlapping tones. 140 ms is short enough to feel responsive
+// but stops the same row from re-triggering on tiny mouse jitters.
+let lastHoverAt = 0;
+export function playHover(): void {
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  if (now - lastHoverAt < 140) return;
+  lastHoverAt = now;
+  playSound("hover");
 }

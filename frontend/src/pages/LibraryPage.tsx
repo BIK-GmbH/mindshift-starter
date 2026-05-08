@@ -23,7 +23,7 @@ import CardDetailContent from "../components/CardDetailContent";
 import ChatPanel from "../components/ChatPanel";
 import StatusBadge from "../components/StatusBadge";
 import TagsTree, { type TagsTreeHandle } from "../components/TagsTree";
-import { playSound } from "../lib/sounds";
+import { playHover, playSound } from "../lib/sounds";
 import { useSearchModal } from "../lib/SearchModalContext";
 import { api, type CardListItem } from "../lib/api";
 
@@ -466,6 +466,7 @@ function CardRow({ card, onClick }: { card: CardListItem; onClick: () => void })
       <button
         type="button"
         onClick={onClick}
+        onMouseEnter={playHover}
         aria-label={card.title}
         className="group flex w-full items-center gap-4 px-4 py-3 text-left transition hover:bg-ink-800/40 focus-visible:bg-ink-800/40"
       >
@@ -570,6 +571,7 @@ function CardTile({ card, onClick }: { card: CardListItem; onClick: () => void }
     <button
       type="button"
       onClick={onClick}
+      onMouseEnter={playHover}
       aria-label={card.title}
       className="card-hover group relative flex flex-col overflow-hidden rounded-xl border border-transparent bg-ink-800/40 text-left shadow-sm hover:border-ink-600/60"
     >

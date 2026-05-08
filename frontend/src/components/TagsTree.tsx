@@ -24,6 +24,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from "react-arborist";
 
 import { api, type TagCard, type TagsTree as TagsTreeData } from "../lib/api";
+import { playHover } from "../lib/sounds";
 
 const SOURCE_ICONS: Record<string, FC<{ className?: string }>> = {
   youtube: Youtube,
@@ -522,6 +523,7 @@ function TreeNode({
       <div ref={dragHandle} style={style} className="px-1">
         <div
           onClick={() => onPickCard(item.rawId)}
+          onMouseEnter={playHover}
           className={[
             "group flex h-full select-none cursor-pointer items-center gap-1.5 rounded-md py-1 pr-1 text-ink-400 transition hover:bg-ink-800/60 hover:text-ink-100",
             node.isDragging ? "opacity-30" : "",

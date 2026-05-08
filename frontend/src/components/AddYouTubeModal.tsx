@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 
 import RichTextEditor from "./RichTextEditor";
 import { api, type ImportSummary, type WikiHit } from "../lib/api";
+import { playSound } from "../lib/sounds";
 
 type Tab = "url" | "wiki" | "pdf" | "import" | "note";
 
@@ -88,14 +89,20 @@ export default function AddContentModal({ open, onClose, onCreated }: Props) {
     }
   }, [open]);
 
+  const closeWithSound = () => {
+    playSound("tick");
+    onClose();
+  };
+
   // ESC closes
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") closeWithSound();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, onClose]);
 
   // Wiki live search (debounced)
@@ -226,7 +233,7 @@ export default function AddContentModal({ open, onClose, onCreated }: Props) {
       <button
         type="button"
         aria-label="Close"
-        onClick={onClose}
+        onClick={closeWithSound}
         className="absolute inset-0 bg-ink-900/40 backdrop-blur-md modal-backdrop-enter"
       />
 
@@ -240,7 +247,7 @@ export default function AddContentModal({ open, onClose, onCreated }: Props) {
             </kbd>
             <button
               type="button"
-              onClick={onClose}
+              onClick={closeWithSound}
               className="rounded p-1 text-ink-300 transition hover:bg-ink-700/60 hover:text-ink-100"
               aria-label="Close"
             >
