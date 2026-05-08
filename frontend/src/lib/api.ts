@@ -592,6 +592,7 @@ export interface TagWithCards {
   name: string;
   parent_id: string | null;
   count: number;
+  is_public?: boolean;
   cards: TagCard[];
 }
 

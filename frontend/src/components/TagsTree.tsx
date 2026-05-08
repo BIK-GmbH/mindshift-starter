@@ -52,6 +52,7 @@ interface TagItem {
   name: string;
   count: number;
   parentTagId: string | null;
+  isPublic: boolean;
   children: TreeItem[];
 }
 
@@ -88,6 +89,7 @@ function buildTreeData(
       name: t.name,
       count: t.cards.length,
       parentTagId: t.parent_id,
+      isPublic: t.is_public ?? false,
       children: t.cards.map((c) => makeCardItem(c, t.id)),
     });
   }
@@ -414,6 +416,26 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
     void id;
   };
 
+  const togglePublic = async (rawId: string, next: boolean) => {
+    try {
+      await api.updateTag(rawId, { is_public: next });
+      // Optimistic local update — patch the matching tag in `data.tags`
+      // so we don't need to refetch the whole tree.
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              tags: prev.tags.map((t2) =>
+                t2.id === rawId ? { ...t2, is_public: next } : t2,
+              ),
+            }
+          : prev,
+      );
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
   const expandAll = () => {
     treeApiRef.current?.openAll();
     setTimeout(persistExpansion, 0);
@@ -547,6 +569,7 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
                 onPickTag={(name) => select(name)}
                 onPickCard={(id) => openCard(id)}
                 onPickUntagged={() => select(null, true)}
+                onTogglePublic={togglePublic}
               />
             )}
           </Tree>
@@ -576,6 +599,7 @@ interface NodeExtras {
   onPickTag: (name: string) => void;
   onPickCard: (rawId: string) => void;
   onPickUntagged: () => void;
+  onTogglePublic: (rawId: string, next: boolean) => void;
 }
 
 function TreeNode({
@@ -594,6 +618,7 @@ function TreeNode({
   onPickTag,
   onPickCard,
   onPickUntagged,
+  onTogglePublic,
 }: NodeRendererProps<TreeItem> & NodeExtras) {
   const item = node.data;
   const isInternal = node.isInternal;
@@ -715,6 +740,28 @@ function TreeNode({
 
         <Hash className="h-3 w-3 flex-shrink-0 text-ink-500" />
         <span className="flex-1 truncate">{item.name}</span>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePublic(item.rawId, !item.isPublic);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className={[
+            "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded transition",
+            item.isPublic
+              ? "text-emerald-400 opacity-100 hover:bg-emerald-500/10"
+              : "text-ink-500 opacity-0 hover:bg-ink-700 hover:text-ink-100 group-hover:opacity-100",
+          ].join(" ")}
+          title={
+            item.isPublic
+              ? "Public — click to make private"
+              : "Click to make this tag (and its sub-tree) public"
+          }
+        >
+          <Globe className="h-3 w-3" />
+        </button>
 
         <button
           type="button"
