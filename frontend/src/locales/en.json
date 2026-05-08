@@ -7,7 +7,7 @@
     "library": "Library",
     "graph": "Graph",
     "chat": "Chat",
-    "review": "Review",
+    "review": "Learning",
     "search": "Search",
     "settings": "Settings",
     "tags": "Tags",
@@ -288,8 +288,21 @@
       "due": "Due now",
       "reviewed": "reviewed",
       "mastery": "Mastery",
-      "tally": "Your answers"
+      "tally": "Your answers",
+      "history": "History",
+      "streak": "Activity"
     },
+    "history": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "answers": "answers",
+      "correct": "correct",
+      "duration": "{{min}} min",
+      "empty": "No events in this session.",
+      "openTooltip": "Show this session"
+    },
+    "resumeHint": "Continuing your {{time}} session ({{count}} so far)",
     "mode": {
       "recall": "Recall",
       "mc": "Choice",

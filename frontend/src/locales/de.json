@@ -7,7 +7,7 @@
     "library": "Bibliothek",
     "graph": "Graph",
     "chat": "Chat",
-    "review": "Wiederholung",
+    "review": "Learning",
     "search": "Suche",
     "settings": "Einstellungen",
     "tags": "Tags",
@@ -252,7 +252,7 @@
     }
   },
   "review": {
-    "subtitle": "Wiederhole fällige Quiz-Fragen mit Spaced Repetition.",
+    "subtitle": "Lerne fällige Quiz-Fragen mit Spaced Repetition.",
     "questionLabel": "Frage",
     "reveal": "Antwort anzeigen",
     "rating": {
@@ -286,10 +286,23 @@
       "heading": "Diese Session",
       "mode": "Modus",
       "due": "Jetzt fällig",
-      "reviewed": "wiederholt",
+      "reviewed": "gelernt",
       "mastery": "Beherrschung",
-      "tally": "Deine Antworten"
+      "tally": "Deine Antworten",
+      "history": "Verlauf",
+      "streak": "Aktivität"
     },
+    "history": {
+      "today": "Heute",
+      "yesterday": "Gestern",
+      "thisWeek": "Diese Woche",
+      "answers": "Antworten",
+      "correct": "richtig",
+      "duration": "{{min}} Min",
+      "empty": "Keine Ereignisse in dieser Session.",
+      "openTooltip": "Diese Session anzeigen"
+    },
+    "resumeHint": "Du knüpfst an deine Session von {{time}} an ({{count}} bisher)",
     "mode": {
       "recall": "Erinnern",
       "mc": "Auswahl",

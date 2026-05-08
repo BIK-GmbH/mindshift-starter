@@ -1,4 +1,4 @@
-import { Brain, Library, MessageSquare, Network, RefreshCw, Search } from "lucide-react";
+import { Brain, GraduationCap, Library, MessageSquare, Network, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
@@ -11,7 +11,7 @@ const railItems = [
   { to: "/", labelKey: "nav.library", Icon: Library, end: true },
   { to: "/graph", labelKey: "nav.graph", Icon: Network },
   { to: "/chat", labelKey: "nav.chat", Icon: MessageSquare },
-  { to: "/review", labelKey: "nav.review", Icon: RefreshCw },
+  { to: "/review", labelKey: "nav.review", Icon: GraduationCap },
 ];
 
 export default function AppLayout() {

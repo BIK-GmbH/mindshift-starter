@@ -7,7 +7,15 @@ When a new session starts, read this first to know where to pick up.
 
 ## Active sprint — Recall-pattern follow-ups
 
-**Status:** Phases 1-28 done. Phases 29-32 next (public-page polish).
+**Status:** Phases 1-37 in flight. Phase 33-37: review/learning rebrand + Learning Sessions (auto-bucketed, history list, drilldown, streak heatmap, resume hint).
+
+| Phase | Status | Description |
+|---|---|---|
+| 33 | 🚧 | **Rebrand Review → Learning** — user-facing strings (DE+EN), nav icon swapped to `GraduationCap`. Code identifiers (route `/review`, file names) stay for stability. |
+| 34 | 🚧 | **Learning Sessions backend** — migration `0012_learning_sessions` adds table + `review_events.session_id` FK. Auto-bucket logic in `submit_answer`: append to user's most recent session if `ended_at` < 30 min ago, else create a new one. Backfill script for existing events. |
+| 35 | 🚧 | **Session history list** — sidebar of past sessions (date label, count, correct%), grouped Today/Yesterday/This week/Older. |
+| 36 | 🚧 | **Session detail drilldown** — clicking a past session swaps the main column to a SessionDetailView with per-event question, rating, before→after stage, card link. |
+| 37 | 🚧 | **Streak heatmap + resume hint** — GitHub-style 7×N year grid driven by `/api/review/activity`; small chip "Continuing 14:32 session" when answering inside the auto-bucket window. |
 
 | Phase | Status | Description |
 |---|---|---|
