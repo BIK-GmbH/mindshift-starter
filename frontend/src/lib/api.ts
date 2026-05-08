@@ -415,10 +415,16 @@ export const api = {
         body: JSON.stringify({ title, narrative_text: narrativeText }),
       },
     ),
-  draftEpisode: (playlistId: string, targetMinutes = 5) =>
+  draftEpisode: (playlistId: string, targetMinutes = 5, language?: string) =>
     request<{ title: string; narrative_text: string }>(
       `/api/podcasts/playlists/${playlistId}/episodes/draft`,
-      { method: "POST", body: JSON.stringify({ target_minutes: targetMinutes }) },
+      {
+        method: "POST",
+        body: JSON.stringify({
+          target_minutes: targetMinutes,
+          language: language || undefined,
+        }),
+      },
     ),
   produceEpisode: (
     playlistId: string,

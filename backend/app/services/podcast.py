@@ -240,7 +240,7 @@ SOURCE NOTES (each is one card on a topic), weave them into ONE long-form
 spoken episode.
 
 Rules:
-- Detect the language and respond in the SAME language.
+- {language_rule}
 - Target spoken length ≈ {target_minutes} minutes — that's roughly
   {target_words} words. Stay within 80–120% of that target.
 - Open with a single-sentence cold open. Then a brief intro of what
@@ -277,10 +277,14 @@ COVER_PROMPT_WITH_TEXT = (
 
 
 def generate_episode_draft(
-    cards: list[dict[str, str]], target_minutes: int = 5
+    cards: list[dict[str, str]],
+    target_minutes: int = 5,
+    language: str | None = None,
 ) -> tuple[str, str]:
     """Compose a long-form episode script from a list of {title, summary} dicts.
 
+    `language` is an ISO code or natural-language hint (e.g. "de", "Deutsch",
+    "fr", "français"). When None, the model auto-detects from the source.
     Returns (title, narrative_text).
     """
     settings = get_settings()
@@ -297,8 +301,17 @@ def generate_episode_draft(
         for i, c in enumerate(cards)
     )
     user_prompt = f"SOURCE NOTES:\n{sources_text}"
+    if language and language.strip():
+        language_rule = (
+            f"Write the entire script in {language.strip()}. Translate any "
+            "source-note quotes into that language; do NOT mix languages."
+        )
+    else:
+        language_rule = "Detect the dominant language of the SOURCE NOTES and respond in the SAME language."
     system = EPISODE_DRAFT_PROMPT.format(
-        target_minutes=target_minutes, target_words=target_words
+        target_minutes=target_minutes,
+        target_words=target_words,
+        language_rule=language_rule,
     )
 
     response = client.chat.completions.create(

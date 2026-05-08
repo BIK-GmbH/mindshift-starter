@@ -70,6 +70,9 @@ class ReorderRequest(BaseModel):
 
 class DraftRequest(BaseModel):
     target_minutes: int = Field(default=5, ge=1, le=20)
+    # Natural-language hint or ISO code; None = let the model auto-detect
+    # from the source cards.
+    language: str | None = None
 
 
 class DraftResponse(BaseModel):

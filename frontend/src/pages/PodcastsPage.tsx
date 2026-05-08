@@ -57,35 +57,57 @@ export default function PodcastsPage() {
     void refreshPlaylists();
   }, [refreshPlaylists]);
 
+  // Initial load when the user picks a different playlist.
   useEffect(() => {
     if (!activeId) {
       setDetail(null);
       return;
     }
     let cancelled = false;
-    let timer: number | null = null;
-
-    const fetchOnce = async () => {
-      try {
-        const d = await api.getPlaylist(activeId);
-        if (cancelled) return;
-        setDetail(d);
-        // Keep polling while any episode is still processing — backend
-        // does the synthesis async, frontend just watches the row.
-        const stillRunning = d.episodes.some((e) => e.status === "processing");
-        if (stillRunning) {
-          timer = window.setTimeout(fetchOnce, 4000);
-        }
-      } catch {
-        // ignore — next user action will refetch
-      }
-    };
-    void fetchOnce();
+    void api
+      .getPlaylist(activeId)
+      .then((d) => {
+        if (!cancelled) setDetail(d);
+      })
+      .catch(() => {
+        /* ignore — next user action will refetch */
+      });
     return () => {
       cancelled = true;
-      if (timer) window.clearTimeout(timer);
     };
   }, [activeId]);
+
+  // Polling: re-runs whenever the set of processing episodes changes.
+  // Critical: when the user clicks "Produce", the optimistic refresh in
+  // produce() sets a detail with a processing episode → this effect
+  // re-fires and starts a 4 s tick. Previous bug: polling was tied to
+  // activeId only, so it never re-armed after produce().
+  const processingKey =
+    detail?.episodes
+      .filter((e) => e.status === "processing")
+      .map((e) => e.id)
+      .join(",") ?? "";
+  useEffect(() => {
+    if (!detail || !processingKey) return;
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        const d = await api.getPlaylist(detail.id);
+        if (!cancelled) setDetail(d);
+      } catch {
+        /* try again next round */
+      }
+    };
+    const timer = window.setTimeout(tick, 4000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [processingKey, detail?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // (detail is referenced indirectly via detail?.id; full detail in
+  //  deps would re-run on unrelated state changes.)
 
   const submitCreate = async () => {
     const name = newName.trim();
@@ -334,6 +356,7 @@ function PlaylistDetailView({
   const [draftTitle, setDraftTitle] = useState(detail.draft_title ?? "");
   const [draftText, setDraftText] = useState(detail.draft_narrative_text ?? "");
   const [voice, setVoice] = useState("Kore");
+  const [draftLanguage, setDraftLanguage] = useState("");
   const [generateCover, setGenerateCover] = useState(true);
   const [coverStyle, setCoverStyle] = useState("");
   const [coverText, setCoverText] = useState("");
@@ -487,7 +510,11 @@ function PlaylistDetailView({
     if (detail.cards.length === 0) return;
     setDraftBusy(true);
     try {
-      const result = await api.draftEpisode(detail.id, targetMinutes);
+      const result = await api.draftEpisode(
+        detail.id,
+        targetMinutes,
+        draftLanguage || undefined,
+      );
       setDraftTitle(result.title);
       setDraftText(result.narrative_text);
     } catch (err) {
@@ -643,6 +670,26 @@ function PlaylistDetailView({
                       {m} min
                     </option>
                   ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-[11px] text-ink-300">
+                {t("podcastPage.draftLanguage", { defaultValue: "Language" })}:
+                <select
+                  value={draftLanguage}
+                  onChange={(e) => setDraftLanguage(e.target.value)}
+                  className="rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1 text-xs text-ink-100 focus:border-ink-500 focus:outline-none"
+                >
+                  <option value="">{t("podcastPage.langAuto", { defaultValue: "Auto-detect" })}</option>
+                  <option value="Deutsch">Deutsch</option>
+                  <option value="English">English</option>
+                  <option value="Français">Français</option>
+                  <option value="Español">Español</option>
+                  <option value="Italiano">Italiano</option>
+                  <option value="Português">Português</option>
+                  <option value="Nederlands">Nederlands</option>
+                  <option value="Polski">Polski</option>
+                  <option value="日本語">日本語</option>
+                  <option value="中文">中文</option>
                 </select>
               </label>
               <button

@@ -439,7 +439,11 @@ def episode_draft(
         sources.append({"title": c.title or "Untitled", "summary": summary})
 
     try:
-        title, narrative = generate_episode_draft(sources, target_minutes=payload.target_minutes)
+        title, narrative = generate_episode_draft(
+            sources,
+            target_minutes=payload.target_minutes,
+            language=payload.language,
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
