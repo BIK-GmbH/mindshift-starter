@@ -407,7 +407,7 @@ export default function CardDetailContent({
                       {card.key_takeaways_json!.map((point, idx) => (
                         <li
                           key={idx}
-                          className="group flex items-start gap-2 rounded-md border border-ink-800 bg-ink-800/40 p-3 text-ink-200 transition hover:border-ink-700 hover:bg-ink-800/70"
+                          className="surface-soft group flex items-start gap-2 rounded-md border border-transparent bg-ink-800/40 p-3 text-ink-200 transition hover:bg-ink-800/70"
                         >
                           <span className="mt-1 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ink-400 transition group-hover:bg-ink-200" />
                           <span>{point}</span>
@@ -725,7 +725,7 @@ function MenuItem({
 function QuizCard({ index, question, t }: { index: number; question: QuizQuestion; t: (k: string) => string }) {
   const [revealed, setRevealed] = useState(false);
   return (
-    <div className="group rounded-lg border border-ink-800 bg-ink-800/50 p-4 text-sm transition hover:border-ink-700">
+    <div className="surface-soft group rounded-lg border border-transparent bg-ink-800/50 p-4 text-sm transition">
       <div className="flex items-start gap-3">
         <span className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-ink-700 text-[10px] font-semibold text-ink-200">
           {index}

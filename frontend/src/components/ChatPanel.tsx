@@ -133,7 +133,7 @@ export default function ChatPanel({
 
       <form
         onSubmit={onSubmit}
-        className="flex items-end gap-2 rounded-2xl border border-ink-700 bg-ink-800/40 p-2 shadow-lg shadow-black/20 focus-within:border-ink-500"
+        className="surface-soft flex items-end gap-2 rounded-2xl border border-transparent bg-ink-800/40 p-2 focus-within:border-ink-500"
       >
         <textarea
           value={input}
@@ -188,7 +188,7 @@ function MessageBubble({
     return (
       <div className="flex flex-row-reverse items-start gap-2.5">
         <Avatar role="user" />
-        <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-ink-100 px-4 py-2.5 text-sm text-ink-900 shadow-sm">
+        <div className="surface-soft max-w-[85%] rounded-2xl rounded-tr-sm bg-ink-100 px-4 py-2.5 text-sm text-ink-900">
           <span className="whitespace-pre-wrap">{message.content}</span>
         </div>
       </div>
@@ -197,7 +197,7 @@ function MessageBubble({
   return (
     <div className="flex items-start gap-2.5">
       <Avatar role="assistant" />
-      <div className="max-w-[90%] rounded-2xl rounded-tl-sm border border-ink-700 bg-ink-800 px-4 py-3 text-sm text-ink-100 shadow-sm">
+      <div className="surface-soft max-w-[90%] rounded-2xl rounded-tl-sm border border-transparent bg-ink-800 px-4 py-3 text-sm text-ink-100">
         <AssistantMessage
           content={message.content}
           citations={message.citations ?? []}

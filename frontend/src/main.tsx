@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
 import DialogHost from "./components/DialogHost";
+import SplashScreen from "./components/SplashScreen";
 import { DialogProvider } from "./lib/DialogContext";
 import { SearchModalProvider } from "./lib/SearchModalContext";
 import { SettingsModalProvider } from "./lib/SettingsModalContext";
@@ -20,6 +21,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <SearchModalProvider>
               <App />
               <DialogHost />
+              <SplashScreen />
             </SearchModalProvider>
           </BrowserRouter>
         </SettingsModalProvider>

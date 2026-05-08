@@ -215,7 +215,7 @@ export default function CardGraph({ rootCardId, rootTitle, rootSourceType }: Pro
       <div ref={containerRef} className="relative flex-1 min-h-0 overflow-hidden rounded-lg border border-ink-700 bg-ink-900">
         {data.links.length === 0 && data.nodes.length === 1 && loading === null && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6 text-center">
-            <div className="pointer-events-auto max-w-sm rounded-lg bg-ink-800/95 p-4 text-sm text-ink-200 shadow-lg">
+            <div className="surface-elevated pointer-events-auto max-w-sm rounded-lg bg-ink-800/95 p-4 text-sm text-ink-200">
               <p className="mb-1 font-medium text-ink-100">{t("graph.isolated.title")}</p>
               <p className="text-xs text-ink-300">{t("graph.isolated.body")}</p>
             </div>
