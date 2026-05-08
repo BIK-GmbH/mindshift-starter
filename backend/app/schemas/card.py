@@ -23,6 +23,8 @@ class CardOut(CardBase):
     original_file_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
+    # Tag names attached to this card.
+    tags: list[str] = Field(default_factory=list)
     # Reachable via at least one public tag — surfaces a "this is public"
     # warning in the notes editor so accidental edits don't leak.
     is_public: bool = False

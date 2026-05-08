@@ -88,6 +88,7 @@ export interface Card extends CardListItem {
   key_takeaways_json: string[] | null;
   notes_md: string | null;
   error_message: string | null;
+  tags?: string[];
   is_public?: boolean;
   public_via_tags?: string[];
 }

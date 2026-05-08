@@ -26,6 +26,7 @@ import { useTranslation } from "react-i18next";
 import CardGraph from "./CardGraph";
 import CardLanguagePicker from "./CardLanguagePicker";
 import CardPodcastPlayer from "./CardPodcastPlayer";
+import CardTagsBar from "./CardTagsBar";
 import ChatPanel from "./ChatPanel";
 import MarkdownView, { markdownToPlainText } from "./MarkdownView";
 import RichTextEditor from "./RichTextEditor";
@@ -313,6 +314,15 @@ export default function CardDetailContent({
                 <h1 className="text-lg font-semibold leading-tight tracking-tight text-ink-100">
                   {activeTranslation?.title ?? card.title}
                 </h1>
+                {card.status === "completed" && (
+                  <div className="mt-2">
+                    <CardTagsBar
+                      cardId={card.id}
+                      initialTags={card.tags ?? []}
+                      onTagsChanged={(tags) => setCard((prev) => (prev ? { ...prev, tags } : prev))}
+                    />
+                  </div>
+                )}
                 {card.is_public && card.public_via_tags && card.public_via_tags.length > 0 && (
                   <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300 ring-1 ring-emerald-500/30">
                     <Globe className="h-3 w-3" />

@@ -292,6 +292,20 @@ def _card_response(db: Session, card: Card) -> CardOut:
     out = CardOut.model_validate(card)
     out.is_public = is_public
     out.public_via_tags = paths
+    # Resolve tag names attached to this card.
+    from app.models.tag import CardTag, Tag
+
+    tag_rows = (
+        db.execute(
+            select(Tag.name)
+            .join(CardTag, CardTag.tag_id == Tag.id)
+            .where(CardTag.card_id == card.id)
+            .order_by(Tag.name.asc())
+        )
+        .scalars()
+        .all()
+    )
+    out.tags = list(tag_rows)
     return out
 
 
