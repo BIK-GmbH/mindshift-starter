@@ -23,6 +23,7 @@ from app.db.session import SessionLocal, get_db
 from app.models.card import Card
 from app.models.file import File
 from app.models.podcast import (
+    EpisodeShare,
     PodcastEpisode,
     PodcastPlaylist,
     PodcastPlaylistCard,
@@ -34,12 +35,15 @@ from app.schemas.podcast import (
     DraftRequest,
     DraftResponse,
     EpisodeOut,
+    EpisodeShareOut,
+    FromTagRequest,
     PlaylistCardOut,
     PlaylistCreate,
     PlaylistDetail,
     PlaylistOut,
     PlaylistUpdate,
     ProduceRequest,
+    PublicEpisodeOut,
     ReorderRequest,
 )
 from app.services.podcast import (
@@ -605,5 +609,238 @@ def stream_episode_cover(
             "Content-Disposition": "inline",
             "Content-Length": str(len(blob)),
             "Cache-Control": "private, max-age=86400",
+        },
+    )
+
+
+# --- Share / public access --------------------------------------------------
+
+
+def _share_to_out(share: EpisodeShare, has_cover: bool) -> EpisodeShareOut:
+    return EpisodeShareOut(
+        token=share.token,
+        public_url=f"/share/episode/{share.token}",
+        embed_url=f"/embed/episode/{share.token}",
+        audio_url=f"/api/public/episodes/{share.token}/audio.wav",
+        cover_url=f"/api/public/episodes/{share.token}/cover.png" if has_cover else None,
+        created_at=share.created_at,
+    )
+
+
+@router.get("/episodes/{episode_id}/share", response_model=EpisodeShareOut | None)
+def get_episode_share(
+    episode_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> EpisodeShareOut | None:
+    ep = _load_episode(db, episode_id, current_user)
+    share = db.execute(
+        select(EpisodeShare).where(EpisodeShare.episode_id == ep.id)
+    ).scalar_one_or_none()
+    if share is None:
+        return None
+    return _share_to_out(share, has_cover=ep.cover_file_id is not None)
+
+
+@router.post(
+    "/episodes/{episode_id}/share",
+    response_model=EpisodeShareOut,
+    status_code=201,
+)
+def create_episode_share(
+    episode_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> EpisodeShareOut:
+    ep = _load_episode(db, episode_id, current_user)
+    if ep.status != "ready":
+        raise HTTPException(
+            status_code=400, detail="Episode is not ready yet."
+        )
+    existing = db.execute(
+        select(EpisodeShare).where(EpisodeShare.episode_id == ep.id)
+    ).scalar_one_or_none()
+    if existing is not None:
+        return _share_to_out(existing, has_cover=ep.cover_file_id is not None)
+    share = EpisodeShare(episode_id=ep.id)
+    db.add(share)
+    db.commit()
+    db.refresh(share)
+    return _share_to_out(share, has_cover=ep.cover_file_id is not None)
+
+
+@router.delete(
+    "/episodes/{episode_id}/share",
+    status_code=204,
+    response_class=Response,
+)
+def revoke_episode_share(
+    episode_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    ep = _load_episode(db, episode_id, current_user)
+    db.execute(
+        delete(EpisodeShare).where(EpisodeShare.episode_id == ep.id)
+    )
+    db.commit()
+    return Response(status_code=204)
+
+
+# --- Playlist from tag ------------------------------------------------------
+
+
+@router.post(
+    "/playlists/from-tag",
+    response_model=PlaylistOut,
+    status_code=201,
+)
+def create_playlist_from_tag(
+    payload: FromTagRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PlaylistOut:
+    from app.models.tag import CardTag, Tag
+
+    tag_name = payload.tag_name.strip().lower()
+    if not tag_name:
+        raise HTTPException(status_code=400, detail="tag_name required")
+
+    tag = db.execute(
+        select(Tag).where(Tag.user_id == current_user.id, Tag.name == tag_name)
+    ).scalar_one_or_none()
+    if tag is None:
+        raise HTTPException(status_code=404, detail=f"Tag '{tag_name}' not found")
+
+    # Build the set of tag IDs to include — root + descendants if requested.
+    target_tag_ids: set[UUID] = {tag.id}
+    if payload.include_subtags:
+        # BFS via parent_id.
+        all_user_tags = db.execute(
+            select(Tag).where(Tag.user_id == current_user.id)
+        ).scalars().all()
+        children_by_parent: dict[UUID, list[Tag]] = {}
+        for t in all_user_tags:
+            if t.parent_id is None:
+                continue
+            children_by_parent.setdefault(t.parent_id, []).append(t)
+        queue = [tag]
+        while queue:
+            current = queue.pop(0)
+            for child in children_by_parent.get(current.id, []):
+                if child.id in target_tag_ids:
+                    continue
+                target_tag_ids.add(child.id)
+                queue.append(child)
+
+    cards = db.execute(
+        select(Card)
+        .join(CardTag, CardTag.card_id == Card.id)
+        .where(
+            CardTag.tag_id.in_(target_tag_ids),
+            Card.user_id == current_user.id,
+            Card.status == "completed",
+        )
+        .order_by(Card.created_at.asc())
+        .distinct()
+    ).scalars().all()
+
+    if not cards:
+        raise HTTPException(
+            status_code=400, detail=f"No completed cards under tag '{tag_name}'"
+        )
+
+    pl = PodcastPlaylist(
+        user_id=current_user.id,
+        name=payload.name or f"#{tag_name}",
+        description=f"Auto-generated from tag '{tag_name}'"
+        + (" (incl. sub-tags)" if payload.include_subtags else ""),
+    )
+    db.add(pl)
+    db.flush()
+    for idx, card in enumerate(cards, start=1):
+        db.add(
+            PodcastPlaylistCard(playlist_id=pl.id, card_id=card.id, position=idx)
+        )
+    db.commit()
+    db.refresh(pl)
+    return PlaylistOut(
+        id=pl.id,
+        name=pl.name,
+        description=pl.description,
+        created_at=pl.created_at,
+        card_count=len(cards),
+        has_draft=False,
+    )
+
+
+# --- Public unauthenticated endpoints ---------------------------------------
+
+public_router = APIRouter(prefix="/public/episodes", tags=["public-episodes"])
+
+
+def _resolve_share(db: Session, token: str) -> tuple[EpisodeShare, PodcastEpisode]:
+    share = db.execute(
+        select(EpisodeShare).where(EpisodeShare.token == token)
+    ).scalar_one_or_none()
+    if share is None:
+        raise HTTPException(status_code=404, detail="Share not found")
+    ep = db.get(PodcastEpisode, share.episode_id)
+    if ep is None:
+        raise HTTPException(status_code=404, detail="Episode missing")
+    return share, ep
+
+
+@public_router.get("/{token}", response_model=PublicEpisodeOut)
+def public_episode(token: str, db: Session = Depends(get_db)) -> PublicEpisodeOut:
+    _share, ep = _resolve_share(db, token)
+    if ep.status != "ready":
+        raise HTTPException(status_code=404, detail="Episode not ready")
+    return PublicEpisodeOut(
+        title=ep.title,
+        voice=ep.voice,
+        narrative_text=ep.narrative_text,
+        audio_url=f"/api/public/episodes/{token}/audio.wav",
+        cover_url=f"/api/public/episodes/{token}/cover.png" if ep.cover_file_id else None,
+        created_at=ep.created_at,
+    )
+
+
+@public_router.get("/{token}/audio.wav")
+def public_episode_audio(token: str, db: Session = Depends(get_db)) -> Response:
+    _share, ep = _resolve_share(db, token)
+    if ep.audio_file_id is None:
+        raise HTTPException(status_code=404, detail="No audio")
+    f = db.get(File, ep.audio_file_id)
+    if f is None:
+        raise HTTPException(status_code=404, detail="Audio file missing")
+    blob = get_storage().read(f)
+    return Response(
+        content=blob,
+        media_type="audio/wav",
+        headers={
+            "Content-Disposition": "inline",
+            "Content-Length": str(len(blob)),
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
+
+
+@public_router.get("/{token}/cover.png")
+def public_episode_cover(token: str, db: Session = Depends(get_db)) -> Response:
+    _share, ep = _resolve_share(db, token)
+    if ep.cover_file_id is None:
+        raise HTTPException(status_code=404, detail="No cover")
+    f = db.get(File, ep.cover_file_id)
+    if f is None:
+        raise HTTPException(status_code=404, detail="Cover file missing")
+    blob = get_storage().read(f)
+    return Response(
+        content=blob,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": "inline",
+            "Content-Length": str(len(blob)),
+            "Cache-Control": "public, max-age=86400",
         },
     )

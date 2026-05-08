@@ -431,10 +431,39 @@ export const api = {
       `/api/podcasts/playlists/${playlistId}/episodes/${episodeId}`,
       { method: "DELETE" },
     ),
+
   episodeAudioUrl: (episodeId: string) =>
     `${BASE_URL}/api/podcasts/episodes/${episodeId}/audio.wav`,
   episodeCoverUrl: (episodeId: string) =>
     `${BASE_URL}/api/podcasts/episodes/${episodeId}/cover.png`,
+  getEpisodeShare: (episodeId: string) =>
+    request<EpisodeShareOut | null>(
+      `/api/podcasts/episodes/${episodeId}/share`,
+    ),
+  createEpisodeShare: (episodeId: string) =>
+    request<EpisodeShareOut>(`/api/podcasts/episodes/${episodeId}/share`, {
+      method: "POST",
+    }),
+  revokeEpisodeShare: (episodeId: string) =>
+    request<void>(`/api/podcasts/episodes/${episodeId}/share`, { method: "DELETE" }),
+  publicEpisode: (token: string) =>
+    request<PublicEpisodeOut>(`/api/public/episodes/${token}`),
+  publicEpisodeAudioUrl: (token: string) =>
+    `${BASE_URL}/api/public/episodes/${token}/audio.wav`,
+  publicEpisodeCoverUrl: (token: string) =>
+    `${BASE_URL}/api/public/episodes/${token}/cover.png`,
+  createPlaylistFromTag: (
+    tagName: string,
+    options: { include_subtags?: boolean; name?: string } = {},
+  ) =>
+    request<PodcastPlaylistOut>(`/api/podcasts/playlists/from-tag`, {
+      method: "POST",
+      body: JSON.stringify({
+        tag_name: tagName,
+        include_subtags: options.include_subtags ?? true,
+        name: options.name,
+      }),
+    }),
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
@@ -784,6 +813,24 @@ export interface PodcastPlaylistDetail extends PodcastPlaylistOut {
   draft_title: string | null;
   draft_narrative_text: string | null;
   draft_target_minutes: number | null;
+}
+
+export interface EpisodeShareOut {
+  token: string;
+  public_url: string;
+  embed_url: string;
+  audio_url: string;
+  cover_url: string | null;
+  created_at: string;
+}
+
+export interface PublicEpisodeOut {
+  title: string;
+  voice: string;
+  narrative_text: string;
+  audio_url: string;
+  cover_url: string | null;
+  created_at: string;
 }
 
 export interface CardAudioOut {

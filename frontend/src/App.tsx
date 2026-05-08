@@ -9,6 +9,7 @@ import GraphPage from "./pages/GraphPage";
 import LibraryPage from "./pages/LibraryPage";
 import PodcastsPage from "./pages/PodcastsPage";
 import PublicCardPage from "./pages/PublicCardPage";
+import PublicEpisodePage from "./pages/PublicEpisodePage";
 import PublicProfilePage from "./pages/PublicProfilePage";
 import PublicTagPage from "./pages/PublicTagPage";
 import ReviewPage from "./pages/ReviewPage";
@@ -26,9 +27,15 @@ function RootRoutes() {
 
   // Public routes don't require auth.
   const path = window.location.pathname;
-  if (path.startsWith("/share/") || path.startsWith("/u/")) {
+  if (
+    path.startsWith("/share/") ||
+    path.startsWith("/embed/") ||
+    path.startsWith("/u/")
+  ) {
     return (
       <Routes>
+        <Route path="share/episode/:token" element={<PublicEpisodePage />} />
+        <Route path="embed/episode/:token" element={<PublicEpisodePage embed />} />
         <Route path="share/:token" element={<PublicCardPage />} />
         <Route path="u/:username" element={<PublicProfilePage />} />
         <Route path="u/:username/*" element={<PublicTagPage />} />
@@ -46,6 +53,8 @@ function RootRoutes() {
 
   return (
     <Routes>
+      <Route path="share/episode/:token" element={<PublicEpisodePage />} />
+      <Route path="embed/episode/:token" element={<PublicEpisodePage embed />} />
       <Route path="share/:token" element={<PublicCardPage />} />
       <Route path="u/:username" element={<PublicProfilePage />} />
       <Route path="u/:username/*" element={<PublicTagPage />} />

@@ -2,16 +2,21 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  Copy,
   Disc3,
+  Hash,
   Headphones,
   Image as ImageIcon,
+  Link2,
   Loader2,
   Plus,
+  Share2,
   Sparkles,
   Trash2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import RichTextEditor from "../components/RichTextEditor";
@@ -19,6 +24,7 @@ import {
   api,
   tokenStorage,
   type CardListItem,
+  type EpisodeShareOut,
   type PodcastPlaylistDetail,
   type PodcastPlaylistOut,
 } from "../lib/api";
@@ -33,6 +39,7 @@ export default function PodcastsPage() {
   const [detail, setDetail] = useState<PodcastPlaylistDetail | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshPlaylists = useCallback(async () => {
@@ -119,7 +126,22 @@ export default function PodcastsPage() {
           setCreating(false);
           setNewName("");
         }}
+        onFromTag={() => {
+          playSound("click");
+          setTagPickerOpen(true);
+        }}
       />
+      {tagPickerOpen && (
+        <TagToPlaylistModal
+          onClose={() => setTagPickerOpen(false)}
+          onCreated={(pl) => {
+            setPlaylists((prev) => [pl, ...prev]);
+            setActiveId(pl.id);
+            setTagPickerOpen(false);
+          }}
+          onError={setError}
+        />
+      )}
 
       <div className="flex flex-1 min-w-0 flex-col">
         <div className="page-header">
@@ -167,6 +189,7 @@ function PlaylistSidebar({
   onStartCreate,
   onSubmitCreate,
   onCancelCreate,
+  onFromTag,
 }: {
   playlists: PodcastPlaylistOut[];
   activeId: string | null;
@@ -177,6 +200,7 @@ function PlaylistSidebar({
   onStartCreate: () => void;
   onSubmitCreate: () => void;
   onCancelCreate: () => void;
+  onFromTag: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -185,15 +209,26 @@ function PlaylistSidebar({
         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
           {t("podcastPage.playlists", { defaultValue: "Playlists" })}
         </span>
-        <button
-          type="button"
-          onClick={onStartCreate}
-          title={t("podcastPage.newPlaylist", { defaultValue: "New playlist" }) ?? ""}
-          className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
-        >
-          <Plus className="h-3 w-3" />
-          {t("tags.new", { defaultValue: "New" })}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onFromTag}
+            title={t("podcastPage.fromTagTitle", { defaultValue: "Create playlist from a tag" }) ?? ""}
+            className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] font-medium text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+          >
+            <Hash className="h-3 w-3" />
+            {t("podcastPage.fromTag", { defaultValue: "From tag" })}
+          </button>
+          <button
+            type="button"
+            onClick={onStartCreate}
+            title={t("podcastPage.newPlaylist", { defaultValue: "New playlist" }) ?? ""}
+            className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
+          >
+            <Plus className="h-3 w-3" />
+            {t("tags.new", { defaultValue: "New" })}
+          </button>
+        </div>
       </div>
       {creating && (
         <div className="border-b border-ink-800 px-3 py-2">
@@ -716,8 +751,19 @@ function EpisodeCard({
   const { t } = useTranslation();
   const [audioBlob, setAudioBlob] = useState<string | null>(null);
   const [coverBlob, setCoverBlob] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const audioUrlRef = useRef<string | null>(null);
   const coverUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxOpen]);
 
   useEffect(() => {
     if (!episode.has_audio && !episode.has_cover) return;
@@ -760,9 +806,18 @@ function EpisodeCard({
         isFailed ? "border-red-500/30" : "border-ink-800",
       ].join(" ")}
     >
-      <div className="relative flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-ink-900">
+      <button
+        type="button"
+        onClick={() => coverBlob && setLightboxOpen(true)}
+        disabled={!coverBlob}
+        className="group relative flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-ink-900 transition disabled:cursor-default"
+        title={coverBlob ? t("podcastPage.viewCover", { defaultValue: "View cover" }) ?? "" : ""}
+      >
         {coverBlob ? (
-          <img src={coverBlob} alt="" className="h-full w-full object-cover" />
+          <>
+            <img src={coverBlob} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
+            <span className="absolute inset-0 bg-ink-900/0 transition group-hover:bg-ink-900/20" />
+          </>
         ) : (
           <ImageIcon className="h-6 w-6 text-ink-500" />
         )}
@@ -771,7 +826,40 @@ function EpisodeCard({
             <Loader2 className="h-5 w-5 animate-spin text-ink-100" />
           </div>
         )}
-      </div>
+      </button>
+      {shareOpen && (
+        <EpisodeShareModal
+          episodeId={episode.id}
+          episodeTitle={episode.title}
+          coverBlob={coverBlob}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
+      {lightboxOpen && coverBlob &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-900/85 backdrop-blur-md modal-backdrop-enter"
+            onClick={() => setLightboxOpen(false)}
+          >
+            <img
+              src={coverBlob}
+              alt=""
+              className="max-h-[88vh] max-w-[88vw] rounded-2xl shadow-2xl modal-card-enter"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(false)}
+              className="absolute right-6 top-6 rounded-full bg-ink-800/80 p-2 text-ink-100 transition hover:bg-ink-700"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>,
+          document.body,
+        )}
       <div className="flex flex-1 min-w-0 flex-col justify-between gap-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -780,14 +868,26 @@ function EpisodeCard({
               {episode.voice} · {new Date(episode.created_at).toLocaleDateString()}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="rounded p-1 text-ink-500 transition hover:bg-red-500/10 hover:text-red-300"
-            title={t("common.delete") ?? ""}
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            {episode.status === "ready" && (
+              <button
+                type="button"
+                onClick={() => setShareOpen(true)}
+                className="rounded p-1 text-ink-400 transition hover:bg-ink-700 hover:text-ink-100"
+                title={t("podcastPage.share", { defaultValue: "Share episode" }) ?? ""}
+              >
+                <Share2 className="h-3 w-3" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onDelete}
+              className="rounded p-1 text-ink-500 transition hover:bg-red-500/10 hover:text-red-300"
+              title={t("common.delete") ?? ""}
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
         </div>
         {isProcessing ? (
           <div className="space-y-1.5">
@@ -1001,5 +1101,383 @@ function CardPickerModal({
         </div>
       </div>
     </div>
+  );
+}
+
+
+function EpisodeShareModal({
+  episodeId,
+  episodeTitle,
+  coverBlob,
+  onClose,
+}: {
+  episodeId: string;
+  episodeTitle: string;
+  coverBlob: string | null;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [share, setShare] = useState<EpisodeShareOut | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .getEpisodeShare(episodeId)
+      .then((s) => setShare(s))
+      .catch((err) => setError((err as Error).message))
+      .finally(() => setLoading(false));
+  }, [episodeId]);
+
+  const create = async () => {
+    setLoading(true);
+    try {
+      const s = await api.createEpisodeShare(episodeId);
+      setShare(s);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const revoke = async () => {
+    if (!window.confirm(t("podcastPage.revokeConfirm", { defaultValue: "Revoke the public link?" }) ?? "")) return;
+    try {
+      await api.revokeEpisodeShare(episodeId);
+      setShare(null);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const copy = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      window.setTimeout(() => setCopied(null), 1500);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const publicUrl = share ? `${origin}${share.public_url}` : "";
+  const embedUrl = share ? `${origin}${share.embed_url}` : "";
+  const embedSnippet = share
+    ? `<iframe src="${embedUrl}" width="480" height="120" style="border:0;border-radius:12px" allow="autoplay" loading="lazy"></iframe>`
+    : "";
+  const tweetUrl = share
+    ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(episodeTitle)}&url=${encodeURIComponent(publicUrl)}`
+    : "";
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[65] flex items-start justify-center px-4 pt-[10vh] modal-backdrop-enter"
+    >
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-ink-900/40 backdrop-blur-md"
+      />
+      <div className="relative flex w-full max-w-lg flex-col gap-4 overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 p-5 surface-elevated modal-card-enter">
+        <header className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            {coverBlob && (
+              <img
+                src={coverBlob}
+                alt=""
+                className="h-12 w-12 flex-shrink-0 rounded-md object-cover"
+              />
+            )}
+            <div>
+              <h3 className="text-sm font-semibold text-ink-100">
+                {t("podcastPage.shareTitle", { defaultValue: "Share episode" })}
+              </h3>
+              <p className="truncate text-[11px] text-ink-400">{episodeTitle}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-ink-300 transition hover:bg-ink-700 hover:text-ink-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        {error && (
+          <p className="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>
+        )}
+
+        {loading ? (
+          <p className="text-xs text-ink-400">
+            <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
+            {t("common.loading")}
+          </p>
+        ) : !share ? (
+          <div className="space-y-3">
+            <p className="text-xs text-ink-300">
+              {t("podcastPage.shareIdleHint", {
+                defaultValue:
+                  "Generate a public link anyone can listen to — no login. You can revoke it at any time.",
+              })}
+            </p>
+            <button
+              type="button"
+              onClick={create}
+              className="inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-medium text-ink-900 transition hover:bg-ink-200"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              {t("podcastPage.createShareLink", { defaultValue: "Create public link" })}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <ShareField
+              label={t("podcastPage.publicLink", { defaultValue: "Public link" }) ?? "Public link"}
+              value={publicUrl}
+              onCopy={() => copy(publicUrl, "url")}
+              copied={copied === "url"}
+            />
+            <ShareField
+              label={t("podcastPage.embedSnippet", { defaultValue: "Embed snippet" }) ?? "Embed"}
+              value={embedSnippet}
+              onCopy={() => copy(embedSnippet, "embed")}
+              copied={copied === "embed"}
+              multiline
+            />
+            <div className="flex items-center justify-between gap-2 border-t border-ink-700 pt-3">
+              <a
+                href={tweetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-200 transition hover:bg-ink-700/40"
+              >
+                {t("podcastPage.tweet", { defaultValue: "Share on X" })}
+              </a>
+              <button
+                type="button"
+                onClick={revoke}
+                className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
+              >
+                {t("podcastPage.revokeShare", { defaultValue: "Revoke link" })}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function ShareField({
+  label,
+  value,
+  onCopy,
+  copied,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  onCopy: () => void;
+  copied: boolean;
+  multiline?: boolean;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+        {label}
+      </label>
+      <div className="flex items-stretch gap-1">
+        {multiline ? (
+          <textarea
+            readOnly
+            value={value}
+            rows={3}
+            className="flex-1 rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 font-mono text-[10px] text-ink-200 focus:outline-none"
+          />
+        ) : (
+          <input
+            type="text"
+            readOnly
+            value={value}
+            className="flex-1 rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 font-mono text-[10px] text-ink-200 focus:outline-none"
+            onFocus={(e) => e.currentTarget.select()}
+          />
+        )}
+        <button
+          type="button"
+          onClick={onCopy}
+          className={[
+            "inline-flex flex-shrink-0 items-center justify-center rounded-md border px-2 transition",
+            copied
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+              : "border-ink-700 text-ink-300 hover:bg-ink-700/40",
+          ].join(" ")}
+        >
+          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TagToPlaylistModal({
+  onClose,
+  onCreated,
+  onError,
+}: {
+  onClose: () => void;
+  onCreated: (pl: PodcastPlaylistOut) => void;
+  onError: (msg: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [tags, setTags] = useState<{ name: string; count: number }[] | null>(null);
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<string | null>(null);
+  const [includeSubtags, setIncludeSubtags] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void api
+      .listTags()
+      .then((rows) =>
+        setTags(rows.map((r) => ({ name: r.name, count: r.count }))),
+      )
+      .catch((err) => onError((err as Error).message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const filtered = (tags ?? []).filter((t2) =>
+    query.trim().length === 0 ? true : t2.name.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  const create = async () => {
+    if (!picked || busy) return;
+    setBusy(true);
+    try {
+      const pl = await api.createPlaylistFromTag(picked, {
+        include_subtags: includeSubtags,
+      });
+      onCreated(pl);
+    } catch (err) {
+      onError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[65] flex items-start justify-center px-4 pt-[10vh] modal-backdrop-enter"
+    >
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-ink-900/40 backdrop-blur-md"
+      />
+      <div className="relative flex max-h-[70vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
+        <header className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
+          <h3 className="text-sm font-semibold text-ink-100">
+            {t("podcastPage.fromTagTitle", { defaultValue: "Create playlist from a tag" })}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-ink-300 transition hover:bg-ink-700 hover:text-ink-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+        <div className="border-b border-ink-700 p-3">
+          <input
+            type="search"
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("podcastPage.searchTags", { defaultValue: "Search tags…" }) ?? ""}
+            className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-xs text-ink-100 focus:border-ink-500 focus:outline-none"
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {tags === null ? (
+            <p className="p-6 text-center text-xs text-ink-500">
+              <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
+              {t("common.loading")}
+            </p>
+          ) : filtered.length === 0 ? (
+            <p className="p-6 text-center text-xs text-ink-500">
+              {t("podcastPage.noTagsMatch", { defaultValue: "No tags match." })}
+            </p>
+          ) : (
+            <ul className="divide-y divide-ink-800">
+              {filtered.map((row) => {
+                const isSel = picked === row.name;
+                return (
+                  <li key={row.name}>
+                    <button
+                      type="button"
+                      onClick={() => setPicked(row.name)}
+                      className={[
+                        "flex w-full items-center gap-2 px-4 py-2 text-left text-xs transition",
+                        isSel
+                          ? "bg-emerald-500/10 ring-inset ring-1 ring-emerald-500/40"
+                          : "text-ink-200 hover:bg-ink-700/40",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border transition",
+                          isSel
+                            ? "border-emerald-400 bg-emerald-400 text-ink-900"
+                            : "border-ink-600 bg-transparent text-transparent",
+                        ].join(" ")}
+                      >
+                        {isSel && <Check className="h-2.5 w-2.5" />}
+                      </span>
+                      <Hash className="h-3 w-3 text-ink-400" />
+                      <span className="flex-1 truncate">{row.name}</span>
+                      <span className="text-[10px] tabular-nums text-ink-500">
+                        {row.count}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t border-ink-700 bg-ink-900/40 px-4 py-3">
+          <label className="inline-flex items-center gap-2 text-[11px] text-ink-300">
+            <input
+              type="checkbox"
+              checked={includeSubtags}
+              onChange={(e) => setIncludeSubtags(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            {t("podcastPage.includeSubtags", { defaultValue: "Include sub-tags" })}
+          </label>
+          <button
+            type="button"
+            onClick={create}
+            disabled={!picked || busy}
+            className="inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+          >
+            {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+            {t("podcastPage.createPlaylist", { defaultValue: "Create playlist" })}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

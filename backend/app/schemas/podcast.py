@@ -83,3 +83,27 @@ class ProduceRequest(BaseModel):
     voice: str | None = None
     generate_cover: bool = True
     cover_prompt: str | None = None
+
+
+class EpisodeShareOut(BaseModel):
+    token: str
+    public_url: str
+    embed_url: str
+    audio_url: str
+    cover_url: str | None
+    created_at: datetime
+
+
+class PublicEpisodeOut(BaseModel):
+    title: str
+    voice: str
+    narrative_text: str
+    audio_url: str
+    cover_url: str | None
+    created_at: datetime
+
+
+class FromTagRequest(BaseModel):
+    tag_name: str = Field(min_length=1)
+    include_subtags: bool = True
+    name: str | None = None

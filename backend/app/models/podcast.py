@@ -1,6 +1,7 @@
 """Podcast playlists + generated episodes."""
 
 from datetime import datetime
+from secrets import token_urlsafe
 from uuid import UUID
 
 from sqlalchemy import (
@@ -16,7 +17,11 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, new_uuid
+from app.db.base import Base, TimestampMixin, new_uuid
+
+
+def make_episode_share_token() -> str:
+    return token_urlsafe(18)
 
 
 class PodcastPlaylist(Base):
@@ -91,4 +96,19 @@ class PodcastEpisode(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class EpisodeShare(Base, TimestampMixin):
+    __tablename__ = "episode_shares"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    episode_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("podcast_episodes.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    token: Mapped[str] = mapped_column(
+        String(48), nullable=False, unique=True, default=make_episode_share_token
     )

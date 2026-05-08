@@ -10,6 +10,7 @@ from app.models.graph_preset import GraphPreset  # noqa: F401
 from app.models.job import Job  # noqa: F401
 from app.models.learning_session import LearningSession  # noqa: F401
 from app.models.podcast import (  # noqa: F401
+    EpisodeShare,
     PodcastEpisode,
     PodcastPlaylist,
     PodcastPlaylistCard,
