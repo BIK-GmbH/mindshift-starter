@@ -566,6 +566,44 @@ def produce_episode(
     return _episode_to_out(ep)
 
 
+@router.post(
+    "/playlists/{playlist_id}/episodes/{episode_id}/retry",
+    response_model=EpisodeOut,
+)
+def retry_episode(
+    playlist_id: UUID,
+    episode_id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> EpisodeOut:
+    """Re-run synthesis on a failed (or stuck) episode using its
+    persisted narrative_text + voice. Cover is regenerated only if
+    missing."""
+    ep = _load_episode(db, episode_id, current_user)
+    if ep.playlist_id != playlist_id:
+        raise HTTPException(status_code=404, detail="Episode not in playlist")
+    if ep.status == "processing":
+        raise HTTPException(status_code=409, detail="Already processing")
+
+    ep.status = "processing"
+    ep.error_message = None
+    db.commit()
+    db.refresh(ep)
+
+    background_tasks.add_task(
+        _run_episode_job,
+        episode_id=ep.id,
+        user_id=current_user.id,
+        voice=ep.voice,
+        generate_cover=ep.cover_file_id is None,
+        cover_prompt=None,
+        cover_style=None,
+        cover_text=None,
+    )
+    return _episode_to_out(ep)
+
+
 @router.delete(
     "/playlists/{playlist_id}/episodes/{episode_id}",
     status_code=204,

@@ -224,11 +224,24 @@ export default function CardLanguagePicker({ cardId, onActive }: Props) {
                 <button
                   type="button"
                   onClick={() => {
+                    if (tr.status === "failed") {
+                      // Re-trigger generation.
+                      void startGenerate(tr.language);
+                      return;
+                    }
                     setActiveLang(tr.language);
                     setOpen(false);
                   }}
                   className="flex flex-1 items-center gap-2 text-left"
-                  disabled={tr.status === "failed"}
+                  title={
+                    tr.status === "failed"
+                      ? (tr.error_message ?? "") +
+                        " — " +
+                        (t("card.translation.clickToRetry", {
+                          defaultValue: "Click to retry",
+                        }) ?? "Click to retry")
+                      : ""
+                  }
                 >
                   <span
                     className={[
@@ -246,7 +259,7 @@ export default function CardLanguagePicker({ cardId, onActive }: Props) {
                   )}
                   {tr.status === "failed" && (
                     <span className="text-[9px] uppercase tracking-wider text-red-400">
-                      {t("card.translation.failed", { defaultValue: "failed" })}
+                      {t("card.translation.retry", { defaultValue: "retry" })}
                     </span>
                   )}
                 </button>

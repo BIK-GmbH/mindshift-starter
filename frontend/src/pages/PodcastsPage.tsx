@@ -11,6 +11,7 @@ import {
   Link2,
   Loader2,
   Plus,
+  RefreshCw,
   Share2,
   Sparkles,
   Trash2,
@@ -881,6 +882,15 @@ function PlaylistDetailView({
                 key={e.id}
                 episode={e}
                 onDelete={() => removeEpisode(e.id, e.title)}
+                onRetry={async () => {
+                  try {
+                    await api.retryEpisode(detail.id, e.id);
+                    const updated = await api.getPlaylist(detail.id);
+                    onChange(updated);
+                  } catch (err) {
+                    onError((err as Error).message);
+                  }
+                }}
               />
             ))}
           </div>
@@ -909,9 +919,11 @@ function PlaylistDetailView({
 function EpisodeCard({
   episode,
   onDelete,
+  onRetry,
 }: {
   episode: import("../lib/api").PodcastEpisodeOut;
   onDelete: () => void;
+  onRetry: () => void;
 }) {
   const { t } = useTranslation();
   const [audioBlob, setAudioBlob] = useState<string | null>(null);
@@ -1067,9 +1079,19 @@ function EpisodeCard({
             </div>
           </div>
         ) : isFailed ? (
-          <p className="rounded-md bg-red-500/10 px-2 py-1 text-[11px] text-red-300">
-            {episode.error_message ?? t("common.error")}
-          </p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="flex-1 rounded-md bg-red-500/10 px-2 py-1 text-[11px] text-red-300">
+              {episode.error_message ?? t("common.error")}
+            </p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex flex-shrink-0 items-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[11px] text-ink-200 transition hover:bg-ink-800"
+            >
+              <RefreshCw className="h-3 w-3" />
+              {t("common.retry")}
+            </button>
+          </div>
         ) : audioBlob ? (
           <audio controls src={audioBlob} className="w-full" preload="metadata">
             <track kind="captions" />

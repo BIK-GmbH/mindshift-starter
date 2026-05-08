@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -24,10 +26,27 @@ from app.api.tags import router as tags_router
 from app.api.translations import router as translations_router
 from app.api.wiki import router as wiki_router
 from app.core.config import get_settings
+from app.services.recovery import reap_stuck_processing
 
 settings = get_settings()
 
-app = FastAPI(title="Mindshift API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # On startup: any async generation rows still in `processing` from
+    # before the restart are orphans (the BackgroundTask owning them is
+    # gone). Flip them to `failed` so the user can retry from the UI.
+    counts = reap_stuck_processing()
+    total = sum(counts.values())
+    if total:
+        print(
+            f"[startup] reaped stuck processing rows: {counts} "
+            f"(total {total})"
+        )
+    yield
+
+
+app = FastAPI(title="Mindshift API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

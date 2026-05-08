@@ -447,6 +447,11 @@ export const api = {
       `/api/podcasts/playlists/${playlistId}/episodes/${episodeId}`,
       { method: "DELETE" },
     ),
+  retryEpisode: (playlistId: string, episodeId: string) =>
+    request<PodcastEpisodeOut>(
+      `/api/podcasts/playlists/${playlistId}/episodes/${episodeId}/retry`,
+      { method: "POST" },
+    ),
 
   episodeAudioUrl: (episodeId: string) =>
     `${BASE_URL}/api/podcasts/episodes/${episodeId}/audio.wav`,
