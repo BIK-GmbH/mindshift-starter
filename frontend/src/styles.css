@@ -40,6 +40,15 @@
     height: 100%;
   }
 
+  /* Reserve space for the scrollbar so scrollable areas don't shift
+     content sideways the moment the bar appears. Applies everywhere
+     scrolling can happen — overridden per-element only if necessary. */
+  *,
+  *::before,
+  *::after {
+    scrollbar-gutter: stable;
+  }
+
   /* Global focus-visible ring — applies to every interactive element so
      keyboard users see where focus is. Uses focus-visible (NOT focus)
      so the ring doesn't appear on mouse clicks. */
@@ -378,6 +387,36 @@
       -1px 0 0 rgb(15 23 42 / 0.08),
       -6px 0 16px -4px rgb(15 23 42 / 0.14),
       -12px 0 28px -10px rgb(15 23 42 / 0.18);
+  }
+
+  /* Staggered fade-up for grid / list children. The wrapper sets up
+     the keyframes; pure CSS does the per-row delay so we don't need
+     React to compute styles. Capped at the first 12 items so a long
+     library doesn't take seconds to settle. */
+  .cards-stagger > * {
+    animation: card-fade-up 380ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .cards-stagger > *:nth-child(1)  { animation-delay: 0ms; }
+  .cards-stagger > *:nth-child(2)  { animation-delay: 30ms; }
+  .cards-stagger > *:nth-child(3)  { animation-delay: 60ms; }
+  .cards-stagger > *:nth-child(4)  { animation-delay: 90ms; }
+  .cards-stagger > *:nth-child(5)  { animation-delay: 120ms; }
+  .cards-stagger > *:nth-child(6)  { animation-delay: 150ms; }
+  .cards-stagger > *:nth-child(7)  { animation-delay: 180ms; }
+  .cards-stagger > *:nth-child(8)  { animation-delay: 210ms; }
+  .cards-stagger > *:nth-child(9)  { animation-delay: 240ms; }
+  .cards-stagger > *:nth-child(10) { animation-delay: 270ms; }
+  .cards-stagger > *:nth-child(11) { animation-delay: 300ms; }
+  .cards-stagger > *:nth-child(n+12) { animation-delay: 330ms; }
+  @keyframes card-fade-up {
+    0% {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   /* Drag-drop file dropzone state. */

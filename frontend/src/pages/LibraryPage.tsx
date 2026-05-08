@@ -392,7 +392,7 @@ export default function LibraryPage() {
           ) : cards.length === 0 ? (
             <EmptyState onAdd={() => setModalOpen(true)} />
           ) : view === "list" ? (
-            <ul className="divide-y divide-ink-800 rounded-xl border border-ink-800 bg-ink-800/30">
+            <ul className="cards-stagger divide-y divide-ink-800 rounded-xl border border-ink-800 bg-ink-800/30">
               {cards.map((card) => (
                 <CardRow
                   key={card.id}
@@ -402,7 +402,7 @@ export default function LibraryPage() {
               ))}
             </ul>
           ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="cards-stagger grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {cards.map((card) => (
                 <CardTile
                   key={card.id}
