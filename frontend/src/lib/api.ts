@@ -362,6 +362,65 @@ export const api = {
     request<void>(`/api/cards/${cardId}/audio`, { method: "DELETE" }),
   cardAudioStreamUrl: (cardId: string) =>
     `${BASE_URL}/api/cards/${cardId}/audio.wav`,
+  // Podcast playlists
+  listPlaylists: () => request<PodcastPlaylistOut[]>("/api/podcasts/playlists"),
+  createPlaylist: (name: string, description?: string) =>
+    request<PodcastPlaylistOut>("/api/podcasts/playlists", {
+      method: "POST",
+      body: JSON.stringify({ name, description }),
+    }),
+  getPlaylist: (id: string) =>
+    request<PodcastPlaylistDetail>(`/api/podcasts/playlists/${id}`),
+  updatePlaylist: (id: string, body: { name?: string; description?: string }) =>
+    request<PodcastPlaylistOut>(`/api/podcasts/playlists/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deletePlaylist: (id: string) =>
+    request<void>(`/api/podcasts/playlists/${id}`, { method: "DELETE" }),
+  addPlaylistCard: (id: string, cardId: string) =>
+    request<PodcastPlaylistDetail>(`/api/podcasts/playlists/${id}/cards`, {
+      method: "POST",
+      body: JSON.stringify({ card_id: cardId }),
+    }),
+  removePlaylistCard: (id: string, cardId: string) =>
+    request<PodcastPlaylistDetail>(
+      `/api/podcasts/playlists/${id}/cards/${cardId}`,
+      { method: "DELETE" },
+    ),
+  reorderPlaylist: (id: string, cardIds: string[]) =>
+    request<PodcastPlaylistDetail>(`/api/podcasts/playlists/${id}/reorder`, {
+      method: "POST",
+      body: JSON.stringify({ card_ids: cardIds }),
+    }),
+  draftEpisode: (playlistId: string, targetMinutes = 5) =>
+    request<{ title: string; narrative_text: string }>(
+      `/api/podcasts/playlists/${playlistId}/episodes/draft`,
+      { method: "POST", body: JSON.stringify({ target_minutes: targetMinutes }) },
+    ),
+  produceEpisode: (
+    playlistId: string,
+    body: {
+      title: string;
+      narrative_text: string;
+      voice?: string;
+      generate_cover?: boolean;
+      cover_prompt?: string;
+    },
+  ) =>
+    request<PodcastEpisodeOut>(
+      `/api/podcasts/playlists/${playlistId}/episodes`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  deleteEpisode: (playlistId: string, episodeId: string) =>
+    request<void>(
+      `/api/podcasts/playlists/${playlistId}/episodes/${episodeId}`,
+      { method: "DELETE" },
+    ),
+  episodeAudioUrl: (episodeId: string) =>
+    `${BASE_URL}/api/podcasts/episodes/${episodeId}/audio.wav`,
+  episodeCoverUrl: (episodeId: string) =>
+    `${BASE_URL}/api/podcasts/episodes/${episodeId}/cover.png`,
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
@@ -672,6 +731,39 @@ export interface ActivityDay {
   date: string; // YYYY-MM-DD
   count: number;
   correct: number;
+}
+
+export interface PodcastPlaylistOut {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  card_count: number;
+}
+
+export interface PodcastEpisodeOut {
+  id: string;
+  playlist_id: string;
+  title: string;
+  voice: string;
+  has_audio: boolean;
+  has_cover: boolean;
+  audio_url: string | null;
+  cover_url: string | null;
+  created_at: string;
+}
+
+export interface PodcastPlaylistCardOut {
+  card_id: string;
+  position: number;
+  title: string;
+  source_type: string;
+  thumbnail_url: string | null;
+}
+
+export interface PodcastPlaylistDetail extends PodcastPlaylistOut {
+  cards: PodcastPlaylistCardOut[];
+  episodes: PodcastEpisodeOut[];
 }
 
 export interface CardAudioOut {

@@ -9,6 +9,11 @@ from app.models.file import File  # noqa: F401
 from app.models.graph_preset import GraphPreset  # noqa: F401
 from app.models.job import Job  # noqa: F401
 from app.models.learning_session import LearningSession  # noqa: F401
+from app.models.podcast import (  # noqa: F401
+    PodcastEpisode,
+    PodcastPlaylist,
+    PodcastPlaylistCard,
+)
 from app.models.quiz import QuizQuestion, ReviewEvent  # noqa: F401
 from app.models.reaction import CardReaction  # noqa: F401
 from app.models.relation import CardRelation  # noqa: F401

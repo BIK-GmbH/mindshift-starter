@@ -7,6 +7,7 @@ import CardDetailPage from "./pages/CardDetailPage";
 import ChatPage from "./pages/ChatPage";
 import GraphPage from "./pages/GraphPage";
 import LibraryPage from "./pages/LibraryPage";
+import PodcastsPage from "./pages/PodcastsPage";
 import PublicCardPage from "./pages/PublicCardPage";
 import PublicProfilePage from "./pages/PublicProfilePage";
 import PublicTagPage from "./pages/PublicTagPage";
@@ -54,6 +55,7 @@ function RootRoutes() {
         <Route path="chat" element={<ChatPage />} />
         <Route path="graph" element={<GraphPage />} />
         <Route path="review" element={<ReviewPage />} />
+        <Route path="podcasts" element={<PodcastsPage />} />
       </Route>
     </Routes>
   );

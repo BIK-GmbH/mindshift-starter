@@ -145,3 +145,125 @@ def generate_card_podcast(
     chosen_voice = voice or DEFAULT_VOICE
     wav = _synthesize_speech(narrative, voice=chosen_voice)
     return PodcastResult(narrative_text=narrative, audio_wav_bytes=wav, voice=chosen_voice)
+
+
+# ----------------------------------------------------------------------------
+# Long-form episode pipeline (playlist → script → audio + cover)
+# ----------------------------------------------------------------------------
+
+
+EPISODE_DRAFT_PROMPT = """You write podcast episode scripts. Given a list of
+SOURCE NOTES (each is one card on a topic), weave them into ONE long-form
+spoken episode.
+
+Rules:
+- Detect the language and respond in the SAME language.
+- Target spoken length ≈ {target_minutes} minutes — that's roughly
+  {target_words} words. Stay within 80–120% of that target.
+- Open with a single-sentence cold open. Then a brief intro of what
+  the episode is about. Then dive in.
+- Treat each source note as one segment. Use natural transitions
+  ("Kommen wir zum nächsten Punkt…", "Das führt uns direkt zu…").
+- Keep every load-bearing fact. Don't invent specifics.
+- Close with a 2-3 sentence reflection / takeaway.
+- Story-flow prose, no bullet points, no markdown headings.
+- Optional inline delivery cues in [brackets] at start of clauses,
+  e.g. "[curious] " or "[reflective] " — sparingly, max 8 in the
+  whole script. The TTS engine reads these as expression hints.
+
+Also produce a short, evocative episode TITLE (≤ 60 chars,
+language-matched).
+
+Return strict JSON only:
+{{"title": "...", "narrative_text": "..."}}"""
+
+
+COVER_PROMPT_TEMPLATE = (
+    "Podcast cover artwork for an episode titled '{title}'. "
+    "{summary} "
+    "Style: editorial illustration, sophisticated color palette, "
+    "high-contrast composition, no text overlays, no faces, "
+    "abstract conceptual feel — suitable as a podcast cover thumbnail. "
+    "Square aspect ratio."
+)
+
+
+def generate_episode_draft(
+    cards: list[dict[str, str]], target_minutes: int = 5
+) -> tuple[str, str]:
+    """Compose a long-form episode script from a list of {title, summary} dicts.
+
+    Returns (title, narrative_text).
+    """
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY not configured")
+
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.openai_api_key)
+    target_words = target_minutes * 150  # ~150 wpm spoken pace
+
+    sources_text = "\n\n".join(
+        f"--- CARD {i + 1}: {c.get('title', '')} ---\n{c.get('summary', '')[:3000]}"
+        for i, c in enumerate(cards)
+    )
+    user_prompt = f"SOURCE NOTES:\n{sources_text}"
+    system = EPISODE_DRAFT_PROMPT.format(
+        target_minutes=target_minutes, target_words=target_words
+    )
+
+    response = client.chat.completions.create(
+        model=settings.openai_model,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_prompt},
+        ],
+        response_format={"type": "json_object"},
+    )
+    raw = response.choices[0].message.content or "{}"
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Episode draft returned non-JSON: {raw[:300]}") from exc
+
+    title = (data.get("title") or "Untitled Episode").strip()
+    narrative = (data.get("narrative_text") or "").strip()
+    if not narrative:
+        raise RuntimeError("Episode draft returned empty narrative")
+    return title, narrative
+
+
+def synthesize_episode_audio(narrative_text: str, voice: Optional[str] = None) -> tuple[bytes, str]:
+    """Render an episode script to WAV. Returns (wav_bytes, voice)."""
+    chosen_voice = voice or DEFAULT_VOICE
+    wav = _synthesize_speech(narrative_text, voice=chosen_voice)
+    return wav, chosen_voice
+
+
+def generate_cover_image(title: str, summary_hint: str = "", custom_prompt: Optional[str] = None) -> bytes:
+    """Generate a square podcast cover via OpenAI gpt-image-2. Returns PNG bytes."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY not configured")
+
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.openai_api_key)
+
+    prompt = custom_prompt or COVER_PROMPT_TEMPLATE.format(
+        title=title, summary=summary_hint[:300]
+    )
+
+    # gpt-image-2 returns base64 by default. 1024x1024 is the canonical
+    # square podcast cover size.
+    response = client.images.generate(
+        model="gpt-image-2",
+        prompt=prompt,
+        size="1024x1024",
+        n=1,
+    )
+    b64 = response.data[0].b64_json
+    if not b64:
+        raise RuntimeError("Cover image API returned no data")
+    return base64.b64decode(b64)
