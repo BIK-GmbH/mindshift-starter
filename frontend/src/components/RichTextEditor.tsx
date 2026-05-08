@@ -180,7 +180,35 @@ export default function RichTextEditor({
           {aiError}
         </p>
       )}
-      <EditorContent editor={editor} className={editorClass} />
+      <div className={isFullscreen ? "relative flex-1 min-h-0" : "relative"}>
+        <EditorContent editor={editor} className={editorClass} />
+        {aiBusy && <AiSkeleton action={aiBusy} />}
+      </div>
+    </div>
+  );
+}
+
+function AiSkeleton({ action }: { action: "expand" | "shorten" }) {
+  // Five lines of varying widths — looks like prose loading. Stagger the
+  // pulse so the eye reads it as activity rather than a static placeholder.
+  const widths = ["w-11/12", "w-10/12", "w-9/12", "w-11/12", "w-7/12"];
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="absolute inset-0 flex flex-col gap-3 rounded-md border border-ink-700 bg-ink-900/85 px-6 py-5 backdrop-blur-sm"
+    >
+      <div className="mb-1 inline-flex items-center gap-2 text-[11px] font-medium text-ink-300">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        {action === "expand" ? "Expanding…" : "Shortening…"}
+      </div>
+      {widths.map((w, i) => (
+        <div
+          key={i}
+          className={`h-3 animate-pulse rounded bg-ink-700/70 ${w}`}
+          style={{ animationDelay: `${i * 110}ms` }}
+        />
+      ))}
     </div>
   );
 }
