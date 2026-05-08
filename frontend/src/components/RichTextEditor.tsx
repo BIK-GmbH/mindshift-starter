@@ -250,8 +250,8 @@ export default function RichTextEditor({
     return createPortal(
       <div className="fixed inset-0 z-[60] fullscreen-shell">
         <div className="absolute inset-0 fullscreen-shell-enter" />
-        <div className="absolute inset-0 flex justify-center px-4 py-[6vh]">
-          <div className="flex w-full max-w-[820px] flex-col gap-2 fullscreen-card-enter">
+        <div className="absolute inset-0 flex items-stretch justify-center px-4 py-[6vh]">
+          <div className="flex h-full w-full max-w-[820px] flex-col gap-2 fullscreen-card-enter">
             {editorBlock}
           </div>
         </div>

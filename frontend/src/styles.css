@@ -305,11 +305,11 @@
   }
   .fullscreen-shell-enter {
     background:
-      radial-gradient(ellipse 120% 80% at 50% 0%, rgb(var(--ink-700) / 0.55), transparent 60%),
-      radial-gradient(ellipse 100% 80% at 50% 100%, rgb(var(--ink-700) / 0.4), transparent 60%),
-      rgb(var(--ink-900) / 0.78);
-    backdrop-filter: blur(24px) saturate(140%);
-    -webkit-backdrop-filter: blur(24px) saturate(140%);
+      radial-gradient(ellipse 120% 80% at 50% 0%, rgb(var(--ink-700) / 0.3), transparent 60%),
+      radial-gradient(ellipse 100% 80% at 50% 100%, rgb(var(--ink-700) / 0.25), transparent 60%),
+      rgb(var(--ink-900) / 0.42);
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
     animation: fullscreen-fade 200ms ease-out both;
   }
   .fullscreen-card-enter {
