@@ -195,6 +195,11 @@
       "unload": "Unload (reset to defaults)",
       "confirmDelete": "Delete preset \"{{name}}\"?"
     },
+    "selected": {
+      "heading": "Selected",
+      "connections": "connections",
+      "noEdges": "This node has no connections yet."
+    },
     "filtersHeading": "Filters",
     "filterSource": "Source",
     "filterTag": "Tag",

@@ -195,6 +195,11 @@
       "unload": "Entladen (auf Standard zurücksetzen)",
       "confirmDelete": "Preset „{{name}}“ löschen?"
     },
+    "selected": {
+      "heading": "Ausgewählt",
+      "connections": "Verbindungen",
+      "noEdges": "Dieser Knoten hat noch keine Verbindungen."
+    },
     "filtersHeading": "Filter",
     "filterSource": "Quelle",
     "filterTag": "Tag",

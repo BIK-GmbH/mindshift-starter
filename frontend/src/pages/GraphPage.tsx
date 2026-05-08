@@ -90,6 +90,7 @@ export default function GraphPage() {
     null,
   );
   const [drawerCardId, setDrawerCardId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // Path finder
   const [pathMode, setPathMode] = useState(false);
@@ -340,6 +341,25 @@ export default function GraphPage() {
     return { nodes, links };
   }, [data, focusedNeighbours, focusedNodeId, hideIsolated, locked]);
 
+  // Selected node detail — pulls neighbours from the full edge list
+  // (not the focus-restricted view) so the sidebar always shows what
+  // a node is actually connected to in the current graph snapshot.
+  const selectedNodeDetail = useMemo(() => {
+    if (!selectedNodeId || !data) return null;
+    const node = data.nodes.find((n) => n.id === selectedNodeId);
+    if (!node) return null;
+    const edges = data.edges
+      .filter((e) => e.source === selectedNodeId || e.target === selectedNodeId)
+      .map((e) => {
+        const otherId = e.source === selectedNodeId ? e.target : e.source;
+        const other = data.nodes.find((n) => n.id === otherId);
+        return other ? { other, score: e.score, reasons: e.reasons } : null;
+      })
+      .filter((x): x is { other: typeof data.nodes[number]; score: number; reasons: typeof data.edges[number]["reasons"] } => x !== null)
+      .sort((a, b) => b.score - a.score);
+    return { node, edges };
+  }, [selectedNodeId, data]);
+
   // Search matches
   const matches = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -540,6 +560,84 @@ export default function GraphPage() {
               </div>
             )}
           </SidebarSection>
+
+          {/* Selected node — connection breakdown */}
+          {selectedNodeDetail && (
+            <SidebarSection
+              title={t("graph.selected.heading", { defaultValue: "Selected" })}
+            >
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2 rounded-md border border-ink-700 bg-ink-800/50 p-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] font-medium text-ink-100">
+                      {selectedNodeDetail.node.title}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-wider text-ink-500">
+                      {selectedNodeDetail.node.source_type} ·{" "}
+                      {selectedNodeDetail.edges.length}{" "}
+                      {t("graph.selected.connections", { defaultValue: "connections" })}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedNodeId(null);
+                      setDrawerCardId(null);
+                    }}
+                    className="rounded p-0.5 text-ink-500 transition hover:bg-ink-700 hover:text-ink-100"
+                    aria-label="Clear selection"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+
+                {selectedNodeDetail.edges.length === 0 ? (
+                  <p className="px-1 text-[10px] text-ink-500">
+                    {t("graph.selected.noEdges", {
+                      defaultValue: "This node has no connections yet.",
+                    })}
+                  </p>
+                ) : (
+                  <ul className="max-h-72 space-y-1 overflow-y-auto pr-1">
+                    {selectedNodeDetail.edges.map(({ other, score, reasons }) => (
+                      <li key={other.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedNodeId(other.id);
+                            setDrawerCardId(other.id);
+                          }}
+                          className="flex w-full flex-col items-start gap-1 rounded-md px-2 py-1.5 text-left transition hover:bg-ink-800/60"
+                        >
+                          <div className="flex w-full items-center gap-1.5">
+                            <span className="text-[10px] tabular-nums font-semibold text-ink-200">
+                              {Math.round(score * 100)}%
+                            </span>
+                            <span className="flex-1 truncate text-[11px] text-ink-100">
+                              {other.title}
+                            </span>
+                          </div>
+                          {reasons.length > 0 && (
+                            <div className="flex flex-wrap gap-0.5">
+                              {reasons.map((r, i) => (
+                                <span
+                                  key={i}
+                                  className="rounded bg-ink-700/70 px-1.5 py-0.5 text-[9px] text-ink-300 ring-1 ring-ink-600"
+                                  title={`weight ${(r.weight ?? 0).toFixed(2)}`}
+                                >
+                                  {r.label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </SidebarSection>
+          )}
 
           {/* Search */}
           <SidebarSection title={t("graph.search.heading")}>
@@ -919,6 +1017,7 @@ export default function GraphPage() {
                 if (me.shiftKey || me.metaKey || me.ctrlKey) {
                   enterFocus(n);
                 } else {
+                  setSelectedNodeId(n.id);
                   setDrawerCardId(n.id);
                 }
               }}
