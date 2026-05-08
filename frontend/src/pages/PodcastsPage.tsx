@@ -191,7 +191,24 @@ export default function PodcastsPage() {
             {detail ? (
               <PlaylistDetailView
                 detail={detail}
-                onChange={setDetail}
+                onChange={(d) => {
+                  setDetail(d);
+                  // Keep the sidebar entry's name/description/counters in
+                  // sync without a refetch.
+                  setPlaylists((prev) =>
+                    prev.map((p) =>
+                      p.id === d.id
+                        ? {
+                            ...p,
+                            name: d.name,
+                            description: d.description,
+                            card_count: d.card_count,
+                            has_draft: d.has_draft,
+                          }
+                        : p,
+                    ),
+                  );
+                }}
                 onDeleted={onPlaylistDeleted}
                 onError={setError}
               />
@@ -353,6 +370,43 @@ function PlaylistDetailView({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
   const [produceBusy, setProduceBusy] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(detail.name);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descDraft, setDescDraft] = useState(detail.description ?? "");
+
+  const saveName = async () => {
+    const next = nameDraft.trim();
+    if (!next || next === detail.name) {
+      setEditingName(false);
+      setNameDraft(detail.name);
+      return;
+    }
+    try {
+      await api.updatePlaylist(detail.id, { name: next });
+      onChange({ ...detail, name: next });
+    } catch (err) {
+      onError((err as Error).message);
+    } finally {
+      setEditingName(false);
+    }
+  };
+
+  const saveDescription = async () => {
+    const next = descDraft.trim();
+    if (next === (detail.description ?? "")) {
+      setEditingDescription(false);
+      return;
+    }
+    try {
+      await api.updatePlaylist(detail.id, { description: next });
+      onChange({ ...detail, description: next || null });
+    } catch (err) {
+      onError((err as Error).message);
+    } finally {
+      setEditingDescription(false);
+    }
+  };
   // Hydrate from server-persisted draft so navigating away doesn't lose
   // the script. The detail prop changes when the user switches playlists,
   // so this useState's initializer would NOT re-run; we sync via effect.
@@ -393,7 +447,11 @@ function PlaylistDetailView({
       title: detail.draft_title ?? "",
       text: detail.draft_narrative_text ?? "",
     };
-  }, [detail.id, detail.draft_title, detail.draft_narrative_text, detail.draft_target_minutes]);
+    setEditingName(false);
+    setEditingDescription(false);
+    setNameDraft(detail.name);
+    setDescDraft(detail.description ?? "");
+  }, [detail.id, detail.draft_title, detail.draft_narrative_text, detail.draft_target_minutes, detail.name, detail.description]);
 
   // Debounced auto-save: 1 s after the user stops typing, push the draft
   // to the server. Skip if nothing actually changed.
@@ -555,10 +613,62 @@ function PlaylistDetailView({
   return (
     <div className="space-y-8">
       <header className="flex items-start justify-between gap-4 border-b border-ink-800 pb-4">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-ink-100">{detail.name}</h2>
-          {detail.description && (
-            <p className="mt-1 text-sm text-ink-400">{detail.description}</p>
+        <div className="min-w-0 flex-1">
+          {editingName ? (
+            <input
+              autoFocus
+              type="text"
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={() => void saveName()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void saveName();
+                } else if (e.key === "Escape") {
+                  setEditingName(false);
+                  setNameDraft(detail.name);
+                }
+              }}
+              className="w-full border-0 bg-transparent p-0 text-2xl font-semibold tracking-tight text-ink-100 outline-none focus:ring-0"
+            />
+          ) : (
+            <h2
+              onClick={() => setEditingName(true)}
+              className="cursor-text text-2xl font-semibold tracking-tight text-ink-100 transition hover:text-ink-200"
+              title={t("podcastPage.editName", { defaultValue: "Click to rename" }) ?? ""}
+            >
+              {detail.name}
+            </h2>
+          )}
+          {editingDescription ? (
+            <input
+              autoFocus
+              type="text"
+              value={descDraft}
+              onChange={(e) => setDescDraft(e.target.value)}
+              onBlur={() => void saveDescription()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void saveDescription();
+                } else if (e.key === "Escape") {
+                  setEditingDescription(false);
+                  setDescDraft(detail.description ?? "");
+                }
+              }}
+              placeholder={t("podcastPage.descriptionPh", { defaultValue: "Description (optional)" }) ?? ""}
+              className="mt-1 w-full border-0 bg-transparent p-0 text-sm text-ink-300 placeholder:text-ink-500 outline-none focus:ring-0"
+            />
+          ) : (
+            <p
+              onClick={() => setEditingDescription(true)}
+              className="mt-1 cursor-text text-sm text-ink-400 transition hover:text-ink-300"
+              title={t("podcastPage.editDescription", { defaultValue: "Click to edit description" }) ?? ""}
+            >
+              {detail.description ||
+                t("podcastPage.addDescription", { defaultValue: "+ add description" })}
+            </p>
           )}
           <p className="mt-1 text-[11px] text-ink-500">
             {detail.card_count}{" "}
