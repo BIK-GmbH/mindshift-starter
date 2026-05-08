@@ -19,9 +19,11 @@ PRD: `docs/PRD.md` (English) and `docs/PRD.de.md` (German).
 | Backend | FastAPI + SQLAlchemy 2 + Alembic |
 | DB | PostgreSQL 16 with **pgvector** (1536-dim embeddings) |
 | Auth | JWT (HS256) + bcrypt |
-| AI | OpenAI — `gpt-5.4-mini` for chat & summary, `text-embedding-3-small` for embeddings |
+| AI | OpenAI `gpt-5.4-mini` (chat, summary, AI rewrites, podcast script), `text-embedding-3-small` (embeddings), `gpt-image-2` (podcast cover art) |
+| TTS | Google `gemini-3.1-flash-tts-preview` — 24 kHz mono PCM that we wrap into WAV in-process (no ffmpeg). Voices: Kore (default), Puck, Enceladus, Charon, Fenrir |
 | Ingestion | `youtube-transcript-api` 1.x, `pypdf` 6.x, `trafilatura` 2.x |
 | Frontend | React 18 + Vite + TypeScript + Tailwind + i18next (DE/EN) |
+| Editor | TipTap (StarterKit + Link + Placeholder) with markdown round-trip via `marked` + `turndown` |
 | Tags tree | `react-arborist` (NOT `@dnd-kit` — that was tried and replaced) |
 | Graph | `react-force-graph-2d` (Canvas, force layout) |
 | Icons | `lucide-react` |
@@ -29,10 +31,13 @@ PRD: `docs/PRD.md` (English) and `docs/PRD.de.md` (German).
 ## Run locally
 
 ```bash
-cp .env.example .env       # set OPENAI_API_KEY
+cp .env.example .env       # set OPENAI_API_KEY + GEMINI_API_KEY
 ./scripts/start.sh         # postgres (docker), backend :8001, frontend :5173
 ./scripts/stop.sh          # clean shutdown
 ```
+
+`GEMINI_API_KEY` is only needed if you want to use the in-card podcast or
+the Podcast Studio. The rest of the app runs on OpenAI alone.
 
 The start script is hardened against the common "another uvicorn is on 8001"
 mistake — it refuses to start instead of silently swallowing the error.
@@ -53,12 +58,15 @@ backend/app/
   scripts/        One-off CLI tools (seed_ai_videos, backfill_embeddings)
 
 frontend/src/
-  pages/          Route components (Library, Search, Review, Chat, Graph, …)
-  components/     Shared widgets (TagsTree, ChatPanel, CardGraph, …)
+  pages/          Route components (Library, Search, Review/Learning, Chat,
+                  Graph, Podcasts, PublicEpisode, …)
+  components/     Shared widgets (TagsTree, ChatPanel, CardGraph,
+                  RichTextEditor, CardPodcastPlayer, …)
   lib/api.ts      Single source of truth for API calls + interfaces
+  lib/sounds.ts   Web-Audio-API generated UI sound helpers
   lib/graphColors.ts   Source-type ↔ tag colour helpers
   locales/        de.json / en.json — i18next keys, must stay in sync
-  styles.css      Tailwind base + custom scrollbars + small keyframes
+  styles.css      Tailwind base + custom scrollbars + animations + tokens
 
 docs/
   PRD.md / PRD.de.md  Original product brief
@@ -92,8 +100,33 @@ docs/
   reference. The `<main>` in `AppLayout.tsx` uses `overflow-hidden` so each
   page owns its scroll.
 
-- **Two-sidebar layout**: 56 px icon rail + 240 px context sidebar (tags
-  tree, only on `/`). `AppLayout.tsx` decides which to show.
+- **Two-sidebar layout**: 56 px icon rail + 256 px context sidebar (tags
+  tree on `/`, chat history on `/chat`, learning sidebar on `/review`,
+  playlists on `/podcasts`). `AppLayout.tsx` decides which to show.
+
+- **Async generation pattern** (in-card podcast, podcast episodes): the
+  POST endpoint inserts a row in `status="processing"` and returns 202
+  immediately. A FastAPI `BackgroundTask` does the work (Gemini TTS +
+  optionally `gpt-image-2`) and updates `status="ready"` / `"failed"`
+  on completion. Frontend polls every 4 s while any row is still
+  processing — survives client disconnect (not a backend restart).
+  `services/podcast.py` chunks long scripts at paragraph boundaries
+  (max 1400 chars per Gemini call, 240 s timeout) and concatenates
+  raw 24 kHz PCM into one final WAV.
+
+- **Learning Sessions (auto-bucket)**: `submit_answer` calls
+  `_bucket_session()` — append to the user's most recent session if
+  `ended_at < now - 30 min`, else open a new one. Counters
+  (`event_count`, `correct_count`) stay on the session row;
+  `review_events.session_id` FK ties each event back. `/review/activity`
+  returns per-day aggregates for the GitHub-style heatmap.
+
+- **Episode sharing**: `episode_shares` table holds public tokens
+  (`token_urlsafe(18)`). Auth endpoints `/episodes/{id}/share`
+  (POST/GET/DELETE) + unauthenticated `/api/public/episodes/{token}`
+  (+ `audio.wav` + `cover.png`). Public pages at
+  `/share/episode/:token` (full standalone player + OG meta tags) and
+  `/embed/episode/:token` (iframe-friendly mini-player).
 
 ## Conventions
 
@@ -171,6 +204,24 @@ cd backend
 - **`react-arborist`** chosen over `@dnd-kit/core` for the tree because
   the hand-rolled drag layer was fragile (clicks vs drags, cycle
   prevention, no overlay).
+- **gpt-5.4-mini, no `temperature`**: GPT-5 family rejects explicit
+  `temperature` arguments. Every `client.chat.completions.create(...)`
+  call is parameter-free; we steer behavior with system prompts only.
+- **Async pattern, not jobs table**: in-card podcast and podcast
+  episodes use a per-row `status` column (`processing`/`ready`/`failed`)
+  + `error_message`. The legacy `jobs` table stays for card ingestion;
+  new background work uses the simpler row-status pattern with
+  `BackgroundTasks` + frontend polling.
+- **View Transitions API for editor fullscreen**: rather than FLIP-by-
+  hand, the RichTextEditor toggle wraps `setFullscreen` in
+  `document.startViewTransition`. Both DOM positions (inline + portal)
+  carry `view-transition-name: rte-card`, so the browser morphs the
+  bounding box itself. Falls back to a plain state toggle on
+  unsupported browsers.
+- **TTS chunking**: Gemini reads ~1400 chars per call comfortably.
+  Long episode scripts get split at paragraph boundaries (then
+  sentence boundaries inside oversized paragraphs); raw 24 kHz PCM
+  is concatenated and re-wrapped into one WAV.
 
 ## Where to look first
 
@@ -182,3 +233,15 @@ cd backend
   the reference layout for sticky-header + scrollable content.
 - "Tag tree feels off" → `components/TagsTree.tsx` (note the
   `disableDrop` predicate for valid drops).
+- "Podcast generation didn't finish" → check the row's `status` and
+  `error_message` (`card_audio` or `podcast_episodes`). Background
+  task logs go to `.runtime/logs/backend.log`. Common causes: missing
+  `GEMINI_API_KEY`, oversized text per chunk (already mitigated by
+  paragraph chunking), or a backend restart killing the in-flight
+  task.
+- "Episode share link 404s" → either revoked (`episode_shares` row
+  deleted) or the underlying episode was deleted (cascade dropped
+  the share row).
+- "Learning history misses an event" → check `review_events.session_id`
+  is set; the auto-bucket logic is in `api/review.py::_bucket_session`.
+  Old events backfilled via `scripts/backfill_learning_sessions.py`.

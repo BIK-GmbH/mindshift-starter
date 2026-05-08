@@ -5,17 +5,31 @@ sessions. It captures the active work plan, what's done, and what's next.
 
 When a new session starts, read this first to know where to pick up.
 
-## Active sprint — Recall-pattern follow-ups
+## Active sprint — Learning, AI editor, Podcast Studio
 
-**Status:** Phases 1-37 in flight. Phase 33-37: review/learning rebrand + Learning Sessions (auto-bucketed, history list, drilldown, streak heatmap, resume hint).
+**Status:** Phases 1-49 done. Sprint covered: Review→Learning rebrand,
+auto-bucketed Learning Sessions, AI-driven note editor, in-card
+podcasts, full Podcast Studio with playlists / cover art / public
+embedding.
 
 | Phase | Status | Description |
 |---|---|---|
-| 33 | 🚧 | **Rebrand Review → Learning** — user-facing strings (DE+EN), nav icon swapped to `GraduationCap`. Code identifiers (route `/review`, file names) stay for stability. |
-| 34 | 🚧 | **Learning Sessions backend** — migration `0012_learning_sessions` adds table + `review_events.session_id` FK. Auto-bucket logic in `submit_answer`: append to user's most recent session if `ended_at` < 30 min ago, else create a new one. Backfill script for existing events. |
-| 35 | 🚧 | **Session history list** — sidebar of past sessions (date label, count, correct%), grouped Today/Yesterday/This week/Older. |
-| 36 | 🚧 | **Session detail drilldown** — clicking a past session swaps the main column to a SessionDetailView with per-event question, rating, before→after stage, card link. |
-| 37 | 🚧 | **Streak heatmap + resume hint** — GitHub-style 7×N year grid driven by `/api/review/activity`; small chip "Continuing 14:32 session" when answering inside the auto-bucket window. |
+| 49 | ✅ | **Custom delete confirms + tag sidebar search** — `useDialog().confirm` modals replace `window.confirm` for episode/playlist/share-revoke (body explicitly mentions audio + cover removal). TagsTree gets a search input that filters tag names with substring match while preserving ancestor visibility. |
+| 48 | ✅ | **Playlist from tag** — `POST /api/podcasts/playlists/from-tag` resolves a tag (+ optional subtree) and bulk-inserts every completed card into a fresh ordered playlist. Frontend "From tag" button + tag-picker modal in the playlist sidebar. |
+| 47 | ✅ | **Cover lightbox + episode share + embed iframe** — migration `0017_episode_shares` adds public share tokens. New auth endpoints (POST/GET/DELETE `/episodes/{id}/share`) + public unauthenticated `/api/public/episodes/{token}` (+ `audio.wav` + `cover.png`). Public pages at `/share/episode/:token` (full standalone player + OG meta tags) and `/embed/episode/:token` (iframe-friendly mini-player). Share modal on `EpisodeCard` with copy-link / copy-iframe / X-intent. |
+| 46 | ✅ | **Async episode + card-podcast generation** — migration `0016_audio_async_status` adds `status` + `error_message` columns. `POST` endpoints return 202 immediately; FastAPI `BackgroundTask` does the synthesis; both rows update to `ready`/`failed` on finish. Frontend polls every 4 s while `status="processing"` and renders spinner overlays. Survives client disconnect (not a backend restart). |
+| 45 | ✅ | **Multi-select card picker + persistent script drafts** — bulk `POST /playlists/{id}/cards/bulk` endpoint; CardPickerModal toggles checkmarks with emerald ring; cards already in the playlist are disabled with an "in playlist" pill. Migration `0015_playlist_draft` adds `draft_title/draft_narrative_text/draft_target_minutes` columns; debounced 1 s autosave; "Saving…" / "Draft saved" indicator; sidebar shows an amber dot on playlists with unfinished drafts. |
+| 44 | ✅ | **Podcast Studio (playlists + episodes + cover art)** — migration `0014_podcast_playlists` (playlists, ordered cards, episodes). Two-stage pipeline: gpt-5.4-mini composes a long-form spoken script (3–20 min target, story-flow with cold open + closing reflection); Gemini-3.1-flash-tts-preview chunks the text by paragraph (max 1400 chars / 240 s timeout per chunk) and concatenates 24 kHz PCM into one WAV; gpt-image-2 generates a 1024×1024 cover. Frontend `/podcasts` page with playlist sidebar, RichTextEditor for script editing, voice picker (Kore/Puck/Enceladus/Charon/Fenrir), Episode bibliothek with native audio + cover thumbnails. |
+| 43 | ✅ | **Card podcast** — migration `0013_card_audio` (one row per card). `services/podcast.py`: gpt-5.4-mini reshapes summary into spoken-narrative prose, Gemini-3.1-flash-tts-preview synthesizes 24 kHz PCM that we wrap into WAV in-process (no ffmpeg). `CardPodcastPlayer` lives in a dedicated card-detail tab (Headphones icon) so generating doesn't reflow the Summary tab. |
+| 42 | ✅ | **UI sounds (Web Audio API)** — `lib/sounds.ts` with five generated tones (tick/click/success/error/chime + throttled hover). Settings → Appearance toggle (default OFF). Mute when tab is hidden. Wired to nav rail clicks, primary buttons, learning quiz answers, library card hover, modal close. No asset bundle. |
+| 41 | ✅ | **Notes editor: fullscreen + AI transforms** — RichTextEditor adds `fillHeight` prop. Three AI buttons: Sparkles (expand 1.5–2×), Scissors (shorten 50–70 %), Bot (custom free-form prompt). Fullscreen toggle morphs the editor between inline + portal-mounted full viewport via the View Transitions API (browser FLIP). Skeleton overlay during AI runs. Gpt-5.4-mini handles the rewrites with shared `BASE_RULES` (preserve language + markdown). |
+| 40 | ✅ | **Graph presets + multi-tag filter** — migration `0011_graph_presets`. Inline preset create / load / unload (resets settings to defaults) / delete in the graph sidebar. `/api/graph` accepts repeated `?tags=` for OR-semantics filtering. New `MultiTagPicker` component with combobox + checkbox list + selected-pills + clear-all. |
+| 39 | ✅ | **AI model bump → gpt-5.4-mini** — env + config + chat service + summarizer. GPT-5 family rejects explicit `temperature`, so removed every `temperature=…` argument across services. |
+| 38 | ✅ | **MC mode + page-header normalization + Tags inline create** — quiz questions get `choices_json` (migration `0010_quiz_choices`). Backfill script for legacy questions. `.page-header` (92 px tall) standardized across Library / Graph / Chat / Learning. TagsTree refactored to `forwardRef` + imperative `createTag()`; "+ Neu" button moved to the sidebar header (analog to Chat); inline create input renders at the top of the tree and the new tag is scrolled into view. |
+
+| Phase | Status | Description |
+|---|---|---|
+| 33-37 | ✅ | **Review → Learning** — rebrand (nav, icon, subtitle), migration `0012_learning_sessions` + `review_events.session_id`, `_bucket_session()` auto-buckets on each `submit_answer` (30-min gap = new session). Backfill script for existing events. Endpoints: `/review/sessions` (list), `/review/sessions/{id}` (events with stages), `/review/activity` (per-day counts for heatmap). Frontend: history list grouped Today/Yesterday/This week/Older, ActivityHeatmap (26-week GitHub-style), SessionDetailView per-event drilldown, ResumeHint chip when answering inside the auto-bucket window of the latest session. |
 
 | Phase | Status | Description |
 |---|---|---|
