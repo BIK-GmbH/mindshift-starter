@@ -18,7 +18,8 @@
     "newTag": "Neuer Tag",
     "newTagPlaceholder": "Tag-Name…",
     "untagged": "Ohne Tag",
-    "new": "Neu"
+    "new": "Neu",
+    "search": "Tags durchsuchen…"
   },
   "library": {
     "empty": {

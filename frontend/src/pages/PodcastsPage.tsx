@@ -20,6 +20,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import RichTextEditor from "../components/RichTextEditor";
+import { useDialog } from "../lib/DialogContext";
 import {
   api,
   tokenStorage,
@@ -323,6 +324,7 @@ function PlaylistDetailView({
   onError: (err: string) => void;
 }) {
   const { t } = useTranslation();
+  const { confirm } = useDialog();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
   const [produceBusy, setProduceBusy] = useState(false);
@@ -394,12 +396,46 @@ function PlaylistDetailView({
   };
 
   const remove = async () => {
-    if (!window.confirm(t("podcastPage.confirmDelete", { defaultValue: "Delete this playlist? Episodes will be removed." }) ?? "")) {
-      return;
-    }
+    const ok = await confirm({
+      title:
+        t("podcastPage.confirmDeleteTitle", { defaultValue: "Delete this playlist?" }) ??
+        "Delete this playlist?",
+      body:
+        t("podcastPage.confirmDeleteBody", {
+          defaultValue:
+            "All produced episodes (audio files + cover art) under this playlist will be removed permanently. This cannot be undone.",
+        }) ?? "",
+      confirmLabel: t("common.delete") ?? "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deletePlaylist(detail.id);
       onDeleted(detail.id);
+    } catch (err) {
+      onError((err as Error).message);
+    }
+  };
+
+  const removeEpisode = async (episodeId: string, episodeTitle: string) => {
+    const ok = await confirm({
+      title:
+        t("podcastPage.confirmDeleteEpisodeTitle", { defaultValue: "Delete episode?" }) ??
+        "Delete episode?",
+      body:
+        t("podcastPage.confirmDeleteEpisodeBody", {
+          title: episodeTitle,
+          defaultValue:
+            'The episode "{{title}}" plus its audio file and generated cover image will be permanently removed. Any public share link will stop working.',
+        }) ?? "",
+      confirmLabel: t("common.delete") ?? "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.deleteEpisode(detail.id, episodeId);
+      const updated = await api.getPlaylist(detail.id);
+      onChange(updated);
     } catch (err) {
       onError((err as Error).message);
     }
@@ -707,15 +743,7 @@ function PlaylistDetailView({
               <EpisodeCard
                 key={e.id}
                 episode={e}
-                onDelete={async () => {
-                  try {
-                    await api.deleteEpisode(detail.id, e.id);
-                    const updated = await api.getPlaylist(detail.id);
-                    onChange(updated);
-                  } catch (err) {
-                    onError((err as Error).message);
-                  }
-                }}
+                onDelete={() => removeEpisode(e.id, e.title)}
               />
             ))}
           </div>
@@ -1117,6 +1145,7 @@ function EpisodeShareModal({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const { confirm } = useDialog();
   const [share, setShare] = useState<EpisodeShareOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1143,7 +1172,19 @@ function EpisodeShareModal({
   };
 
   const revoke = async () => {
-    if (!window.confirm(t("podcastPage.revokeConfirm", { defaultValue: "Revoke the public link?" }) ?? "")) return;
+    const ok = await confirm({
+      title:
+        t("podcastPage.revokeConfirmTitle", { defaultValue: "Revoke the public link?" }) ??
+        "Revoke?",
+      body:
+        t("podcastPage.revokeConfirmBody", {
+          defaultValue:
+            "Anyone who already has the link will get a 'not found' page. You can create a new link later.",
+        }) ?? "",
+      confirmLabel: t("podcastPage.revokeShare", { defaultValue: "Revoke link" }) ?? "Revoke",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.revokeEpisodeShare(episodeId);
       setShare(null);

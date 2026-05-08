@@ -6,6 +6,7 @@ import {
   Inbox,
   Loader2,
   Plus,
+  Search,
   Type,
   X,
   Youtube,
@@ -138,6 +139,29 @@ function makeCardItem(card: TagCard, parentTagId: string | null): CardItem {
   };
 }
 
+function filterTreeByQuery(items: TreeItem[], q: string): TreeItem[] {
+  const out: TreeItem[] = [];
+  for (const item of items) {
+    if (item.kind !== "tag") {
+      // Cards / untagged folder pass through unchanged.
+      out.push(item);
+      continue;
+    }
+    const selfMatches = item.name.toLowerCase().includes(q);
+    const filteredChildren = filterTreeByQuery(item.children, q);
+    const hasMatchingChild = filteredChildren.some((c) => c.kind === "tag");
+    if (selfMatches) {
+      // Show full subtree under a matching tag.
+      out.push(item);
+    } else if (hasMatchingChild) {
+      // Keep ancestor visible so the matched child has a path; restrict
+      // its visible children to the matched ones (+ their descendants).
+      out.push({ ...item, children: filteredChildren });
+    }
+  }
+  return out;
+}
+
 function descendantTagIds(item: TreeItem): Set<string> {
   const out = new Set<string>();
   if (item.kind !== "tag") return out;
@@ -175,6 +199,7 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
   const [creatingTopLevel, setCreatingTopLevel] = useState(false);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [size, setSize] = useState({ width: 230, height: 480 });
   const containerRef = useRef<HTMLDivElement>(null);
   const treeApiRef = useRef<TreeApi<TreeItem> | null>(null);
@@ -218,10 +243,12 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
     return () => obs.disconnect();
   }, []);
 
-  const treeData = useMemo(
-    () => (data ? buildTreeData(data, t("tags.untagged") ?? "Untagged") : []),
-    [data, t],
-  );
+  const treeData = useMemo(() => {
+    const full = data ? buildTreeData(data, t("tags.untagged") ?? "Untagged") : [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return full;
+    return filterTreeByQuery(full, q);
+  }, [data, t, searchQuery]);
 
   const openCard = (cardId: string) => {
     const next = new URLSearchParams(params);
@@ -390,6 +417,30 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
           {error}
         </p>
       )}
+
+      {/* Search */}
+      <div className="px-3 pb-1">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-500" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t("tags.search", { defaultValue: "Search tags…" }) ?? ""}
+            className="w-full rounded-md border border-ink-700 bg-ink-800/40 py-1 pl-7 pr-7 text-[11px] text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-ink-500 transition hover:bg-ink-700 hover:text-ink-100"
+              aria-label="Clear search"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Synthetic top-level entries that aren't part of the dnd-tree */}
       <div className="px-3">
