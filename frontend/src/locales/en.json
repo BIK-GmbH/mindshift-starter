@@ -36,7 +36,9 @@
       "allSources": "All sources",
       "newest": "Newest first",
       "oldest": "Oldest first",
-      "title": "Title A–Z"
+      "title": "Title A–Z",
+      "viewGrid": "Grid",
+      "viewList": "List"
     },
     "stats": {
       "cards": "cards",

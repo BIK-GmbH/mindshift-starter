@@ -3,6 +3,8 @@ import {
   FileText,
   Globe,
   Hash,
+  LayoutGrid,
+  List as ListIcon,
   MessageSquare,
   PanelRightClose,
   PanelRightOpen,
@@ -79,6 +81,7 @@ export default function LibraryPage() {
   const selectedCardId = params.get("card");
   const sourceFilter = params.get("src") ?? "";
   const sort = (params.get("sort") as "newest" | "oldest" | "title" | null) ?? "newest";
+  const view = (params.get("view") === "list" ? "list" : "grid") as "grid" | "list";
   const [rightPaneOpen, setRightPaneOpen] = useState(() => {
     try {
       const v = localStorage.getItem(RIGHT_PANE_KEY);
@@ -331,6 +334,7 @@ export default function LibraryPage() {
               ]}
             />
 
+
             {(tag || untaggedFilter) && (
               <div className="flex items-center gap-1.5 text-[11px]">
                 {tag && (
@@ -354,6 +358,22 @@ export default function LibraryPage() {
                 </button>
               </div>
             )}
+
+            {/* View toggle — pinned right */}
+            <div className="ml-auto flex gap-0.5 rounded-md bg-ink-800/60 p-0.5 ring-1 ring-ink-700">
+              <ViewToggleButton
+                Icon={LayoutGrid}
+                active={view === "grid"}
+                onClick={() => setSearchParam("view", "")}
+                label={t("library.toolbar.viewGrid", { defaultValue: "Grid" })}
+              />
+              <ViewToggleButton
+                Icon={ListIcon}
+                active={view === "list"}
+                onClick={() => setSearchParam("view", "list")}
+                label={t("library.toolbar.viewList", { defaultValue: "List" })}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -371,6 +391,16 @@ export default function LibraryPage() {
             <CardSkeleton count={6} />
           ) : cards.length === 0 ? (
             <EmptyState onAdd={() => setModalOpen(true)} />
+          ) : view === "list" ? (
+            <ul className="divide-y divide-ink-800 rounded-xl border border-ink-800 bg-ink-800/30">
+              {cards.map((card) => (
+                <CardRow
+                  key={card.id}
+                  card={card}
+                  onClick={() => openCard(card.id)}
+                />
+              ))}
+            </ul>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {cards.map((card) => (
@@ -396,6 +426,79 @@ export default function LibraryPage() {
 }
 
 // --- Sub-components ---------------------------------------------------------
+
+function ViewToggleButton({
+  Icon,
+  active,
+  onClick,
+  label,
+}: {
+  Icon: typeof LayoutGrid;
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      className={[
+        "inline-flex h-7 w-7 items-center justify-center rounded transition",
+        active ? "bg-ink-100 text-ink-900" : "text-ink-300 hover:text-ink-100",
+      ].join(" ")}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+function CardRow({ card, onClick }: { card: CardListItem; onClick: () => void }) {
+  const meta = SOURCE_META[card.source_type] ?? FALLBACK_META;
+  const { Icon, color, fallback } = meta;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={card.title}
+        className="group flex w-full items-center gap-4 px-4 py-3 text-left transition hover:bg-ink-800/40 focus-visible:bg-ink-800/40"
+      >
+        <div
+          className={[
+            "relative h-14 w-24 flex-shrink-0 overflow-hidden rounded-md ring-1",
+            card.thumbnail_url ? "ring-ink-700" : "ring-inset bg-gradient-to-br " + fallback,
+          ].join(" ")}
+        >
+          {card.thumbnail_url ? (
+            <img src={card.thumbnail_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <Icon className={["h-7 w-7", color].join(" ")} strokeWidth={1.5} />
+            </div>
+          )}
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider">
+            <Icon className={["h-3 w-3", color].join(" ")} />
+            <span className={color}>{card.source_type}</span>
+            <span className="text-ink-600">·</span>
+            <span className="text-ink-500">{new Date(card.created_at).toLocaleDateString()}</span>
+          </div>
+          <p className="truncate text-sm font-medium text-ink-100">{card.title}</p>
+          {card.concise_summary_md && (
+            <p className="line-clamp-1 text-xs text-ink-400">{card.concise_summary_md}</p>
+          )}
+        </div>
+
+        <StatusBadge status={card.status} />
+      </button>
+    </li>
+  );
+}
 
 function SelectPill({
   value,
