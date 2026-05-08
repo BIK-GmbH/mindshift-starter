@@ -4,6 +4,7 @@ import {
   Check,
   Copy,
   Disc3,
+  ExternalLink,
   Hash,
   Headphones,
   Image as ImageIcon,
@@ -18,6 +19,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import RichTextEditor from "../components/RichTextEditor";
 import { useDialog } from "../lib/DialogContext";
@@ -610,6 +612,13 @@ function PlaylistDetailView({
                 )}
                 <span className="flex-1 truncate text-xs text-ink-200">{c.title}</span>
                 <div className="flex items-center gap-0.5">
+                  <Link
+                    to={`/cards/${c.card_id}`}
+                    title={t("podcastPage.openCard", { defaultValue: "Open card" }) ?? ""}
+                    className="rounded p-1 text-ink-400 transition hover:bg-ink-700 hover:text-ink-100"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
                   <button
                     type="button"
                     onClick={() => moveCard(idx, -1)}

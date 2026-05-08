@@ -1,5 +1,6 @@
 import { Bot, Lightbulb, Loader2, Send, User } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { marked } from "marked";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -208,6 +209,14 @@ function MessageBubble({
   );
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function AssistantMessage({
   content,
   citations,
@@ -218,41 +227,38 @@ function AssistantMessage({
   onOpen: (cardId: string) => void;
 }) {
   const { t } = useTranslation();
-  const byIndex = new Map(citations.map((c) => [c.index, c]));
 
-  // Replace [#n] with clickable buttons.
-  const parts: (string | { citation: Citation })[] = [];
-  const re = /\[#(\d+)\]/g;
-  let lastIdx = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(content)) !== null) {
-    if (m.index > lastIdx) parts.push(content.slice(lastIdx, m.index));
-    const c = byIndex.get(Number(m[1]));
-    if (c) parts.push({ citation: c });
-    else parts.push(m[0]);
-    lastIdx = m.index + m[0].length;
-  }
-  if (lastIdx < content.length) parts.push(content.slice(lastIdx));
+  // Render markdown to HTML with inline citation pills baked in.
+  // The trick: pre-replace [#n] with an inline <a> element marked with
+  // data-cite-id BEFORE handing the text to marked. marked passes
+  // inline HTML through unchanged, so the pill ends up correctly placed
+  // inside whatever paragraph / list-item / blockquote it lived in.
+  // Click delegation on the wrapper turns the pill into a button.
+  const html = useMemo(() => {
+    const byIndex = new Map(citations.map((c) => [c.index, c]));
+    const withPills = content.replace(/\[#(\d+)\]/g, (match, n) => {
+      const c = byIndex.get(Number(n));
+      if (!c) return match;
+      return ` <a class="chat-cite" data-cite-id="${c.card_id}" data-cite-n="${n}" href="#" title="${escapeHtml(c.title)}">[#${n}]</a>`;
+    });
+    return marked.parse(withPills, { async: false }) as string;
+  }, [content, citations]);
+
+  const onWrapperClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>("[data-cite-id]");
+    if (!target) return;
+    e.preventDefault();
+    const cardId = target.getAttribute("data-cite-id");
+    if (cardId) onOpen(cardId);
+  };
 
   return (
     <div className="space-y-3">
-      <p className="whitespace-pre-wrap leading-relaxed">
-        {parts.map((p, i) =>
-          typeof p === "string" ? (
-            <span key={i}>{p}</span>
-          ) : (
-            <button
-              key={i}
-              type="button"
-              title={p.citation.title}
-              onClick={() => onOpen(p.citation.card_id)}
-              className="mx-0.5 inline-flex items-center rounded-md bg-ink-700 px-1.5 py-px text-[10px] font-semibold text-ink-100 ring-1 ring-ink-600 transition hover:bg-ink-600 hover:ring-ink-500"
-            >
-              #{p.citation.index}
-            </button>
-          ),
-        )}
-      </p>
+      <div
+        className="markdown-body chat-markdown text-sm leading-relaxed"
+        dangerouslySetInnerHTML={{ __html: html }}
+        onClick={onWrapperClick}
+      />
       {citations.length > 0 && (
         <div className="border-t border-ink-700/60 pt-2">
           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-500">
