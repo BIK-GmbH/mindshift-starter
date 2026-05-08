@@ -19,7 +19,7 @@ PRD: `docs/PRD.md` (English) and `docs/PRD.de.md` (German).
 | Backend | FastAPI + SQLAlchemy 2 + Alembic |
 | DB | PostgreSQL 16 with **pgvector** (1536-dim embeddings) |
 | Auth | JWT (HS256) + bcrypt |
-| AI | OpenAI — `gpt-4o-mini` for chat & summary, `text-embedding-3-small` for embeddings |
+| AI | OpenAI — `gpt-5.4-mini` for chat & summary, `text-embedding-3-small` for embeddings |
 | Ingestion | `youtube-transcript-api` 1.x, `pypdf` 6.x, `trafilatura` 2.x |
 | Frontend | React 18 + Vite + TypeScript + Tailwind + i18next (DE/EN) |
 | Tags tree | `react-arborist` (NOT `@dnd-kit` — that was tried and replaced) |

@@ -13,7 +13,7 @@ from app.models.card import Card
 from app.models.embedding import Embedding
 from app.services.embeddings import embed_query
 
-DEFAULT_CHAT_MODEL = "gpt-4o-mini"
+DEFAULT_CHAT_MODEL = "gpt-5.4-mini"
 TOP_K_DEFAULT = 5
 CARD_CHUNK_LIMIT = 8
 
@@ -85,7 +85,6 @@ def chat_with_card(db: Session, card: Card, history: list[ChatMessage]) -> ChatR
     response = client.chat.completions.create(
         model=settings.openai_model or DEFAULT_CHAT_MODEL,
         messages=_to_openai_messages(history, system_prompt),
-        temperature=0.4,
     )
     answer = (response.choices[0].message.content or "").strip()
     return ChatResult(answer=answer)
@@ -124,7 +123,6 @@ def chat_with_kb(
     response = client.chat.completions.create(
         model=settings.openai_model or DEFAULT_CHAT_MODEL,
         messages=_to_openai_messages(history, system_prompt),
-        temperature=0.4,
     )
     answer = (response.choices[0].message.content or "").strip()
     return ChatResult(answer=answer, citations=citations)

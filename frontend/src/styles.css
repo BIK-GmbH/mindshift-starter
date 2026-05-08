@@ -454,6 +454,37 @@
     }
   }
 
+  /* Page header band. Every top-level page (library, graph, chat,
+     review, …) wraps its title strip with `.page-header` so the
+     header height + alignment stay identical across views. */
+  .page-header {
+    flex-shrink: 0;
+    height: 92px;
+    border-bottom: 1px solid rgb(var(--ink-800));
+    background: rgb(var(--ink-900) / 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+  }
+  .page-header-inner {
+    width: 100%;
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+  .page-header-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: rgb(var(--ink-100));
+  }
+  .page-header-subtitle {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: rgb(var(--ink-400));
+  }
+
   /* Subtle resting elevation for inline UI surfaces — chat bubbles,
      key-takeaway tiles, quiz cards, active sidebar items. Less
      intense than .card-hover; just enough to lift the element off

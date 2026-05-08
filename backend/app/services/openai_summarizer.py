@@ -19,7 +19,7 @@ are certain the source is a video. Return ONLY valid JSON matching this schema:
   "key_takeaways": ["bullet 1", "bullet 2", "..."],
   "tags": ["tag-slug" or "Parent/Child", ...],
   "entities": [{{"name": "Concept", "entity_type": "concept|person|product|company|other", "description": "short description"}}],
-  "quiz_questions": [{{"question": "...", "answer": "...", "question_type": "open|short|multiple-choice", "difficulty": "easy|medium|hard"}}]
+  "quiz_questions": [{{"question": "...", "answer": "...", "choices": ["plausible distractor 1", "plausible distractor 2", "plausible distractor 3"], "question_type": "open|short|multiple-choice", "difficulty": "easy|medium|hard"}}]
 }}
 
 ## Tag rules
@@ -34,6 +34,14 @@ are certain the source is a video. Return ONLY valid JSON matching this schema:
   reusable category. Standalone slugs without a slash are fine.
 
 Aim for 5-8 takeaways, 3-8 tags, 5-12 entities, and 5-8 quiz questions.
+
+## Quiz rules
+
+- For each quiz question include a `choices` array of **exactly 3 plausible
+  but wrong** distractors so the question can be reviewed as multiple-choice.
+- Distractors should be the same kind of thing as `answer` (same length and
+  shape) so they're not trivially identifiable. Don't make any of them the
+  same as `answer`.
 """
 
 
@@ -83,7 +91,6 @@ def summarize_transcript(
             {"role": "user", "content": user_prompt},
         ],
         response_format={"type": "json_object"},
-        temperature=0.3,
     )
 
     content = response.choices[0].message.content or "{}"

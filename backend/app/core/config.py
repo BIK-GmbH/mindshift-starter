@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     jwt_expires_minutes: int = Field(default=60 * 24 * 7, alias="JWT_EXPIRES_MINUTES")
 
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    openai_model: str = Field(default="gpt-5.4-mini", alias="OPENAI_MODEL")
 
     # File storage. `local` writes under `storage_path` (great for dev and
     # Railway volume mounts). `s3` is reserved for a future implementation.

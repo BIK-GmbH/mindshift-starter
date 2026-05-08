@@ -90,6 +90,7 @@ class QuizQuestionOut(BaseModel):
     answer: str
     question_type: str
     difficulty: str | None = None
+    choices_json: list[str] | None = None
 
     class Config:
         from_attributes = True

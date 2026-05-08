@@ -127,18 +127,16 @@ export default function ChatPage() {
 
       {/* Main */}
       <div className="flex flex-1 min-w-0 flex-col">
-        <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/85 backdrop-blur-md">
-          <div className="mx-auto max-w-3xl px-8 pb-4 pt-6">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-700/60 ring-1 ring-ink-700">
-                <Sparkles className="h-4 w-4 text-ink-100" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="truncate text-2xl font-semibold leading-tight tracking-tight text-ink-100">
-                  {activeSession?.title ?? t("nav.chat")}
-                </h1>
-                <p className="text-xs text-ink-400">{t("chat.kbSubtitle")}</p>
-              </div>
+        <div className="page-header">
+          <div className="page-header-inner flex items-center gap-2.5">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-ink-700/60 ring-1 ring-ink-700">
+              <Sparkles className="h-4 w-4 text-ink-100" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="page-header-title truncate">
+                {activeSession?.title ?? t("nav.chat")}
+              </h1>
+              <p className="page-header-subtitle">{t("chat.kbSubtitle")}</p>
             </div>
           </div>
         </div>

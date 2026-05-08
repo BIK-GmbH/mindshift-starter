@@ -342,6 +342,22 @@ def _attach_quiz(db: Session, card: Card, quiz_questions: list[dict]) -> None:
         answer = (q.get("answer") or "").strip()
         if not question or not answer:
             continue
+        # Normalise the choices array: keep up to 3 unique non-empty
+        # strings, drop anything matching the answer (case-insensitive).
+        raw_choices = q.get("choices") or []
+        seen: set[str] = {answer.lower()}
+        choices: list[str] = []
+        for c in raw_choices:
+            if not isinstance(c, str):
+                continue
+            cs = c.strip()
+            key = cs.lower()
+            if not cs or key in seen:
+                continue
+            seen.add(key)
+            choices.append(cs)
+            if len(choices) >= 3:
+                break
         db.add(
             QuizQuestion(
                 card_id=card.id,
@@ -349,5 +365,6 @@ def _attach_quiz(db: Session, card: Card, quiz_questions: list[dict]) -> None:
                 answer=answer,
                 question_type=(q.get("question_type") or "open").strip().lower(),
                 difficulty=(q.get("difficulty") or None),
+                choices_json=choices or None,
             )
         )

@@ -329,12 +329,25 @@ export const api = {
       body: JSON.stringify(body),
     }),
   deleteTag: (id: string) => request<void>(`/api/tags/${id}`, { method: "DELETE" }),
+  listGraphPresets: () => request<GraphPresetOut[]>("/api/graph-presets"),
+  createGraphPreset: (name: string, settings: GraphPresetSettings) =>
+    request<GraphPresetOut>("/api/graph-presets", {
+      method: "POST",
+      body: JSON.stringify({ name, settings }),
+    }),
+  deleteGraphPreset: (id: string) =>
+    request<void>(`/api/graph-presets/${id}`, { method: "DELETE" }),
+  listLearningSessions: (limit = 200) =>
+    request<LearningSessionItem[]>(`/api/review/sessions?limit=${limit}`),
+  getLearningSession: (id: string) => request<SessionDetail>(`/api/review/sessions/${id}`),
+  reviewActivity: (days = 365) =>
+    request<ActivityDay[]>(`/api/review/activity?days=${days}`),
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
   globalGraph: (params: {
     source_type?: string;
-    tag?: string;
+    tags?: string[];
     edges_per_card?: number;
     min_score?: number;
     created_after?: string;
@@ -342,7 +355,14 @@ export const api = {
   } = {}) => {
     const search = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "") search.set(k, String(v));
+      if (v === undefined || v === null || v === "") return;
+      if (Array.isArray(v)) {
+        for (const item of v) {
+          if (item !== undefined && item !== null && item !== "") search.append(k, String(item));
+        }
+      } else {
+        search.set(k, String(v));
+      }
     });
     const qs = search.toString();
     return request<GraphView>(`/api/graph${qs ? `?${qs}` : ""}`);
@@ -431,6 +451,7 @@ export interface ReviewQueueItem {
   answer: string;
   question_type: string;
   difficulty: string | null;
+  choices_json: string[] | null;
   stage: ReviewStage;
   interval_days: number;
   lapses: number;
@@ -576,6 +597,61 @@ export type ReactionKind = "like" | "insightful" | "mindblown";
 export interface ReactionsState {
   counts: Record<ReactionKind, number>;
   mine: ReactionKind[];
+}
+
+export interface GraphPresetSettings {
+  searchQuery?: string;
+  sourceType?: string;
+  /** Multi-select tags filter (OR-semantics). */
+  tags?: string[];
+  /** @deprecated old single-tag presets — read on apply, never written. */
+  tag?: string;
+  hideIsolated?: boolean;
+  colorMode?: string;
+  nodeSpacing?: number;
+}
+
+export interface GraphPresetOut {
+  id: string;
+  name: string;
+  settings: GraphPresetSettings;
+  created_at: string;
+}
+
+export interface LearningSessionItem {
+  id: string;
+  started_at: string;
+  ended_at: string;
+  event_count: number;
+  correct_count: number;
+}
+
+export interface SessionEventOut {
+  id: string;
+  reviewed_at: string;
+  rating: string;
+  stage: string | null;
+  interval_days: number | null;
+  question_id: string;
+  question: string;
+  answer: string;
+  card_id: string;
+  card_title: string;
+}
+
+export interface SessionDetail {
+  id: string;
+  started_at: string;
+  ended_at: string;
+  event_count: number;
+  correct_count: number;
+  events: SessionEventOut[];
+}
+
+export interface ActivityDay {
+  date: string; // YYYY-MM-DD
+  count: number;
+  correct: number;
 }
 
 export interface SearchHit {

@@ -7,6 +7,7 @@ from app.api.chat import router as chat_router
 from app.api.export import router as export_router
 from app.api.files import router as files_router
 from app.api.graph import router as graph_router
+from app.api.graph_presets import router as graph_presets_router
 from app.api.public import router as public_router
 from app.api.health import router as health_router
 from app.api.imports import router as import_router
@@ -45,6 +46,7 @@ app.include_router(chat_router, prefix="/api")
 app.include_router(review_router, prefix="/api")
 app.include_router(tags_router, prefix="/api")
 app.include_router(graph_router, prefix="/api")
+app.include_router(graph_presets_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(wiki_router, prefix="/api")
 app.include_router(import_router, prefix="/api")

@@ -16,7 +16,8 @@
   "tags": {
     "newTag": "New tag",
     "newTagPlaceholder": "Tag name…",
-    "untagged": "Untagged"
+    "untagged": "Untagged",
+    "new": "New"
   },
   "library": {
     "empty": {
@@ -177,6 +178,15 @@
     "reset": "Reset",
     "depth": "Depth",
     "settingsHeading": "Graph Settings",
+    "preset": {
+      "heading": "Presets",
+      "new": "New",
+      "placeholder": "Preset name…",
+      "empty": "No presets yet",
+      "choose": "Choose preset…",
+      "delete": "Delete preset",
+      "confirmDelete": "Delete preset \"{{name}}\"?"
+    },
     "filtersHeading": "Filters",
     "filterSource": "Source",
     "filterTag": "Tag",
@@ -196,6 +206,11 @@
     "filter": {
       "all": "All",
       "allTags": "All tags",
+      "tagsCount_one": "{{count}} tag",
+      "tagsCount_other": "{{count}} tags",
+      "searchTags": "Search tags…",
+      "noTags": "No tags match.",
+      "clearTags": "Clear selection",
       "hideIsolated": "Hide isolated"
     },
     "color": {
@@ -266,6 +281,25 @@
       "title": "You're done.",
       "body": "No questions are due right now. Come back later.",
       "refresh": "Check again"
+    },
+    "sidebar": {
+      "heading": "This session",
+      "mode": "Mode",
+      "due": "Due now",
+      "reviewed": "reviewed",
+      "mastery": "Mastery",
+      "tally": "Your answers"
+    },
+    "mode": {
+      "recall": "Recall",
+      "mc": "Choice",
+      "recallHint": "Read, think, reveal, self-rate. Strongest for memory.",
+      "mcHint": "Pick from 4 options. Faster, easier on review days.",
+      "noChoices": "No choices stored for this question — falling back to recall."
+    },
+    "mc": {
+      "correct": "Correct",
+      "wrong": "Wrong"
     }
   },
   "chat": {

@@ -12,6 +12,7 @@ class ReviewQueueItem(BaseModel):
     answer: str
     question_type: str
     difficulty: str | None = None
+    choices_json: list[str] | None = None
     stage: str
     interval_days: float
     lapses: int
@@ -41,3 +42,39 @@ class ReviewStats(BaseModel):
     practiced: int
     confident: int
     mastered: int
+
+
+class LearningSessionItem(BaseModel):
+    id: UUID
+    started_at: datetime
+    ended_at: datetime
+    event_count: int
+    correct_count: int
+
+
+class SessionEventOut(BaseModel):
+    id: UUID
+    reviewed_at: datetime
+    rating: str
+    stage: str | None
+    interval_days: int | None
+    question_id: UUID
+    question: str
+    answer: str
+    card_id: UUID
+    card_title: str
+
+
+class SessionDetail(BaseModel):
+    id: UUID
+    started_at: datetime
+    ended_at: datetime
+    event_count: int
+    correct_count: int
+    events: list[SessionEventOut]
+
+
+class ActivityDay(BaseModel):
+    date: str  # YYYY-MM-DD (UTC)
+    count: int
+    correct: int

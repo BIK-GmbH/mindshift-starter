@@ -1,13 +1,17 @@
 import {
   ArrowLeft,
+  Check,
   ChevronDown,
   Clock,
   EyeOff,
+  Hash,
   Loader2,
   Lock,
   Maximize2,
+  Plus,
   Route,
   Search as SearchIcon,
+  Trash2,
   Unlock,
   X,
   ZoomIn,
@@ -22,6 +26,7 @@ import {
   api,
   type ConnectionReason,
   type GraphEdge,
+  type GraphPresetOut,
   type GraphView,
   type TagWithCount,
 } from "../lib/api";
@@ -64,7 +69,7 @@ export default function GraphPage() {
 
   // Filters
   const [sourceType, setSourceType] = useState<string>("");
-  const [tag, setTag] = useState<string>("");
+  const [tags, setTags] = useState<string[]>([]);
   const [hideIsolated, setHideIsolated] = useState(false);
 
   // Visualisation
@@ -99,6 +104,72 @@ export default function GraphPage() {
 
   const [size, setSize] = useState({ w: 800, h: 560 });
 
+  // Presets — saved configurations of all the sidebar settings.
+  const [presets, setPresets] = useState<GraphPresetOut[]>([]);
+  const [activePresetId, setActivePresetId] = useState<string>("");
+  const [presetNaming, setPresetNaming] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [presetSaving, setPresetSaving] = useState(false);
+
+  useEffect(() => {
+    void api.listGraphPresets().then(setPresets).catch(() => {
+      /* silent — presets are non-critical */
+    });
+  }, []);
+
+  const savePreset = async () => {
+    const name = presetName.trim();
+    if (!name) {
+      setPresetNaming(false);
+      setPresetName("");
+      return;
+    }
+    setPresetSaving(true);
+    try {
+      const created = await api.createGraphPreset(name, {
+        searchQuery,
+        sourceType,
+        tags,
+        hideIsolated,
+        colorMode,
+        nodeSpacing: spacing,
+      });
+      setPresets((prev) => [created, ...prev]);
+      setActivePresetId(created.id);
+      setPresetNaming(false);
+      setPresetName("");
+    } finally {
+      setPresetSaving(false);
+    }
+  };
+
+  const applyPreset = (id: string) => {
+    setActivePresetId(id);
+    if (!id) return;
+    const preset = presets.find((p) => p.id === id);
+    if (!preset) return;
+    const s = preset.settings;
+    if (typeof s.searchQuery === "string") setSearchQuery(s.searchQuery);
+    if (typeof s.sourceType === "string") setSourceType(s.sourceType);
+    if (Array.isArray(s.tags)) setTags(s.tags.filter((x): x is string => typeof x === "string"));
+    else if (typeof s.tag === "string") setTags(s.tag ? [s.tag] : []);
+    if (typeof s.hideIsolated === "boolean") setHideIsolated(s.hideIsolated);
+    if (s.colorMode === "source" || s.colorMode === "tag") setColorMode(s.colorMode);
+    if (typeof s.nodeSpacing === "number") setSpacing(s.nodeSpacing);
+  };
+
+  const deleteActivePreset = async () => {
+    if (!activePresetId) return;
+    const preset = presets.find((p) => p.id === activePresetId);
+    if (!preset) return;
+    if (!window.confirm(t("graph.preset.confirmDelete", { name: preset.name, defaultValue: `Delete preset "${preset.name}"?` }) ?? "")) {
+      return;
+    }
+    await api.deleteGraphPreset(activePresetId);
+    setPresets((prev) => prev.filter((p) => p.id !== activePresetId));
+    setActivePresetId("");
+  };
+
   // Reload-counter so we can ignore stale responses when filters change
   // mid-flight (and avoids the double-fetch flash that React Strict Mode
   // otherwise produces in dev).
@@ -110,7 +181,7 @@ export default function GraphPage() {
     try {
       const view = await api.globalGraph({
         source_type: sourceType || undefined,
-        tag: tag || undefined,
+        tags: tags.length > 0 ? tags : undefined,
         edges_per_card: 5,
         created_after: timelineEnabled && createdAfter ? createdAfter : undefined,
         created_before: timelineEnabled && createdBefore ? createdBefore : undefined,
@@ -124,7 +195,7 @@ export default function GraphPage() {
     } finally {
       if (myReq === reqIdRef.current) setLoading(false);
     }
-  }, [sourceType, tag, timelineEnabled, createdAfter, createdBefore]);
+  }, [sourceType, tags, timelineEnabled, createdAfter, createdBefore]);
 
   useEffect(() => {
     void fetchGraph();
@@ -329,12 +400,102 @@ export default function GraphPage() {
     <div className="flex h-full">
       {/* Context sidebar — Recall-style graph settings */}
       <aside className="panel-elevated hidden md:flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
-        <div className="flex-shrink-0 border-b border-ink-800 px-4 py-3">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
             {t("graph.settingsHeading")}
           </h2>
+          <button
+            type="button"
+            onClick={() => {
+              setPresetNaming(true);
+              setPresetName("");
+            }}
+            title={t("graph.preset.new", { defaultValue: "Save current view as preset" }) ?? ""}
+            className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
+          >
+            <Plus className="h-3 w-3" />
+            {t("graph.preset.new", { defaultValue: "New" })}
+          </button>
         </div>
         <div className="flex-1 space-y-6 overflow-y-auto p-4">
+          {/* Presets */}
+          <SidebarSection title={t("graph.preset.heading", { defaultValue: "Presets" })}>
+            {presetNaming ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  autoFocus
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void savePreset();
+                    if (e.key === "Escape") {
+                      setPresetNaming(false);
+                      setPresetName("");
+                    }
+                  }}
+                  placeholder={t("graph.preset.placeholder", { defaultValue: "Preset name…" }) ?? ""}
+                  className="flex-1 rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1.5 text-xs focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => void savePreset()}
+                  disabled={presetSaving || !presetName.trim()}
+                  className="inline-flex items-center justify-center rounded-md bg-ink-100 px-2 py-1.5 text-xs font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+                >
+                  {presetSaving ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    t("common.save", { defaultValue: "Save" })
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPresetNaming(false);
+                    setPresetName("");
+                  }}
+                  className="inline-flex items-center justify-center rounded-md border border-ink-700 px-1.5 py-1.5 text-ink-300 transition hover:bg-ink-800"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <div className="relative flex-1">
+                  <select
+                    value={activePresetId}
+                    onChange={(e) => applyPreset(e.target.value)}
+                    disabled={presets.length === 0}
+                    className="w-full appearance-none rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1.5 pr-7 text-xs text-ink-100 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40 disabled:opacity-60"
+                  >
+                    <option value="">
+                      {presets.length === 0
+                        ? t("graph.preset.empty", { defaultValue: "No presets yet" })
+                        : t("graph.preset.choose", { defaultValue: "Choose preset…" })}
+                    </option>
+                    {presets.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-300" />
+                </div>
+                {activePresetId && (
+                  <button
+                    type="button"
+                    onClick={() => void deleteActivePreset()}
+                    title={t("graph.preset.delete", { defaultValue: "Delete preset" }) ?? ""}
+                    className="inline-flex items-center justify-center rounded-md border border-ink-700 px-1.5 py-1.5 text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            )}
+          </SidebarSection>
+
           {/* Search */}
           <SidebarSection title={t("graph.search.heading")}>
             <div className="relative" onKeyDown={onCanvasKeyDown}>
@@ -365,7 +526,7 @@ export default function GraphPage() {
                 <label className="mb-1 block text-[10px] uppercase tracking-wider text-ink-500">
                   {t("graph.filterSource")}
                 </label>
-                <div className="grid grid-cols-2 gap-1 rounded-md bg-ink-700/50 p-0.5 text-[11px]">
+                <div className="grid grid-cols-2 gap-1.5 text-[11px]">
                   {sourceTypes.map((opt) => (
                     <button
                       key={opt.value || "all"}
@@ -375,7 +536,7 @@ export default function GraphPage() {
                         "rounded px-2 py-1 transition",
                         sourceType === opt.value
                           ? "bg-ink-100 text-ink-900"
-                          : "text-ink-200 hover:bg-ink-600",
+                          : "bg-ink-800/40 text-ink-200 ring-1 ring-ink-700 hover:bg-ink-700/60",
                       ].join(" ")}
                     >
                       {opt.label}
@@ -388,21 +549,11 @@ export default function GraphPage() {
                 <label className="mb-1 block text-[10px] uppercase tracking-wider text-ink-500">
                   {t("graph.filterTag")}
                 </label>
-                <div className="relative">
-                  <select
-                    value={tag}
-                    onChange={(e) => setTag(e.target.value)}
-                    className="w-full appearance-none rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1.5 pr-7 text-xs text-ink-100 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
-                  >
-                    <option value="">{t("graph.filter.allTags")}</option>
-                    {tagOptions.map((t2) => (
-                      <option key={t2.name} value={t2.name}>
-                        #{t2.name} ({t2.count})
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-300" />
-                </div>
+                <MultiTagPicker
+                  tagOptions={tagOptions}
+                  value={tags}
+                  onChange={setTags}
+                />
               </div>
 
               <button
@@ -439,7 +590,7 @@ export default function GraphPage() {
             <label className="mb-1 block text-[10px] uppercase tracking-wider text-ink-500">
               {t("graph.colorBy")}
             </label>
-            <div className="grid grid-cols-2 gap-1 rounded-md bg-ink-700/50 p-0.5 text-[11px]">
+            <div className="grid grid-cols-2 gap-1.5 rounded-md bg-ink-700/50 p-1 text-[11px]">
               <button
                 type="button"
                 onClick={() => setColorMode("source")}
@@ -447,7 +598,7 @@ export default function GraphPage() {
                   "rounded px-2 py-1 transition",
                   colorMode === "source"
                     ? "bg-ink-100 text-ink-900"
-                    : "text-ink-200 hover:bg-ink-600",
+                    : "bg-ink-800/40 text-ink-200 ring-1 ring-ink-700 hover:bg-ink-700/60",
                 ].join(" ")}
               >
                 {t("graph.color.source")}
@@ -457,7 +608,7 @@ export default function GraphPage() {
                 onClick={() => setColorMode("tag")}
                 className={[
                   "rounded px-2 py-1 transition",
-                  colorMode === "tag" ? "bg-ink-100 text-ink-900" : "text-ink-200 hover:bg-ink-600",
+                  colorMode === "tag" ? "bg-ink-100 text-ink-900" : "bg-ink-800/40 text-ink-200 ring-1 ring-ink-700 hover:bg-ink-700/60",
                 ].join(" ")}
               >
                 {t("graph.color.tag")}
@@ -578,24 +729,27 @@ export default function GraphPage() {
       </aside>
 
       {/* Main */}
-      <div className="flex flex-1 min-w-0 flex-col p-6">
-        <header className="mb-3 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-ink-100">{t("graph.global.title")}</h1>
-            <p className="text-sm text-ink-400">{t("graph.global.subtitle")}</p>
+      <div className="flex flex-1 min-w-0 flex-col">
+        <div className="page-header">
+          <div className="page-header-inner flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="page-header-title">{t("graph.global.title")}</h1>
+              <p className="page-header-subtitle">{t("graph.global.subtitle")}</p>
+            </div>
+            {focusedNodeId && (
+              <button
+                type="button"
+                onClick={exitFocus}
+                className="inline-flex flex-shrink-0 items-center gap-1 rounded-md border border-ink-700 px-2.5 py-1.5 text-xs text-ink-200 hover:bg-ink-800"
+              >
+                <ArrowLeft className="h-3 w-3" />
+                {t("graph.focus.exit")}
+              </button>
+            )}
           </div>
-          {focusedNodeId && (
-            <button
-              type="button"
-              onClick={exitFocus}
-              className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-2.5 py-1.5 text-xs text-ink-200 hover:bg-ink-800"
-            >
-              <ArrowLeft className="h-3 w-3" />
-              {t("graph.focus.exit")}
-            </button>
-          )}
-        </header>
+        </div>
 
+        <div className="flex flex-1 min-h-0 flex-col p-6">
         {/* Focus breadcrumb */}
         {focusBreadcrumb.length > 0 && (
           <div className="mb-2 flex flex-wrap items-center gap-1 text-[10px] text-ink-300">
@@ -872,6 +1026,7 @@ export default function GraphPage() {
         </div>
 
         <p className="mt-2 text-[10px] text-ink-500">{t("graph.global.hint2")}</p>
+        </div>
       </div>
     </div>
   );
@@ -885,5 +1040,150 @@ function SidebarSection({ title, children }: { title: string; children: React.Re
       </h3>
       {children}
     </section>
+  );
+}
+
+function MultiTagPicker({
+  tagOptions,
+  value,
+  onChange,
+}: {
+  tagOptions: TagWithCount[];
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const selected = useMemo(() => new Set(value), [value]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? tagOptions.filter((o) => o.name.toLowerCase().includes(q)) : tagOptions;
+  }, [tagOptions, query]);
+
+  const toggle = (name: string) => {
+    if (selected.has(name)) onChange(value.filter((v) => v !== name));
+    else onChange([...value, name]);
+  };
+
+  const triggerLabel =
+    value.length === 0
+      ? t("graph.filter.allTags")
+      : value.length === 1
+        ? `#${value[0]}`
+        : t("graph.filter.tagsCount", { count: value.length, defaultValue: `${value.length} tags` });
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-1 rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1.5 text-left text-xs text-ink-100 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+      >
+        <span className="truncate">{triggerLabel}</span>
+        <ChevronDown className="h-3 w-3 flex-shrink-0 text-ink-300" />
+      </button>
+
+      {value.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {value.map((name) => (
+            <span
+              key={name}
+              className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2 py-0.5 text-[10px] font-medium text-ink-100 ring-1 ring-ink-600"
+            >
+              <Hash className="h-2.5 w-2.5 text-ink-300" />
+              {name}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggle(name);
+                }}
+                className="ml-0.5 rounded p-0.5 text-ink-400 hover:bg-ink-600 hover:text-ink-100"
+                title={t("common.remove", { defaultValue: "Remove" }) ?? ""}
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <div className="panel-elevated absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-72 overflow-hidden rounded-md border border-ink-700 bg-ink-900 shadow-xl">
+          <div className="border-b border-ink-800 p-2">
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-400" />
+              <input
+                type="search"
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("graph.filter.searchTags", { defaultValue: "Search tags…" }) ?? ""}
+                className="w-full rounded-md border border-ink-700 bg-ink-800/60 py-1 pl-7 pr-2 text-[11px] focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+              />
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-[10px] text-ink-500">
+                {t("graph.filter.noTags", { defaultValue: "No tags match." })}
+              </p>
+            ) : (
+              filtered.map((opt) => {
+                const isSelected = selected.has(opt.name);
+                return (
+                  <button
+                    key={opt.name}
+                    type="button"
+                    onClick={() => toggle(opt.name)}
+                    className={[
+                      "flex w-full items-center gap-2 px-2.5 py-1 text-[11px] transition",
+                      isSelected ? "bg-ink-800/80 text-ink-100" : "text-ink-200 hover:bg-ink-800/60",
+                    ].join(" ")}
+                  >
+                    <span
+                      className={[
+                        "flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border",
+                        isSelected
+                          ? "border-ink-100 bg-ink-100 text-ink-900"
+                          : "border-ink-600 bg-transparent",
+                      ].join(" ")}
+                    >
+                      {isSelected && <Check className="h-2.5 w-2.5" />}
+                    </span>
+                    <span className="flex-1 truncate">#{opt.name}</span>
+                    <span className="text-[10px] tabular-nums text-ink-500">{opt.count}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          {value.length > 0 && (
+            <div className="border-t border-ink-800 px-2 py-1.5">
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="text-[10px] text-ink-400 transition hover:text-ink-100"
+              >
+                {t("graph.filter.clearTags", { defaultValue: "Clear selection" })}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

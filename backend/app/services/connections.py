@@ -120,7 +120,7 @@ def get_global_graph(
     edges_per_card: int = 5,
     min_score: float = 0.05,
     source_type: str | None = None,
-    tag: str | None = None,
+    tags: list[str] | None = None,
     created_after: "datetime | None" = None,
     created_before: "datetime | None" = None,
 ) -> GraphView:
@@ -129,6 +129,9 @@ def get_global_graph(
     Reuses `get_connections` per source card (top-N), merges edges across cards
     using a sorted-pair key to avoid duplicates. Edges below `min_score` are
     dropped to keep the layout readable.
+
+    `tags` filters with OR semantics: a card matches if it carries at least
+    one of the given tag names.
     """
     stmt = select(Card).where(Card.user_id == user_id)
     if source_type:
@@ -137,12 +140,15 @@ def get_global_graph(
         stmt = stmt.where(Card.created_at >= created_after)
     if created_before is not None:
         stmt = stmt.where(Card.created_at <= created_before)
-    if tag:
-        stmt = (
-            stmt.join(CardTag, CardTag.card_id == Card.id)
-            .join(Tag, Tag.id == CardTag.tag_id)
-            .where(Tag.name == tag.lower())
-        )
+    if tags:
+        normalized = [t.lower() for t in tags if t]
+        if normalized:
+            stmt = (
+                stmt.join(CardTag, CardTag.card_id == Card.id)
+                .join(Tag, Tag.id == CardTag.tag_id)
+                .where(Tag.name.in_(normalized))
+                .distinct()
+            )
 
     cards = db.execute(stmt).scalars().all()
     if not cards:

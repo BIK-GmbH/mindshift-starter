@@ -10,7 +10,15 @@ import {
   X,
   Youtube,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FC } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type FC,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from "react-arborist";
@@ -145,7 +153,12 @@ function descendantTagIds(item: TreeItem): Set<string> {
  * Component
  * --------------------------------------------------------------------------*/
 
-export default function TagsTree() {
+export interface TagsTreeHandle {
+  /** Open the inline "create top-level tag" input and scroll the tree to the top. */
+  createTag: () => void;
+}
+
+const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -245,6 +258,8 @@ export default function TagsTree() {
     setError(null);
   };
 
+  useImperativeHandle(ref, () => ({ createTag: () => startCreate(null) }), []);
+
   const cancelCreate = () => {
     setCreatingUnder(null);
     setCreatingTopLevel(false);
@@ -258,11 +273,19 @@ export default function TagsTree() {
       cancelCreate();
       return;
     }
+    const wasTopLevel = creatingTopLevel;
     setBusy(true);
     try {
-      await api.createTag(name, creatingUnder);
+      const created = await api.createTag(name, creatingUnder);
       await refresh();
       cancelCreate();
+      if (wasTopLevel && created?.id) {
+        // Tree just refreshed — wait one frame so the new node is mounted,
+        // then scroll it into view at the top.
+        requestAnimationFrame(() => {
+          treeApiRef.current?.scrollTo(`tag:${created.id}`, "start");
+        });
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -382,6 +405,17 @@ export default function TagsTree() {
           <Hash className="h-3 w-3 text-ink-500" />
           <span>{t("nav.allCards")}</span>
         </button>
+        {creatingTopLevel && (
+          <div className="mt-1">
+            <CreateInput
+              name={newName}
+              onChange={setNewName}
+              onSubmit={submitCreate}
+              onCancel={cancelCreate}
+              busy={busy}
+            />
+          </div>
+        )}
       </div>
 
       <div ref={containerRef} className="flex-1 overflow-hidden px-1 pt-1">
@@ -435,30 +469,11 @@ export default function TagsTree() {
         )}
       </div>
 
-      <div className="border-t border-ink-800 px-3 py-2">
-        <button
-          type="button"
-          onClick={() => startCreate(null)}
-          className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
-        >
-          <Plus className="h-3 w-3" />
-          {t("tags.newTag")}
-        </button>
-        {creatingTopLevel && (
-          <div className="mt-1">
-            <CreateInput
-              name={newName}
-              onChange={setNewName}
-              onSubmit={submitCreate}
-              onCancel={cancelCreate}
-              busy={busy}
-            />
-          </div>
-        )}
-      </div>
     </div>
   );
-}
+});
+
+export default TagsTree;
 
 /* ----------------------------------------------------------------------------
  * Node renderer

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,6 +20,10 @@ class QuizQuestion(Base, TimestampMixin):
     question_type: Mapped[str] = mapped_column(String(40), nullable=False, default="open")
     difficulty: Mapped[str | None] = mapped_column(String(20), nullable=True)
     source_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Optional list of plausible-but-wrong distractors. When present
+    # the review screen can present the question as multiple-choice
+    # by mixing in `answer` and shuffling.
+    choices_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     # Spaced-repetition state (denormalized current state; review_events keeps history)
     stage: Mapped[str] = mapped_column(String(20), nullable=False, default="new", server_default="new")
@@ -47,3 +51,9 @@ class ReviewEvent(Base):
     next_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     stage: Mapped[str | None] = mapped_column(String(20), nullable=True)
     interval_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    session_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("learning_sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )

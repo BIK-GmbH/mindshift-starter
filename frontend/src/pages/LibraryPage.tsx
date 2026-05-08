@@ -22,7 +22,7 @@ import AddContentModal from "../components/AddYouTubeModal";
 import CardDetailContent from "../components/CardDetailContent";
 import ChatPanel from "../components/ChatPanel";
 import StatusBadge from "../components/StatusBadge";
-import TagsTree from "../components/TagsTree";
+import TagsTree, { type TagsTreeHandle } from "../components/TagsTree";
 import { useSearchModal } from "../lib/SearchModalContext";
 import { api, type CardListItem } from "../lib/api";
 
@@ -243,63 +243,62 @@ export default function LibraryPage() {
     <div className="flex h-full">
       <LibraryTagsSidebar />
       <div className="flex flex-1 min-w-0 flex-col">
-      {/* Sticky header — toolbar layout (Variant C) */}
-      <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/85 backdrop-blur-md">
-        <div className="mx-auto max-w-6xl px-8 pb-3 pt-5">
-          {/* Title row */}
-          <div className="flex items-center justify-between gap-4">
-            <h1 className="text-2xl font-semibold tracking-tight text-ink-100">
-              {t("nav.library")}
-            </h1>
-            <button
-              type="button"
-              onClick={() => setModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-900 shadow-sm transition hover:bg-ink-200"
-            >
-              <Plus className="h-4 w-4" />
-              {t("library.addContent")}
-            </button>
+      {/* Title band — same height across pages */}
+      <div className="page-header">
+        <div className="page-header-inner flex items-center justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="page-header-title">{t("nav.library")}</h1>
+            {counts.total > 0 && (
+              <p className="page-header-subtitle flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
+                <span>
+                  <span className="font-medium tabular-nums text-ink-200">{counts.total}</span>{" "}
+                  {t("library.stats.cards")}
+                </span>
+                {counts.completed > 0 && (
+                  <>
+                    <span className="text-ink-600">·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      {counts.completed} {t("library.stats.completed")}
+                    </span>
+                  </>
+                )}
+                {counts.inflight > 0 && (
+                  <>
+                    <span className="text-ink-600">·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                      {counts.inflight} {t("library.stats.processing")}
+                    </span>
+                  </>
+                )}
+                {counts.failed > 0 && (
+                  <>
+                    <span className="text-ink-600">·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                      {counts.failed} {t("library.stats.failed")}
+                    </span>
+                  </>
+                )}
+              </p>
+            )}
           </div>
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="inline-flex flex-shrink-0 items-center gap-2 rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-900 shadow-sm transition hover:bg-ink-200"
+          >
+            <Plus className="h-4 w-4" />
+            {t("library.addContent")}
+          </button>
+        </div>
+      </div>
 
-          {/* Stats row — compact, inline, dot-separated */}
-          {counts.total > 0 && (
-            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-ink-400">
-              <span>
-                <span className="font-medium tabular-nums text-ink-200">{counts.total}</span>{" "}
-                {t("library.stats.cards")}
-              </span>
-              {counts.completed > 0 && (
-                <>
-                  <span className="text-ink-600">·</span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    {counts.completed} {t("library.stats.completed")}
-                  </span>
-                </>
-              )}
-              {counts.inflight > 0 && (
-                <>
-                  <span className="text-ink-600">·</span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
-                    {counts.inflight} {t("library.stats.processing")}
-                  </span>
-                </>
-              )}
-              {counts.failed > 0 && (
-                <>
-                  <span className="text-ink-600">·</span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                    {counts.failed} {t("library.stats.failed")}
-                  </span>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Toolbar — search trigger + source filter + sort */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+      {/* Toolbar strip — search + filters + view toggle */}
+      <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/60">
+        <div className="mx-auto max-w-6xl px-8 py-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={openSearch}
@@ -533,15 +532,25 @@ function SelectPill({
 
 function LibraryTagsSidebar() {
   const { t } = useTranslation();
+  const tagsTreeRef = useRef<TagsTreeHandle>(null);
   return (
     <aside className="panel-elevated hidden md:flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
-      <div className="flex items-center justify-between border-b border-ink-800 px-4 py-3">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
           {t("nav.tags")}
         </span>
+        <button
+          type="button"
+          onClick={() => tagsTreeRef.current?.createTag()}
+          title={t("tags.newTag") ?? ""}
+          className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
+        >
+          <Plus className="h-3 w-3" />
+          {t("tags.new", { defaultValue: "New" })}
+        </button>
       </div>
-      <div className="flex-1 overflow-y-auto py-2">
-        <TagsTree />
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden py-2">
+        <TagsTree ref={tagsTreeRef} />
       </div>
     </aside>
   );

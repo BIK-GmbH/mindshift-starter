@@ -16,7 +16,8 @@
   "tags": {
     "newTag": "Neuer Tag",
     "newTagPlaceholder": "Tag-Name…",
-    "untagged": "Ohne Tag"
+    "untagged": "Ohne Tag",
+    "new": "Neu"
   },
   "library": {
     "empty": {
@@ -177,6 +178,15 @@
     "reset": "Zurücksetzen",
     "depth": "Tiefe",
     "settingsHeading": "Graph-Einstellungen",
+    "preset": {
+      "heading": "Presets",
+      "new": "Neu",
+      "placeholder": "Preset-Name…",
+      "empty": "Noch keine Presets",
+      "choose": "Preset wählen…",
+      "delete": "Preset löschen",
+      "confirmDelete": "Preset „{{name}}“ löschen?"
+    },
     "filtersHeading": "Filter",
     "filterSource": "Quelle",
     "filterTag": "Tag",
@@ -196,6 +206,11 @@
     "filter": {
       "all": "Alle",
       "allTags": "Alle Tags",
+      "tagsCount_one": "{{count}} Tag",
+      "tagsCount_other": "{{count}} Tags",
+      "searchTags": "Tags suchen…",
+      "noTags": "Keine Tags gefunden.",
+      "clearTags": "Auswahl löschen",
       "hideIsolated": "Isolierte ausblenden"
     },
     "color": {
@@ -266,6 +281,25 @@
       "title": "Du bist durch.",
       "body": "Aktuell sind keine Fragen fällig. Komm später wieder.",
       "refresh": "Neu prüfen"
+    },
+    "sidebar": {
+      "heading": "Diese Session",
+      "mode": "Modus",
+      "due": "Jetzt fällig",
+      "reviewed": "wiederholt",
+      "mastery": "Beherrschung",
+      "tally": "Deine Antworten"
+    },
+    "mode": {
+      "recall": "Erinnern",
+      "mc": "Auswahl",
+      "recallHint": "Lesen, denken, aufdecken, selbst bewerten. Am stärksten fürs Gedächtnis.",
+      "mcHint": "Wähle aus 4 Optionen. Schneller, an Review-Tagen leichter.",
+      "noChoices": "Keine Antwortauswahl für diese Frage gespeichert — Recall-Modus."
+    },
+    "mc": {
+      "correct": "Richtig",
+      "wrong": "Falsch"
     }
   },
   "chat": {
