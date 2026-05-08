@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Share2,
   Sparkles,
+  Headphones,
   StickyNote,
   Trash2,
   Type,
@@ -38,7 +39,8 @@ export type CardDetailTab =
   | "notes"
   | "quiz"
   | "chat"
-  | "graph";
+  | "graph"
+  | "podcast";
 
 const TAB_ICONS: Record<CardDetailTab, FC<{ className?: string }>> = {
   summary: BookOpen,
@@ -47,6 +49,7 @@ const TAB_ICONS: Record<CardDetailTab, FC<{ className?: string }>> = {
   quiz: Sparkles,
   chat: MessageSquare,
   graph: Network,
+  podcast: Headphones,
 };
 
 interface Props {
@@ -247,7 +250,7 @@ export default function CardDetailContent({
   }
 
   const canRegenerate = card.status === "failed" && card.source_type !== "pdf";
-  const allTabs: CardDetailTab[] = ["summary", "transcript", "notes", "quiz", "chat", "graph"];
+  const allTabs: CardDetailTab[] = ["summary", "transcript", "notes", "quiz", "chat", "graph", "podcast"];
   const tabs = hideChatTab ? allTabs.filter((id) => id !== "chat") : allTabs;
   const tagPills = card.key_takeaways_json && card.key_takeaways_json.length > 0;
   const horizPad = compact ? "px-5" : "px-8";
@@ -396,8 +399,6 @@ export default function CardDetailContent({
           <div key={tab} className="tab-content-enter">
             {tab === "summary" && (
               <div className="space-y-8 text-sm leading-relaxed">
-                <CardPodcastPlayer cardId={card.id} />
-
                 {card.concise_summary_md && (
                   <Section icon={BookOpen} label={t("card.tldr", { defaultValue: "TL;DR" })}>
                     <p className="text-base text-ink-100/90">{card.concise_summary_md}</p>
@@ -511,6 +512,8 @@ export default function CardDetailContent({
                 />
               </div>
             )}
+
+            {tab === "podcast" && <CardPodcastPlayer cardId={card.id} />}
           </div>
         </div>
       </div>
