@@ -872,6 +872,7 @@ export interface CardTranslationOut {
   title: string | null;
   concise_summary_md: string | null;
   detailed_summary_md: string | null;
+  key_takeaways_json: string[] | null;
   status: "processing" | "ready" | "failed";
   error_message: string | null;
   created_at: string;

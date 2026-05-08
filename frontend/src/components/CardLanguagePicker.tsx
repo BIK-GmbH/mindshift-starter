@@ -60,29 +60,33 @@ export default function CardLanguagePicker({ cardId, onActive }: Props) {
     onActive(tr && tr.status === "ready" ? tr : null);
   }, [activeLang, translations, onActive]);
 
-  // Poll while any translation is processing.
-  const processingKey = translations
-    .filter((t2) => t2.status === "processing")
-    .map((t2) => t2.id)
-    .join(",");
+  // Poll while any translation is processing. The tick itself reschedules
+  // — the effect's dep is just whether ANY processing is happening, not
+  // each tick's result, so the loop wouldn't auto-restart otherwise.
+  const hasProcessing = translations.some((t2) => t2.status === "processing");
   useEffect(() => {
-    if (!processingKey) return;
+    if (!hasProcessing) return;
     let cancelled = false;
+    let timer: number | null = null;
     const tick = async () => {
       if (cancelled) return;
       try {
         const rows = await api.listTranslations(cardId);
-        if (!cancelled) setTranslations(rows);
+        if (cancelled) return;
+        setTranslations(rows);
+        if (rows.some((r) => r.status === "processing")) {
+          timer = window.setTimeout(tick, POLL_MS);
+        }
       } catch {
-        /* keep trying */
+        if (!cancelled) timer = window.setTimeout(tick, POLL_MS);
       }
     };
-    const timer = window.setTimeout(tick, POLL_MS);
+    timer = window.setTimeout(tick, POLL_MS);
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      if (timer) window.clearTimeout(timer);
     };
-  }, [processingKey, cardId]);
+  }, [hasProcessing, cardId]);
 
   // Close on outside click.
   useEffect(() => {

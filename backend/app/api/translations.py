@@ -33,6 +33,7 @@ def _to_out(tr: CardTranslation) -> CardTranslationOut:
         title=tr.title,
         concise_summary_md=tr.concise_summary_md,
         detailed_summary_md=tr.detailed_summary_md,
+        key_takeaways_json=tr.key_takeaways_json,
         status=tr.status,
         error_message=tr.error_message,
         created_at=tr.created_at,
@@ -53,6 +54,7 @@ def _run_translation_job(
     title: str | None,
     concise: str | None,
     detailed: str | None,
+    key_takeaways: list[str] | None,
 ) -> None:
     db = SessionLocal()
     try:
@@ -65,10 +67,13 @@ def _run_translation_job(
                 title=title,
                 concise_summary_md=concise,
                 detailed_summary_md=detailed,
+                key_takeaways=key_takeaways,
             )
-            tr.title = out.get("title")
-            tr.concise_summary_md = out.get("concise_summary_md")
-            tr.detailed_summary_md = out.get("detailed_summary_md")
+            tr.title = out.get("title")  # type: ignore[assignment]
+            tr.concise_summary_md = out.get("concise_summary_md")  # type: ignore[assignment]
+            tr.detailed_summary_md = out.get("detailed_summary_md")  # type: ignore[assignment]
+            tk = out.get("key_takeaways")
+            tr.key_takeaways_json = tk if isinstance(tk, list) else None
             tr.status = "ready"
             tr.error_message = None
             db.commit()
@@ -126,6 +131,7 @@ def create_translation(
         existing.title = None
         existing.concise_summary_md = None
         existing.detailed_summary_md = None
+        existing.key_takeaways_json = None
         tr = existing
     else:
         tr = CardTranslation(
@@ -137,6 +143,11 @@ def create_translation(
     db.commit()
     db.refresh(tr)
 
+    raw_takeaways = card.key_takeaways_json
+    takeaways_list: list[str] | None = None
+    if isinstance(raw_takeaways, list):
+        takeaways_list = [str(x) for x in raw_takeaways if str(x).strip()]
+
     background_tasks.add_task(
         _run_translation_job,
         translation_id=tr.id,
@@ -144,6 +155,7 @@ def create_translation(
         title=card.title,
         concise=card.concise_summary_md,
         detailed=card.detailed_summary_md,
+        key_takeaways=takeaways_list,
     )
     return _to_out(tr)
 

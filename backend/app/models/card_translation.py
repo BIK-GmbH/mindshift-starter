@@ -8,7 +8,7 @@ in a BackgroundTask.
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -32,6 +32,7 @@ class CardTranslation(Base):
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     concise_summary_md: Mapped[str | None] = mapped_column(Text, nullable=True)
     detailed_summary_md: Mapped[str | None] = mapped_column(Text, nullable=True)
+    key_takeaways_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # processing | ready | failed
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="ready", server_default="ready"

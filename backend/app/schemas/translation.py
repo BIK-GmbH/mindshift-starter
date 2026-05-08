@@ -15,6 +15,7 @@ class CardTranslationOut(BaseModel):
     title: str | None
     concise_summary_md: str | None
     detailed_summary_md: str | None
+    key_takeaways_json: list[str] | None = None
     status: str  # processing | ready | failed
     error_message: str | None = None
     created_at: datetime

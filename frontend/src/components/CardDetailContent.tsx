@@ -254,7 +254,6 @@ export default function CardDetailContent({
   const canRegenerate = card.status === "failed" && card.source_type !== "pdf";
   const allTabs: CardDetailTab[] = ["summary", "transcript", "notes", "quiz", "chat", "graph", "podcast"];
   const tabs = hideChatTab ? allTabs.filter((id) => id !== "chat") : allTabs;
-  const tagPills = card.key_takeaways_json && card.key_takeaways_json.length > 0;
   const horizPad = compact ? "px-5" : "px-8";
   const innerWidth = compact ? "max-w-none" : "max-w-4xl";
 
@@ -415,21 +414,26 @@ export default function CardDetailContent({
                   </Section>
                 )}
 
-                {tagPills && (
-                  <Section icon={Sparkles} label={t("card.summary") + " — Key Takeaways"}>
-                    <ul className="grid gap-2 md:grid-cols-2">
-                      {card.key_takeaways_json!.map((point, idx) => (
-                        <li
-                          key={idx}
-                          className="surface-soft group flex items-start gap-2 rounded-md border border-transparent bg-ink-800/40 p-3 text-ink-200 transition hover:bg-ink-800/70"
-                        >
-                          <span className="mt-1 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ink-400 transition group-hover:bg-ink-200" />
-                          <span>{point}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </Section>
-                )}
+                {(() => {
+                  const takeaways =
+                    activeTranslation?.key_takeaways_json ?? card.key_takeaways_json ?? [];
+                  if (takeaways.length === 0) return null;
+                  return (
+                    <Section icon={Sparkles} label={t("card.summary") + " — Key Takeaways"}>
+                      <ul className="grid gap-2 md:grid-cols-2">
+                        {takeaways.map((point, idx) => (
+                          <li
+                            key={idx}
+                            className="surface-soft group flex items-start gap-2 rounded-md border border-transparent bg-ink-800/40 p-3 text-ink-200 transition hover:bg-ink-800/70"
+                          >
+                            <span className="mt-1 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ink-400 transition group-hover:bg-ink-200" />
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </Section>
+                  );
+                })()}
 
                 {(activeTranslation?.detailed_summary_md ?? card.detailed_summary_md) && (
                   <Section icon={FileText} label={t("card.summary")}>
