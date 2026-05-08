@@ -195,7 +195,7 @@ export default function RichTextEditor({
   if (!editor) return null;
 
   const editorClass = isFullscreen
-    ? "flex-1 min-h-0 overflow-y-auto rounded-md border border-ink-700 bg-ink-900/40 px-8 py-6 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40"
+    ? "flex flex-1 min-h-0 flex-col overflow-y-auto rounded-md border border-ink-700 bg-ink-900/40 px-8 py-6 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40 [&>.ProseMirror]:flex-1 [&>.ProseMirror]:min-h-full"
     : "rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40";
 
   const editorBlock = (
@@ -259,7 +259,13 @@ export default function RichTextEditor({
           {aiError}
         </p>
       )}
-      <div className={isFullscreen ? "relative flex-1 min-h-0" : "relative"}>
+      <div
+        className={
+          isFullscreen
+            ? "relative flex flex-1 min-h-0 flex-col"
+            : "relative"
+        }
+      >
         <EditorContent editor={editor} className={editorClass} />
         {aiBusy && <AiSkeleton action={aiBusy} />}
       </div>
