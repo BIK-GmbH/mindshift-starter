@@ -33,6 +33,7 @@ from app.services.ingestion import (
     process_pdf_card,
     process_youtube_card,
 )
+from app.services.storage import get_storage
 from app.services.youtube import extract_video_id
 
 MAX_PDF_BYTES = 25 * 1024 * 1024
@@ -132,6 +133,20 @@ async def create_card_from_pdf(
         raise HTTPException(status_code=413, detail="PDF exceeds 25 MB limit")
 
     filename = file.filename or "document.pdf"
+
+    # Persist the original first, so re-processing and "Download
+    # original" stay possible. The dedupe in storage means the same PDF
+    # uploaded twice doesn't double the disk usage.
+    storage = get_storage()
+    saved = storage.save(
+        db,
+        user_id=current_user.id,
+        content=content,
+        original_filename=filename,
+        content_type=file.content_type or "application/pdf",
+        purpose="pdf",
+    )
+
     source = Source(
         source_type="pdf",
         url=f"upload://{filename}",
@@ -147,6 +162,7 @@ async def create_card_from_pdf(
         title=(title or filename).strip() or filename,
         source_type="pdf",
         status="queued",
+        original_file_id=saved.id,
     )
     db.add(card)
     db.flush()
@@ -288,7 +304,24 @@ def delete_card(
     db: Session = Depends(get_db),
 ) -> None:
     card = _get_owned_card(db, card_id, current_user.id)
+
+    # If this card owned an original upload that nothing else references,
+    # drop the bytes from storage too. Other rows can still reference the
+    # same File via dedupe — we only delete when no card points at it.
+    file_id = card.original_file_id
     db.delete(card)
+    db.flush()
+    if file_id is not None:
+        from app.models.file import File as FileModel
+        from app.services.storage import get_storage
+
+        still_referenced = db.execute(
+            select(Card.id).where(Card.original_file_id == file_id)
+        ).first()
+        if still_referenced is None:
+            file_record = db.get(FileModel, file_id)
+            if file_record is not None:
+                get_storage().delete(db, file_record)
     db.commit()
 
 
@@ -301,18 +334,11 @@ def regenerate_card(
 ) -> IngestionResponse:
     """Re-run the ingestion pipeline for an existing card (typically a failed one).
 
-    PDF cards cannot be regenerated because the upload bytes are not retained.
+    PDF cards re-ingest from the persisted original file (only available
+    for cards uploaded after storage was introduced in phase 27).
     """
     card = _get_owned_card(db, card_id, current_user.id)
     source = db.get(Source, card.source_id) if card.source_id else None
-
-    if card.source_type == "pdf":
-        raise HTTPException(
-            status_code=400,
-            detail="PDF cards cannot be re-ingested. Upload the file again.",
-        )
-    if source is None or not source.url:
-        raise HTTPException(status_code=400, detail="Card has no original source URL")
 
     card.status = "queued"
     card.error_message = None
@@ -322,7 +348,25 @@ def regenerate_card(
     db.refresh(card)
     db.refresh(job)
 
-    if card.source_type == "youtube":
+    if card.source_type == "pdf":
+        if card.original_file_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="This PDF was uploaded before storage was added — please upload it again.",
+            )
+        from app.models.file import File as FileModel
+        from app.services.storage import get_storage
+
+        file_record = db.get(FileModel, card.original_file_id)
+        if file_record is None:
+            raise HTTPException(status_code=410, detail="Original PDF is no longer in storage")
+        pdf_bytes = get_storage().read(file_record)
+        background_tasks.add_task(
+            process_pdf_card, card.id, job.id, pdf_bytes, file_record.original_filename
+        )
+    elif source is None or not source.url:
+        raise HTTPException(status_code=400, detail="Card has no original source URL")
+    elif card.source_type == "youtube":
         external_id = source.external_id or extract_video_id(source.url)
         if not external_id:
             raise HTTPException(status_code=400, detail="Could not parse YouTube video ID")

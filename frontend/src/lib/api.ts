@@ -83,6 +83,7 @@ export interface CardListItem {
 export interface Card extends CardListItem {
   user_id: string;
   source_id: string | null;
+  original_file_id: string | null;
   detailed_summary_md: string | null;
   key_takeaways_json: string[] | null;
   notes_md: string | null;
@@ -231,6 +232,7 @@ export const api = {
   deleteChatSession: (id: string) =>
     request<void>(`/api/chat/sessions/${id}`, { method: "DELETE" }),
   exportMarkdownUrl: () => `${BASE_URL}/api/export/markdown`,
+  fileDownloadUrl: (fileId: string) => `${BASE_URL}/api/files/${fileId}`,
   createExtensionToken: () =>
     request<{ access_token: string; token_type: string }>("/api/auth/extension-token", {
       method: "POST",

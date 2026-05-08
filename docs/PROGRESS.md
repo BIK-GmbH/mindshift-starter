@@ -7,7 +7,12 @@ When a new session starts, read this first to know where to pick up.
 
 ## Active sprint — Recall-pattern follow-ups
 
-**Status:** Phases 1-26 done.
+**Status:** Phases 1-26 done. Phases 27-28 next.
+
+| Phase | Status | Description |
+|---|---|---|
+| 27 | ✅ | **File storage layer** — pluggable backend (`local` shipped, `s3` reserved). `files` table (migration 0007). Per-user SHA-256 dedupe. PDF uploads persist the original; `cards.original_file_id` links to it. `GET /api/files/{id}` auth-protected download. PDF cards now expose **Download original file** in the export menu. Card delete cascades to file delete (when no other card refers to it). PDF re-ingest works without re-upload. Quota guard `STORAGE_MAX_BYTES_PER_USER`. Railway: point `STORAGE_PATH` at the volume mount, no other change needed. |
+| 28 | ⬜ | **Public profile + tag sharing** — username + bio + avatar. `tags.is_public` flag. Routes `/u/:username` (channel-style) and `/u/:username/:tag-slug` (read-only tag page with all cards underneath, recursive). Avatar upload sits on phase 27 storage. |
 
 | Phase | Status | Description |
 |---|---|---|

@@ -25,6 +25,16 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
 
+    # File storage. `local` writes under `storage_path` (great for dev and
+    # Railway volume mounts). `s3` is reserved for a future implementation.
+    storage_backend: str = Field(default="local", alias="STORAGE_BACKEND")
+    storage_path: str = Field(default="./.runtime/storage", alias="STORAGE_PATH")
+    # Soft cap to keep one user from filling the volume. Bytes.
+    storage_max_bytes_per_user: int = Field(
+        default=2 * 1024 * 1024 * 1024,  # 2 GiB
+        alias="STORAGE_MAX_BYTES_PER_USER",
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:

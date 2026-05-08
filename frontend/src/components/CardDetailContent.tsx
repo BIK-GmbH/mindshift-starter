@@ -212,6 +212,25 @@ export default function CardDetailContent({
     await navigator.clipboard.writeText(markdownToPlainText(buildMarkdown()));
   };
 
+  const downloadOriginalFile = async (fileId: string) => {
+    const token = localStorage.getItem("mindshift.token");
+    if (!token) return;
+    const res = await fetch(api.fileDownloadUrl(fileId), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const filename = res.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "original";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   if (!card) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-ink-300">
@@ -296,6 +315,11 @@ export default function CardDetailContent({
               onDownload={downloadMarkdown}
               onCopyMarkdown={copyMarkdown}
               onCopyPlain={copyPlainText}
+              onDownloadOriginal={
+                card.original_file_id
+                  ? () => downloadOriginalFile(card.original_file_id!)
+                  : undefined
+              }
               onShare={() => setShareOpen(true)}
               onDelete={handleDelete}
               t={t}
@@ -483,6 +507,7 @@ function ActionBar({
   onDownload,
   onCopyMarkdown,
   onCopyPlain,
+  onDownloadOriginal,
   onShare,
   onDelete,
   t,
@@ -492,6 +517,7 @@ function ActionBar({
   onDownload: (e: React.MouseEvent) => void;
   onCopyMarkdown: () => Promise<void>;
   onCopyPlain: () => Promise<void>;
+  onDownloadOriginal?: () => Promise<void> | void;
   onShare: () => void;
   onDelete: () => void;
   t: (key: string, opts?: { defaultValue?: string }) => string;
@@ -513,6 +539,7 @@ function ActionBar({
         onDownload={onDownload}
         onCopyMarkdown={onCopyMarkdown}
         onCopyPlain={onCopyPlain}
+        onDownloadOriginal={onDownloadOriginal}
         t={t}
       />
       <button
@@ -542,11 +569,13 @@ function ExportMenu({
   onDownload,
   onCopyMarkdown,
   onCopyPlain,
+  onDownloadOriginal,
   t,
 }: {
   onDownload: (e: React.MouseEvent) => void;
   onCopyMarkdown: () => Promise<void>;
   onCopyPlain: () => Promise<void>;
+  onDownloadOriginal?: () => Promise<void> | void;
   t: (key: string, opts?: { defaultValue?: string }) => string;
 }) {
   const [open, setOpen] = useState(false);
@@ -616,6 +645,19 @@ function ExportMenu({
               setOpen(false);
             }}
           />
+          {onDownloadOriginal && (
+            <>
+              <div className="my-0.5 border-t border-ink-700" />
+              <MenuItem
+                Icon={FileText}
+                label={t("card.export.downloadOriginal", { defaultValue: "Download original file" })}
+                onClick={() => {
+                  void onDownloadOriginal();
+                  setOpen(false);
+                }}
+              />
+            </>
+          )}
         </div>
       )}
     </div>

@@ -35,3 +35,7 @@ build/
 # Claude
 .claude/local/
 *.tsbuildinfo
+
+# File storage (Phase 27) — uploaded user files; keep out of git.
+.runtime/storage/
+backend/.runtime/storage/

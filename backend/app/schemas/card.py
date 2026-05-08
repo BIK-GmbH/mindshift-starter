@@ -20,6 +20,7 @@ class CardOut(CardBase):
     id: UUID
     user_id: UUID
     source_id: UUID | None = None
+    original_file_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
