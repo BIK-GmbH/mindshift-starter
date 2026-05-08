@@ -303,6 +303,9 @@
   .fullscreen-shell {
     pointer-events: auto;
   }
+  /* Editor fullscreen — soft satin backdrop. The actual morph between
+     inline + portal-fullscreen is driven by the browser's View
+     Transitions API (see RichTextEditor.tsx). */
   .fullscreen-shell-enter {
     background:
       radial-gradient(ellipse 120% 80% at 50% 0%, rgb(var(--ink-700) / 0.3), transparent 60%),
@@ -310,32 +313,9 @@
       rgb(var(--ink-900) / 0.42);
     backdrop-filter: blur(14px) saturate(130%);
     -webkit-backdrop-filter: blur(14px) saturate(130%);
-    animation: fullscreen-fade 200ms ease-out both;
-  }
-  .fullscreen-card-enter {
-    animation: fullscreen-pop 280ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
-    transform-origin: center;
   }
   .fullscreen-prompt-enter {
     animation: fullscreen-prompt 200ms ease-out both;
-  }
-  @keyframes fullscreen-fade {
-    0% {
-      opacity: 0;
-    }
-    100% {
-      opacity: 1;
-    }
-  }
-  @keyframes fullscreen-pop {
-    0% {
-      opacity: 0;
-      transform: scale(0.94);
-    }
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
   }
   @keyframes fullscreen-prompt {
     0% {
@@ -345,6 +325,50 @@
     100% {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  /* View-Transition tuning for the editor toggle. Group element (the
+     "outer container") morphs between the two bounding boxes; the
+     image-pair animation handles the crossfade-with-blur. The custom
+     ease feels organic — accelerating into place. */
+  ::view-transition-group(rte-card),
+  ::view-transition-group(rte-backdrop) {
+    animation-duration: 380ms;
+    animation-timing-function: cubic-bezier(0.22, 0.9, 0.28, 1);
+  }
+  ::view-transition-old(rte-backdrop),
+  ::view-transition-new(rte-backdrop) {
+    animation-duration: 240ms;
+    animation-timing-function: ease-out;
+  }
+  /* Slight blur on the outgoing card during the morph — gives the
+     "edel" depth-of-field touch (looks like the editor refocuses
+     itself rather than just snapping to a new box). */
+  ::view-transition-old(rte-card) {
+    animation: rte-card-out 380ms cubic-bezier(0.22, 0.9, 0.28, 1) both;
+  }
+  ::view-transition-new(rte-card) {
+    animation: rte-card-in 380ms cubic-bezier(0.22, 0.9, 0.28, 1) both;
+  }
+  @keyframes rte-card-out {
+    0% {
+      opacity: 1;
+      filter: blur(0);
+    }
+    100% {
+      opacity: 0;
+      filter: blur(3px);
+    }
+  }
+  @keyframes rte-card-in {
+    0% {
+      opacity: 0;
+      filter: blur(3px);
+    }
+    100% {
+      opacity: 1;
+      filter: blur(0);
     }
   }
 

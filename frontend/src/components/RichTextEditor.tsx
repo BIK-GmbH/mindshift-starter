@@ -79,6 +79,31 @@ export default function RichTextEditor({
   const [customMode, setCustomMode] = useState(false);
   const [customPrompt, setCustomPrompt] = useState("");
 
+  // Only the toggled instance carries the view-transition-name. Static
+  // names ("rte-card" / "rte-backdrop") are fine because just one RTE
+  // can be in fullscreen at a time across the app.
+  const cardVtName = "rte-card";
+  const backdropVtName = "rte-backdrop";
+
+  // Toggle fullscreen using the View Transitions API when available so the
+  // browser morphs the card from its inline position to the full-viewport
+  // overlay (and back) by measuring before/after bounding boxes itself —
+  // far smoother than any hand-rolled FLIP. Falls back to a plain state
+  // toggle on browsers without support (Safari < 18 mid-2026).
+  const toggleFullscreen = () => {
+    type DocWithVT = Document & {
+      startViewTransition?: (cb: () => void) => unknown;
+    };
+    const doc = document as DocWithVT;
+    if (typeof doc.startViewTransition === "function") {
+      doc.startViewTransition(() => {
+        setFullscreen((v) => !v);
+      });
+    } else {
+      setFullscreen((v) => !v);
+    }
+  };
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -179,7 +204,7 @@ export default function RichTextEditor({
         <Toolbar
           editor={editor}
           isFullscreen={isFullscreen}
-          onToggleFullscreen={() => setFullscreen((v) => !v)}
+          onToggleFullscreen={toggleFullscreen}
           onAi={(action) => {
             if (action === "custom") setCustomMode((v) => !v);
             else void runAi(action);
@@ -244,14 +269,21 @@ export default function RichTextEditor({
   if (isFullscreen) {
     // Portal-mounted into document.body so the parent modal's `transform`
     // (from its enter animation) can't reframe `position: fixed`. The
-    // backdrop has a soft satin gradient + heavy blur for depth; the
-    // card itself is constrained to ~A4 width (820 px) so reading lines
-    // stay short and comfortable.
+    // backdrop has a soft satin gradient; the card itself is constrained
+    // to ~A4 width (820 px). The shared `view-transition-name` on the
+    // card lets the browser morph it from its inline position to here
+    // (and back) — see CSS in styles.css.
     return createPortal(
       <div className="fixed inset-0 z-[60] fullscreen-shell">
-        <div className="absolute inset-0 fullscreen-shell-enter" />
+        <div
+          className="absolute inset-0 fullscreen-shell-enter"
+          style={{ viewTransitionName: backdropVtName }}
+        />
         <div className="absolute inset-0 flex items-stretch justify-center px-4 py-[6vh]">
-          <div className="flex h-full w-full max-w-[820px] flex-col gap-2 fullscreen-card-enter">
+          <div
+            className="flex h-full w-full max-w-[820px] flex-col gap-2"
+            style={{ viewTransitionName: cardVtName }}
+          >
             {editorBlock}
           </div>
         </div>
@@ -260,7 +292,14 @@ export default function RichTextEditor({
     );
   }
 
-  return <div className="flex flex-col gap-2">{editorBlock}</div>;
+  return (
+    <div
+      className="flex flex-col gap-2"
+      style={{ viewTransitionName: cardVtName }}
+    >
+      {editorBlock}
+    </div>
+  );
 }
 
 function AiSkeleton({ action }: { action: "expand" | "shorten" | "custom" }) {
