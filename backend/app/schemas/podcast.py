@@ -12,6 +12,9 @@ class PlaylistCreate(BaseModel):
 class PlaylistUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=160)
     description: str | None = None
+    draft_title: str | None = None
+    draft_narrative_text: str | None = None
+    draft_target_minutes: int | None = None
 
 
 class PlaylistCardOut(BaseModel):
@@ -40,15 +43,23 @@ class PlaylistOut(BaseModel):
     description: str | None
     created_at: datetime
     card_count: int
+    has_draft: bool = False
 
 
 class PlaylistDetail(PlaylistOut):
     cards: list[PlaylistCardOut]
     episodes: list[EpisodeOut]
+    draft_title: str | None = None
+    draft_narrative_text: str | None = None
+    draft_target_minutes: int | None = None
 
 
 class AddCardRequest(BaseModel):
     card_id: UUID
+
+
+class AddCardsBulkRequest(BaseModel):
+    card_ids: list[UUID]
 
 
 class ReorderRequest(BaseModel):

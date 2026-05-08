@@ -30,6 +30,7 @@ from app.models.podcast import (
 from app.models.user import User
 from app.schemas.podcast import (
     AddCardRequest,
+    AddCardsBulkRequest,
     DraftRequest,
     DraftResponse,
     EpisodeOut,
@@ -128,6 +129,7 @@ def list_playlists(
             description=p.description,
             created_at=p.created_at,
             card_count=_card_count(db, p.id),
+            has_draft=bool(p.draft_narrative_text),
         )
         for p in rows
     ]
@@ -151,6 +153,7 @@ def create_playlist(
         description=pl.description,
         created_at=pl.created_at,
         card_count=0,
+        has_draft=False,
     )
 
 
@@ -188,8 +191,12 @@ def get_playlist(
         description=pl.description,
         created_at=pl.created_at,
         card_count=len(cards),
+        has_draft=bool(pl.draft_narrative_text),
         cards=cards,
         episodes=[_episode_to_out(e) for e in eps],
+        draft_title=pl.draft_title,
+        draft_narrative_text=pl.draft_narrative_text,
+        draft_target_minutes=pl.draft_target_minutes,
     )
 
 
@@ -205,6 +212,12 @@ def update_playlist(
         pl.name = payload.name.strip()
     if payload.description is not None:
         pl.description = payload.description
+    if payload.draft_title is not None:
+        pl.draft_title = payload.draft_title or None
+    if payload.draft_narrative_text is not None:
+        pl.draft_narrative_text = payload.draft_narrative_text or None
+    if payload.draft_target_minutes is not None:
+        pl.draft_target_minutes = payload.draft_target_minutes
     db.commit()
     db.refresh(pl)
     return PlaylistOut(
@@ -213,6 +226,7 @@ def update_playlist(
         description=pl.description,
         created_at=pl.created_at,
         card_count=_card_count(db, pl.id),
+        has_draft=bool(pl.draft_narrative_text),
     )
 
 
@@ -261,6 +275,57 @@ def add_card_to_playlist(
             )
         )
         db.commit()
+    return get_playlist(playlist_id, current_user, db)
+
+
+@router.post(
+    "/playlists/{playlist_id}/cards/bulk",
+    response_model=PlaylistDetail,
+)
+def add_cards_bulk(
+    playlist_id: UUID,
+    payload: AddCardsBulkRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PlaylistDetail:
+    pl = _load_playlist(db, playlist_id, current_user)
+    if not payload.card_ids:
+        return get_playlist(playlist_id, current_user, db)
+
+    # Validate every card belongs to this user.
+    owned_ids = set(
+        db.execute(
+            select(Card.id).where(
+                Card.id.in_(payload.card_ids), Card.user_id == current_user.id
+            )
+        ).scalars().all()
+    )
+
+    existing_ids = set(
+        db.execute(
+            select(PodcastPlaylistCard.card_id).where(
+                PodcastPlaylistCard.playlist_id == pl.id
+            )
+        ).scalars().all()
+    )
+
+    max_pos = db.execute(
+        select(PodcastPlaylistCard.position)
+        .where(PodcastPlaylistCard.playlist_id == pl.id)
+        .order_by(PodcastPlaylistCard.position.desc())
+        .limit(1)
+    ).scalar_one_or_none() or 0
+
+    next_pos = max_pos
+    for cid in payload.card_ids:
+        if cid not in owned_ids or cid in existing_ids:
+            continue
+        next_pos += 1
+        db.add(
+            PodcastPlaylistCard(playlist_id=pl.id, card_id=cid, position=next_pos)
+        )
+        existing_ids.add(cid)
+    db.commit()
     return get_playlist(playlist_id, current_user, db)
 
 
@@ -349,6 +414,14 @@ def episode_draft(
         title, narrative = generate_episode_draft(sources, target_minutes=payload.target_minutes)
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # Persist the draft on the playlist so the user doesn't lose work
+    # if they navigate away before producing the episode.
+    pl.draft_title = title
+    pl.draft_narrative_text = narrative
+    pl.draft_target_minutes = payload.target_minutes
+    db.commit()
+
     return DraftResponse(title=title, narrative_text=narrative)
 
 
@@ -411,6 +484,10 @@ def produce_episode(
         cover_file_id=cover_file.id if cover_file else None,
     )
     db.add(ep)
+    # Episode is locked in — clear the in-progress draft on this playlist.
+    pl.draft_title = None
+    pl.draft_narrative_text = None
+    pl.draft_target_minutes = None
     db.commit()
     db.refresh(ep)
     return _episode_to_out(ep)

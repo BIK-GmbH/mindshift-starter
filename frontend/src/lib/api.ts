@@ -371,7 +371,16 @@ export const api = {
     }),
   getPlaylist: (id: string) =>
     request<PodcastPlaylistDetail>(`/api/podcasts/playlists/${id}`),
-  updatePlaylist: (id: string, body: { name?: string; description?: string }) =>
+  updatePlaylist: (
+    id: string,
+    body: {
+      name?: string;
+      description?: string;
+      draft_title?: string | null;
+      draft_narrative_text?: string | null;
+      draft_target_minutes?: number | null;
+    },
+  ) =>
     request<PodcastPlaylistOut>(`/api/podcasts/playlists/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
@@ -382,6 +391,11 @@ export const api = {
     request<PodcastPlaylistDetail>(`/api/podcasts/playlists/${id}/cards`, {
       method: "POST",
       body: JSON.stringify({ card_id: cardId }),
+    }),
+  addPlaylistCardsBulk: (id: string, cardIds: string[]) =>
+    request<PodcastPlaylistDetail>(`/api/podcasts/playlists/${id}/cards/bulk`, {
+      method: "POST",
+      body: JSON.stringify({ card_ids: cardIds }),
     }),
   removePlaylistCard: (id: string, cardId: string) =>
     request<PodcastPlaylistDetail>(
@@ -739,6 +753,7 @@ export interface PodcastPlaylistOut {
   description: string | null;
   created_at: string;
   card_count: number;
+  has_draft: boolean;
 }
 
 export interface PodcastEpisodeOut {
@@ -764,6 +779,9 @@ export interface PodcastPlaylistCardOut {
 export interface PodcastPlaylistDetail extends PodcastPlaylistOut {
   cards: PodcastPlaylistCardOut[];
   episodes: PodcastEpisodeOut[];
+  draft_title: string | null;
+  draft_narrative_text: string | null;
+  draft_target_minutes: number | null;
 }
 
 export interface CardAudioOut {

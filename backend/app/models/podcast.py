@@ -31,6 +31,9 @@ class PodcastPlaylist(Base):
     )
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    draft_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    draft_narrative_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    draft_target_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

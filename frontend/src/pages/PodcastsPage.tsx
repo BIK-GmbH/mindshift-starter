@@ -1,12 +1,12 @@
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   Disc3,
   Headphones,
   Image as ImageIcon,
   Loader2,
   Plus,
-  RefreshCw,
   Sparkles,
   Trash2,
   X,
@@ -217,7 +217,13 @@ function PlaylistSidebar({
                 >
                   <span className="flex w-full items-center gap-1.5 truncate font-medium">
                     <Headphones className="h-3 w-3 flex-shrink-0 text-ink-400" />
-                    {p.name}
+                    <span className="flex-1 truncate">{p.name}</span>
+                    {p.has_draft && (
+                      <span
+                        title={t("podcastPage.hasDraftTooltip", { defaultValue: "Has unfinished draft" }) ?? ""}
+                        className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400"
+                      />
+                    )}
                   </span>
                   <span className="text-[10px] text-ink-500">
                     {p.card_count}{" "}
@@ -269,15 +275,71 @@ function PlaylistDetailView({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
   const [produceBusy, setProduceBusy] = useState(false);
-  const [draftTitle, setDraftTitle] = useState("");
-  const [draftText, setDraftText] = useState("");
+  // Hydrate from server-persisted draft so navigating away doesn't lose
+  // the script. The detail prop changes when the user switches playlists,
+  // so this useState's initializer would NOT re-run; we sync via effect.
+  const [draftTitle, setDraftTitle] = useState(detail.draft_title ?? "");
+  const [draftText, setDraftText] = useState(detail.draft_narrative_text ?? "");
   const [voice, setVoice] = useState("Kore");
   const [generateCover, setGenerateCover] = useState(true);
-  const [targetMinutes, setTargetMinutes] = useState(5);
+  const [targetMinutes, setTargetMinutes] = useState(detail.draft_target_minutes ?? 5);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const lastSavedRef = useRef<{ title: string; text: string } | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
 
-  const wipeDraft = () => {
+  // When the active playlist changes, replace the in-memory editor state
+  // with that playlist's persisted draft.
+  useEffect(() => {
+    setDraftTitle(detail.draft_title ?? "");
+    setDraftText(detail.draft_narrative_text ?? "");
+    setTargetMinutes(detail.draft_target_minutes ?? 5);
+    lastSavedRef.current = {
+      title: detail.draft_title ?? "",
+      text: detail.draft_narrative_text ?? "",
+    };
+  }, [detail.id, detail.draft_title, detail.draft_narrative_text, detail.draft_target_minutes]);
+
+  // Debounced auto-save: 1 s after the user stops typing, push the draft
+  // to the server. Skip if nothing actually changed.
+  useEffect(() => {
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    if (!draftText && !draftTitle) return;
+    const last = lastSavedRef.current;
+    if (last && last.title === draftTitle && last.text === draftText) return;
+
+    saveTimerRef.current = window.setTimeout(() => {
+      setDraftSaving(true);
+      api
+        .updatePlaylist(detail.id, {
+          draft_title: draftTitle,
+          draft_narrative_text: draftText,
+          draft_target_minutes: targetMinutes,
+        })
+        .then(() => {
+          lastSavedRef.current = { title: draftTitle, text: draftText };
+        })
+        .catch((err) => onError((err as Error).message))
+        .finally(() => setDraftSaving(false));
+    }, 1000);
+    return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftTitle, draftText, targetMinutes, detail.id]);
+
+  const wipeDraft = async () => {
     setDraftTitle("");
     setDraftText("");
+    lastSavedRef.current = { title: "", text: "" };
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    try {
+      await api.updatePlaylist(detail.id, {
+        draft_title: "",
+        draft_narrative_text: "",
+      });
+    } catch (err) {
+      onError((err as Error).message);
+    }
   };
 
   const remove = async () => {
@@ -341,10 +403,12 @@ function PlaylistDetailView({
         voice,
         generate_cover: generateCover,
       });
-      // refresh
+      // Backend already cleared the draft on success. Refresh + sync local.
       const updated = await api.getPlaylist(detail.id);
       onChange(updated);
-      wipeDraft();
+      setDraftTitle("");
+      setDraftText("");
+      lastSavedRef.current = { title: "", text: "" };
     } catch (err) {
       onError((err as Error).message);
     } finally {
@@ -494,13 +558,25 @@ function PlaylistDetailView({
 
         {draftText && (
           <div className="space-y-3">
-            <input
-              type="text"
-              value={draftTitle}
-              onChange={(e) => setDraftTitle(e.target.value)}
-              placeholder={t("podcastPage.episodeTitle", { defaultValue: "Episode title" }) ?? ""}
-              className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-sm font-medium text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none"
-            />
+            <div className="flex items-center justify-between gap-2">
+              <input
+                type="text"
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+                placeholder={t("podcastPage.episodeTitle", { defaultValue: "Episode title" }) ?? ""}
+                className="flex-1 rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 text-sm font-medium text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none"
+              />
+              <span className="flex items-center gap-1 text-[10px] text-ink-500">
+                {draftSaving ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {t("podcastPage.savingDraft", { defaultValue: "Saving…" })}
+                  </>
+                ) : (
+                  t("podcastPage.draftSaved", { defaultValue: "Draft saved" })
+                )}
+              </span>
+            </div>
             <RichTextEditor
               markdown={draftText}
               onChange={setDraftText}
@@ -535,11 +611,12 @@ function PlaylistDetailView({
               <div className="ml-auto flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={wipeDraft}
+                  onClick={() => void wipeDraft()}
                   disabled={produceBusy}
+                  title={t("podcastPage.discardDraftTitle", { defaultValue: "Discard draft" }) ?? ""}
                   className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-2 py-1.5 text-[11px] text-ink-300 transition hover:bg-ink-800"
                 >
-                  {t("common.cancel")}
+                  {t("podcastPage.discardDraft", { defaultValue: "Discard draft" })}
                 </button>
                 <button
                   type="button"
@@ -598,9 +675,10 @@ function PlaylistDetailView({
       {pickerOpen && (
         <CardPickerModal
           excludeIds={detail.cards.map((c) => c.card_id)}
-          onPick={async (cardId) => {
+          onPickMany={async (cardIds) => {
+            if (cardIds.length === 0) return;
             try {
-              const updated = await api.addPlaylistCard(detail.id, cardId);
+              const updated = await api.addPlaylistCardsBulk(detail.id, cardIds);
               onChange(updated);
             } catch (err) {
               onError((err as Error).message);
@@ -700,33 +778,57 @@ function EpisodeCard({
 
 function CardPickerModal({
   excludeIds,
-  onPick,
+  onPickMany,
   onClose,
 }: {
   excludeIds: string[];
-  onPick: (cardId: string) => void;
+  onPickMany: (cardIds: string[]) => void | Promise<void>;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
   const [cards, setCards] = useState<CardListItem[] | null>(null);
   const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     void api.listCards({ status: "completed" }).then(setCards);
   }, []);
 
-  const exclude = useMemo(() => new Set(excludeIds), [excludeIds]);
+  const alreadyIn = useMemo(() => new Set(excludeIds), [excludeIds]);
+  // Show ALL completed cards. Already-in-playlist ones render disabled
+  // with a "in playlist" pill so the user can see them but can't pick.
   const filtered = (cards ?? []).filter(
     (c) =>
-      !exclude.has(c.id) &&
-      (query.trim().length === 0 || c.title.toLowerCase().includes(query.toLowerCase())),
+      query.trim().length === 0 || c.title.toLowerCase().includes(query.toLowerCase()),
   );
+
+  const toggle = (id: string) => {
+    if (alreadyIn.has(id)) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const submit = async () => {
+    if (selected.size === 0 || submitting) return;
+    setSubmitting(true);
+    try {
+      await onPickMany(Array.from(selected));
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[10vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[8vh]"
     >
       <button
         type="button"
@@ -734,10 +836,10 @@ function CardPickerModal({
         onClick={onClose}
         className="absolute inset-0 bg-ink-900/40 backdrop-blur-md"
       />
-      <div className="relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated">
+      <div className="relative flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated">
         <div className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
           <h3 className="text-sm font-semibold text-ink-100">
-            {t("podcastPage.pickCard", { defaultValue: "Add a card to the playlist" })}
+            {t("podcastPage.pickCards", { defaultValue: "Add cards to the playlist" })}
           </h3>
           <button
             type="button"
@@ -765,36 +867,93 @@ function CardPickerModal({
             </p>
           ) : filtered.length === 0 ? (
             <p className="p-6 text-center text-xs text-ink-500">
-              {t("podcastPage.noMoreCards", { defaultValue: "No cards left to add." })}
+              {t("podcastPage.noMoreCards", { defaultValue: "No cards match." })}
             </p>
           ) : (
-            <ul>
-              {filtered.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onPick(c.id);
-                      onClose();
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2 text-left transition hover:bg-ink-700/40"
-                  >
-                    {c.thumbnail_url ? (
-                      <img
-                        src={c.thumbnail_url}
-                        alt=""
-                        className="h-9 w-14 flex-shrink-0 rounded-sm object-cover"
-                      />
-                    ) : (
-                      <div className="h-9 w-14 flex-shrink-0 rounded-sm bg-ink-900" />
-                    )}
-                    <span className="flex-1 truncate text-xs text-ink-200">{c.title}</span>
-                    <RefreshCw className="hidden h-3 w-3 text-ink-500" />
-                  </button>
-                </li>
-              ))}
+            <ul className="divide-y divide-ink-800">
+              {filtered.map((c) => {
+                const isIn = alreadyIn.has(c.id);
+                const isSel = selected.has(c.id);
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggle(c.id)}
+                      disabled={isIn}
+                      aria-pressed={isSel}
+                      className={[
+                        "flex w-full items-center gap-3 px-4 py-2 text-left transition",
+                        isIn
+                          ? "cursor-not-allowed opacity-50"
+                          : isSel
+                            ? "bg-emerald-500/10 ring-inset ring-1 ring-emerald-500/40"
+                            : "hover:bg-ink-700/40",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition",
+                          isIn
+                            ? "border-ink-600 bg-ink-700/40 text-ink-500"
+                            : isSel
+                              ? "border-emerald-400 bg-emerald-400 text-ink-900"
+                              : "border-ink-600 bg-transparent text-transparent",
+                        ].join(" ")}
+                      >
+                        {(isIn || isSel) && <Check className="h-3 w-3" />}
+                      </span>
+                      {c.thumbnail_url ? (
+                        <img
+                          src={c.thumbnail_url}
+                          alt=""
+                          className="h-9 w-14 flex-shrink-0 rounded-sm object-cover"
+                        />
+                      ) : (
+                        <div className="h-9 w-14 flex-shrink-0 rounded-sm bg-ink-900" />
+                      )}
+                      <span className="flex-1 truncate text-xs text-ink-200">
+                        {c.title}
+                      </span>
+                      {isIn && (
+                        <span className="rounded-full bg-ink-700/70 px-2 py-0.5 text-[10px] text-ink-400 ring-1 ring-ink-600">
+                          {t("podcastPage.alreadyIn", { defaultValue: "in playlist" })}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t border-ink-700 bg-ink-900/40 px-4 py-3">
+          <span className="text-[11px] text-ink-400">
+            {t("podcastPage.selectedCount", {
+              defaultValue: "{{count}} selected",
+              count: selected.size,
+            })}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition hover:bg-ink-800"
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={selected.size === 0 || submitting}
+              className="inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+            >
+              {submitting && <Loader2 className="h-3 w-3 animate-spin" />}
+              {t("podcastPage.addSelected", {
+                defaultValue: "Add {{count}}",
+                count: selected.size,
+              })}
+            </button>
+          </div>
         </div>
       </div>
     </div>
