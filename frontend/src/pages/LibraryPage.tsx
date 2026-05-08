@@ -379,7 +379,7 @@ export default function LibraryPage() {
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto">
+      <div data-scroll-stable className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl px-8 pb-12 pt-6">
           {error && (
             <p className="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">

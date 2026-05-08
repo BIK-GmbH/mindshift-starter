@@ -40,12 +40,13 @@
     height: 100%;
   }
 
-  /* Reserve space for the scrollbar so scrollable areas don't shift
-     content sideways the moment the bar appears. Applies everywhere
-     scrolling can happen — overridden per-element only if necessary. */
-  *,
-  *::before,
-  *::after {
+  /* Reserve space for the scrollbar on actual scroll containers
+     (anything with overflow-y auto/scroll). Browsers paint the
+     gutter regardless of whether the bar is currently visible, so
+     content doesn't jump sideways the moment overflow kicks in. */
+  html,
+  body,
+  [data-scroll-stable] {
     scrollbar-gutter: stable;
   }
 
