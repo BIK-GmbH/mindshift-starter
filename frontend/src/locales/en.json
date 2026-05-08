@@ -168,7 +168,9 @@
       "dark": "Dark",
       "light": "Light",
       "system": "System",
-      "language": "Language"
+      "language": "Language",
+      "sounds": "UI sounds",
+      "soundsBody": "Subtle ticks on navigation, buttons and quiz answers."
     }
   },
   "graph": {

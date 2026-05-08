@@ -12,6 +12,7 @@ import {
   type ReviewStats,
   type SessionDetail,
 } from "../lib/api";
+import { playSound } from "../lib/sounds";
 
 const RATINGS: { id: ReviewRating; classes: string; hint: string }[] = [
   {
@@ -774,6 +775,7 @@ function ChoiceGrid({
     if (picked || submitting) return;
     setPicked(choice);
     const correct = choice === item.answer;
+    playSound(correct ? "success" : "error");
     // Map MC outcome onto the spaced-repetition rating system. The user
     // can still re-rate via keyboard if they want finer control later.
     window.setTimeout(() => onRate(correct ? "good" : "again"), 700);

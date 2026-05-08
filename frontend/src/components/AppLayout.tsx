@@ -6,6 +6,7 @@ import GlobalSearchModal from "./GlobalSearchModal";
 import RailFooterButtons from "./RailFooterButtons";
 import SettingsModal from "./SettingsModal";
 import { useSearchModal } from "../lib/SearchModalContext";
+import { playSound } from "../lib/sounds";
 
 const railItems = [
   { to: "/", labelKey: "nav.library", Icon: Library, end: true },
@@ -38,6 +39,7 @@ export default function AppLayout() {
               to={to}
               end={end}
               title={t(labelKey)}
+              onClick={() => playSound("tick")}
               className={({ isActive }) =>
                 [
                   "group relative flex h-9 w-9 items-center justify-center rounded-xl transition",
@@ -61,7 +63,10 @@ export default function AppLayout() {
           {/* Search trigger — opens the global cmd+K modal */}
           <button
             type="button"
-            onClick={openSearch}
+            onClick={() => {
+              playSound("tick");
+              openSearch();
+            }}
             title={`${t("nav.search")}  ⌘K`}
             className="group relative flex h-9 w-9 items-center justify-center rounded-xl text-ink-400 transition hover:bg-ink-800/60 hover:text-ink-100"
           >

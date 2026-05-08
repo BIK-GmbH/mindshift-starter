@@ -30,6 +30,7 @@ import {
   type GraphView,
   type TagWithCount,
 } from "../lib/api";
+import { playSound } from "../lib/sounds";
 import { type ColorMode, SOURCE_COLORS, nodeColor } from "../lib/graphColors";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -407,6 +408,7 @@ export default function GraphPage() {
           <button
             type="button"
             onClick={() => {
+              playSound("click");
               setPresetNaming(true);
               setPresetName("");
             }}

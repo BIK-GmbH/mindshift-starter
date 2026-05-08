@@ -168,7 +168,9 @@
       "dark": "Dunkel",
       "light": "Hell",
       "system": "System",
-      "language": "Sprache"
+      "language": "Sprache",
+      "sounds": "UI-Sounds",
+      "soundsBody": "Dezente Ticks bei Navigation, Buttons und Quiz-Antworten."
     }
   },
   "graph": {

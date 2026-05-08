@@ -23,6 +23,7 @@ import CardDetailContent from "../components/CardDetailContent";
 import ChatPanel from "../components/ChatPanel";
 import StatusBadge from "../components/StatusBadge";
 import TagsTree, { type TagsTreeHandle } from "../components/TagsTree";
+import { playSound } from "../lib/sounds";
 import { useSearchModal } from "../lib/SearchModalContext";
 import { api, type CardListItem } from "../lib/api";
 
@@ -286,7 +287,10 @@ export default function LibraryPage() {
           </div>
           <button
             type="button"
-            onClick={() => setModalOpen(true)}
+            onClick={() => {
+              playSound("click");
+              setModalOpen(true);
+            }}
             className="inline-flex flex-shrink-0 items-center gap-2 rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-900 shadow-sm transition hover:bg-ink-200"
           >
             <Plus className="h-4 w-4" />
@@ -541,7 +545,10 @@ function LibraryTagsSidebar() {
         </span>
         <button
           type="button"
-          onClick={() => tagsTreeRef.current?.createTag()}
+          onClick={() => {
+            playSound("click");
+            tagsTreeRef.current?.createTag();
+          }}
           title={t("tags.newTag") ?? ""}
           className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
         >

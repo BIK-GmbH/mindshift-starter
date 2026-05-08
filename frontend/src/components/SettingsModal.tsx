@@ -22,6 +22,7 @@ import {
   Sun,
   Trash2,
   UserRound,
+  Volume2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -32,6 +33,7 @@ import { useDialog } from "../lib/DialogContext";
 import { useSettingsModal } from "../lib/SettingsModalContext";
 import { useTheme } from "../lib/ThemeContext";
 import { api, type TagWithCount } from "../lib/api";
+import { getSoundsEnabled, playSound, setSoundsEnabled } from "../lib/sounds";
 
 type SettingsTab = "account" | "appearance" | "tags" | "extension" | "about";
 
@@ -428,6 +430,14 @@ function AppearanceTab() {
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useTheme();
   const current = i18n.resolvedLanguage ?? "en";
+  const [soundsOn, setSoundsOn] = useState<boolean>(() => getSoundsEnabled());
+
+  const toggleSounds = () => {
+    const next = !soundsOn;
+    setSoundsEnabled(next);
+    setSoundsOn(next);
+    if (next) playSound("click"); // immediate audible confirmation
+  };
 
   return (
     <section className="space-y-7">
@@ -488,6 +498,43 @@ function AppearanceTab() {
             );
           })}
         </div>
+      </div>
+
+      {/* UI sounds toggle */}
+      <div>
+        <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-400">
+          {t("settings.appearance.sounds", { defaultValue: "UI sounds" })}
+        </label>
+        <button
+          type="button"
+          onClick={toggleSounds}
+          className={[
+            "flex w-full items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm transition",
+            soundsOn
+              ? "border-ink-100 bg-ink-100/10 text-ink-100"
+              : "border-ink-700 bg-ink-900/40 text-ink-200 hover:border-ink-600",
+          ].join(" ")}
+        >
+          <span className="inline-flex items-center gap-2">
+            <Volume2 className="h-3.5 w-3.5" />
+            {t("settings.appearance.soundsBody", {
+              defaultValue: "Subtle ticks on nav, buttons and quiz answers.",
+            })}
+          </span>
+          <span
+            className={[
+              "h-4 w-7 rounded-full p-[2px] transition",
+              soundsOn ? "bg-ink-100" : "bg-ink-700",
+            ].join(" ")}
+          >
+            <span
+              className={[
+                "block h-3 w-3 rounded-full bg-ink-900 transition",
+                soundsOn ? "translate-x-3" : "translate-x-0",
+              ].join(" ")}
+            />
+          </span>
+        </button>
       </div>
     </section>
   );

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import ChatPanel from "../components/ChatPanel";
 import { useDialog } from "../lib/DialogContext";
 import { api, type ChatSessionDetail, type ChatSessionItem } from "../lib/api";
+import { playSound } from "../lib/sounds";
 
 export default function ChatPage() {
   const { t } = useTranslation();
@@ -103,7 +104,10 @@ export default function ChatPage() {
           </span>
           <button
             type="button"
-            onClick={startNew}
+            onClick={() => {
+              playSound("click");
+              startNew();
+            }}
             title={t("chat.history.newChat") ?? ""}
             className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
           >
