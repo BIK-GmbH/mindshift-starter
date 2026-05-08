@@ -26,6 +26,7 @@ import {
   useState,
   type FC,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from "react-arborist";
@@ -206,9 +207,18 @@ export interface TagsTreeHandle {
   createTag: () => void;
 }
 
+interface SharePopoverState {
+  rawId: string;
+  slugPath: string;
+  isPublic: boolean;
+  anchor: { left: number; top: number };
+}
+
 const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const [sharePopover, setSharePopover] = useState<SharePopoverState | null>(null);
+
   const publicUrlFor = (slugPath: string): string | null => {
     if (!user?.username) return null;
     if (typeof window === "undefined") return null;
@@ -596,17 +606,135 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
                 onPickUntagged={() => select(null, true)}
                 onTogglePublic={togglePublic}
                 publicUrlFor={publicUrlFor}
+                onShareClick={(rawId, slugPath, isPublic, anchor) =>
+                  setSharePopover({ rawId, slugPath, isPublic, anchor })
+                }
               />
             )}
           </Tree>
         )}
       </div>
 
+      {sharePopover && (
+        <TagSharePopover
+          state={sharePopover}
+          publicUrlFor={publicUrlFor}
+          onClose={() => setSharePopover(null)}
+          onTogglePublic={(rawId, next) => {
+            void togglePublic(rawId, next);
+            if (!next) setSharePopover(null);
+          }}
+        />
+      )}
     </div>
   );
 });
 
 export default TagsTree;
+
+function TagSharePopover({
+  state,
+  publicUrlFor,
+  onClose,
+  onTogglePublic,
+}: {
+  state: SharePopoverState;
+  publicUrlFor: (slug: string) => string | null;
+  onClose: () => void;
+  onTogglePublic: (rawId: string, next: boolean) => void;
+}) {
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (!popoverRef.current?.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  // Clamp anchor.left into viewport so popover never spills off-screen.
+  const POPOVER_W = 256;
+  const left = Math.max(8, Math.min(state.anchor.left, window.innerWidth - POPOVER_W - 8));
+  const top = Math.min(state.anchor.top, window.innerHeight - 120);
+  const url = publicUrlFor(state.slugPath);
+
+  return createPortal(
+    <div
+      ref={popoverRef}
+      style={{ position: "fixed", left, top, width: POPOVER_W }}
+      className="panel-elevated z-[80] rounded-md border border-ink-700 bg-ink-900 p-2 shadow-xl"
+    >
+      {!url ? (
+        <p className="px-1 py-1 text-[10px] text-ink-400">
+          Set a username + enable public profile in Settings → Account first.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              readOnly
+              value={url}
+              autoFocus
+              onFocus={(e) => e.currentTarget.select()}
+              className="flex-1 rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1 font-mono text-[10px] text-ink-200 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(url);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1500);
+                } catch {
+                  /* ignore */
+                }
+              }}
+              title="Copy"
+              className={[
+                "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border transition",
+                copied
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                  : "border-ink-700 text-ink-300 hover:bg-ink-800",
+              ].join(" ")}
+            >
+              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            </button>
+          </div>
+          <div className="flex items-center gap-1">
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] text-ink-200 transition hover:bg-ink-800"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Open
+            </a>
+            <button
+              type="button"
+              onClick={() => onTogglePublic(state.rawId, false)}
+              className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
+            >
+              <EyeOff className="h-3 w-3" />
+              Make private
+            </button>
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
 
 /* ----------------------------------------------------------------------------
  * Node renderer
@@ -627,6 +755,12 @@ interface NodeExtras {
   onPickUntagged: () => void;
   onTogglePublic: (rawId: string, next: boolean) => void;
   publicUrlFor: (slugPath: string) => string | null;
+  onShareClick: (
+    rawId: string,
+    slugPath: string,
+    isPublic: boolean,
+    anchor: { left: number; top: number },
+  ) => void;
 }
 
 function TreeNode({
@@ -646,25 +780,13 @@ function TreeNode({
   onPickCard,
   onPickUntagged,
   onTogglePublic,
-  publicUrlFor,
+  publicUrlFor: _publicUrlFor, // unused now — popover lives in parent
+  onShareClick,
 }: NodeRendererProps<TreeItem> & NodeExtras) {
   const item = node.data;
   const isInternal = node.isInternal;
   const isOpen = node.isOpen;
   const willReceiveDrop = node.willReceiveDrop;
-  const [sharePopoverOpen, setSharePopoverOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!sharePopoverOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (!popoverRef.current?.contains(e.target as Node)) {
-        setSharePopoverOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [sharePopoverOpen]);
 
   if (item.kind === "card") {
     const Icon = SOURCE_ICONS[item.sourceType] ?? Type;
@@ -782,106 +904,32 @@ function TreeNode({
         <Hash className="h-3 w-3 flex-shrink-0 text-ink-500" />
         <span className="flex-1 truncate">{item.name}</span>
 
-        <div className="relative flex-shrink-0">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!item.isPublic) onTogglePublic(item.rawId, true);
-              setSharePopoverOpen((v) => !v);
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className={[
-              "flex h-5 w-5 items-center justify-center rounded transition",
-              item.isPublic
-                ? "text-emerald-400 opacity-100 hover:bg-emerald-500/10"
-                : "text-ink-500 opacity-0 hover:bg-ink-700 hover:text-ink-100 group-hover:opacity-100",
-            ].join(" ")}
-            title={
-              item.isPublic
-                ? "Public — share menu"
-                : "Click to make this tag (and its sub-tree) public"
-            }
-          >
-            <Globe className="h-3 w-3" />
-          </button>
-
-          {sharePopoverOpen && (
-            <div
-              ref={popoverRef}
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="panel-elevated absolute right-0 top-[calc(100%+4px)] z-30 w-64 rounded-md border border-ink-700 bg-ink-900 p-2 shadow-xl"
-            >
-              {(() => {
-                const url = publicUrlFor(item.slugPath);
-                if (!url) {
-                  return (
-                    <p className="px-1 py-1 text-[10px] text-ink-400">
-                      Set a username + enable public profile in Settings → Account first.
-                    </p>
-                  );
-                }
-                return (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="text"
-                        readOnly
-                        value={url}
-                        onFocus={(e) => e.currentTarget.select()}
-                        className="flex-1 rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1 font-mono text-[10px] text-ink-200 focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(url);
-                            setCopied(true);
-                            window.setTimeout(() => setCopied(false), 1500);
-                          } catch {
-                            /* ignore */
-                          }
-                        }}
-                        title="Copy"
-                        className={[
-                          "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border transition",
-                          copied
-                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                            : "border-ink-700 text-ink-300 hover:bg-ink-800",
-                        ].join(" ")}
-                      >
-                        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] text-ink-200 transition hover:bg-ink-800"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Open
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onTogglePublic(item.rawId, false);
-                          setSharePopoverOpen(false);
-                        }}
-                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
-                      >
-                        <EyeOff className="h-3 w-3" />
-                        Make private
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!item.isPublic) onTogglePublic(item.rawId, true);
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            onShareClick(item.rawId, item.slugPath, !item.isPublic ? true : item.isPublic, {
+              left: rect.right - 256, // align right edge of popover to right of button
+              top: rect.bottom + 4,
+            });
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className={[
+            "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded transition",
+            item.isPublic
+              ? "text-emerald-400 opacity-100 hover:bg-emerald-500/10"
+              : "text-ink-500 opacity-0 hover:bg-ink-700 hover:text-ink-100 group-hover:opacity-100",
+          ].join(" ")}
+          title={
+            item.isPublic
+              ? "Public — share menu"
+              : "Click to make this tag (and its sub-tree) public"
+          }
+        >
+          <Globe className="h-3 w-3" />
+        </button>
 
         <button
           type="button"
