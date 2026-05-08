@@ -328,7 +328,7 @@ export default function GraphPage() {
   return (
     <div className="flex h-full">
       {/* Context sidebar — Recall-style graph settings */}
-      <aside className="hidden md:flex w-72 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
+      <aside className="panel-elevated hidden md:flex w-72 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
         <div className="flex-shrink-0 border-b border-ink-800 px-4 py-3">
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
             {t("graph.settingsHeading")}

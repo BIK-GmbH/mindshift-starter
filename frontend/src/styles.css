@@ -301,23 +301,66 @@
     }
   }
 
-  /* Card hover lift — replaces the sharp shadow with something softer. */
+  /* Card hover lift — replaces the sharp shadow with something softer.
+     Adds a subtle resting elevation so cards have depth at rest, then
+     lifts on hover. Theme-aware:
+     - Dark mode  → faint white top-highlight + dark drop-shadow
+     - Light mode → no highlight, classic soft black drop-shadow */
   .card-hover {
     transition:
       transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1),
       border-color 180ms,
       box-shadow 220ms;
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 0.04) inset,
+      0 1px 2px rgb(0 0 0 / 0.25),
+      0 4px 10px -6px rgb(0 0 0 / 0.4);
+  }
+  :root.light .card-hover {
+    box-shadow:
+      0 1px 1px rgb(15 23 42 / 0.04),
+      0 2px 6px -2px rgb(15 23 42 / 0.08);
   }
   .card-hover:hover {
     transform: translateY(-2px);
     box-shadow:
-      0 1px 0 rgb(var(--ink-100) / 0.04),
-      0 12px 24px -10px rgb(0 0 0 / 0.4);
+      0 1px 0 rgb(255 255 255 / 0.07) inset,
+      0 2px 4px rgb(0 0 0 / 0.3),
+      0 14px 28px -10px rgb(0 0 0 / 0.55);
   }
   :root.light .card-hover:hover {
     box-shadow:
-      0 1px 0 rgb(var(--ink-100) / 0.06),
-      0 16px 32px -14px rgb(15 23 42 / 0.18);
+      0 1px 2px rgb(15 23 42 / 0.06),
+      0 16px 32px -10px rgb(15 23 42 / 0.18);
+  }
+
+  /* Side panels (tags sidebar, chat history, graph settings).
+     Dark mode picks up a faint inner highlight at the top edge so the
+     panel reads as a slightly raised surface against the page bg.
+     Light mode gets a tiny right-side drop-shadow so the panel casts
+     onto the content area. Both subtle — depth, not drama. */
+  .panel-elevated {
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 0.03) inset,
+      0 0 24px rgb(0 0 0 / 0.18);
+  }
+  :root.light .panel-elevated {
+    box-shadow:
+      1px 0 0 rgb(15 23 42 / 0.04),
+      4px 0 14px -8px rgb(15 23 42 / 0.08);
+  }
+
+  /* Right-side panel variant (chat pane in library). Mirror the
+     direction so the cast goes the OTHER way. */
+  .panel-elevated-right {
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 0.03) inset,
+      0 0 24px rgb(0 0 0 / 0.18);
+  }
+  :root.light .panel-elevated-right {
+    box-shadow:
+      -1px 0 0 rgb(15 23 42 / 0.04),
+      -4px 0 14px -8px rgb(15 23 42 / 0.08);
   }
 
   /* Drag-drop file dropzone state. */

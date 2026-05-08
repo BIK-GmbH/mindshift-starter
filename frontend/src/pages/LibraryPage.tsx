@@ -199,7 +199,7 @@ export default function LibraryPage() {
             />
           </div>
           {rightPaneOpen ? (
-            <aside className="pane-enter-right hidden lg:flex w-[40%] min-w-[360px] max-w-[640px] flex-col border-l border-ink-800 bg-ink-900/40">
+            <aside className="pane-enter-right panel-elevated-right hidden lg:flex w-[40%] min-w-[360px] max-w-[640px] flex-col border-l border-ink-800 bg-ink-900/40">
               <div className="flex items-center justify-between border-b border-ink-800 px-4 py-2.5">
                 <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
                   <MessageSquare className="h-3 w-3" />
@@ -534,7 +534,7 @@ function SelectPill({
 function LibraryTagsSidebar() {
   const { t } = useTranslation();
   return (
-    <aside className="hidden md:flex w-60 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
+    <aside className="panel-elevated hidden md:flex w-60 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
       <div className="flex items-center justify-between border-b border-ink-800 px-4 py-3">
         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
           {t("nav.tags")}
