@@ -32,6 +32,11 @@ class CardAudio(Base):
     )
     narrative_text: Mapped[str] = mapped_column(Text, nullable=False)
     voice: Mapped[str] = mapped_column(String(40), nullable=False, default="Kore")
+    # processing | ready | failed
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="ready", server_default="ready"
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

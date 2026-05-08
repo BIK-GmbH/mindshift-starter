@@ -16,6 +16,8 @@ interface Props {
 
 type Phase = "idle" | "loading" | "ready" | "generating" | "error";
 
+const POLL_MS = 4000;
+
 /**
  * Podcast section in card detail. Generation is opt-in (clicking the
  * Generate button) — the Gemini TTS call costs real money and takes
@@ -32,31 +34,45 @@ export default function CardPodcastPlayer({ cardId }: Props) {
   const [showTranscript, setShowTranscript] = useState(false);
   const blobUrlRef = useRef<string | null>(null);
 
-  // Initial fetch — does this card already have audio?
+  // Fetch + auto-poll while the backend is still synthesizing.
   useEffect(() => {
     let cancelled = false;
-    setPhase("loading");
-    setError(null);
-    api
-      .getCardAudio(cardId)
-      .then(async (meta) => {
+    let timer: number | null = null;
+
+    const tick = async () => {
+      try {
+        const meta = await api.getCardAudio(cardId);
         if (cancelled) return;
         setAudio(meta);
-        await loadBlob(cardId);
-        if (!cancelled) setPhase("ready");
-      })
-      .catch((err) => {
+        if (meta.status === "ready") {
+          await loadBlob(cardId);
+          if (!cancelled) setPhase("ready");
+        } else if (meta.status === "failed") {
+          setError(meta.error_message ?? "Generation failed");
+          setPhase("error");
+        } else {
+          // processing — keep polling
+          setPhase("generating");
+          timer = window.setTimeout(tick, POLL_MS);
+        }
+      } catch (err) {
         if (cancelled) return;
-        // 404 = no audio generated yet, that's fine
         if ((err as Error).message?.includes("404")) {
           setPhase("idle");
         } else {
           setError((err as Error).message);
           setPhase("error");
         }
-      });
+      }
+    };
+
+    setPhase("loading");
+    setError(null);
+    void tick();
+
     return () => {
       cancelled = true;
+      if (timer) window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId]);
@@ -91,10 +107,33 @@ export default function CardPodcastPlayer({ cardId }: Props) {
     setPhase("generating");
     setError(null);
     try {
+      // Backend returns 202 immediately with status=processing.
+      // The poll loop in the mount-effect picks up the work — but we
+      // need to re-arm it because that effect already ran. Force a
+      // re-fetch on the next tick.
       const meta = await api.generateCardAudio(cardId);
       setAudio(meta);
-      await loadBlob(cardId);
-      setPhase("ready");
+      // Kick polling: schedule a fetch via the same logic (we copy it
+      // here rather than refactoring the effect).
+      const poll = async () => {
+        try {
+          const m = await api.getCardAudio(cardId);
+          setAudio(m);
+          if (m.status === "ready") {
+            await loadBlob(cardId);
+            setPhase("ready");
+          } else if (m.status === "failed") {
+            setError(m.error_message ?? "Generation failed");
+            setPhase("error");
+          } else {
+            window.setTimeout(poll, POLL_MS);
+          }
+        } catch (err) {
+          setError((err as Error).message);
+          setPhase("error");
+        }
+      };
+      window.setTimeout(poll, POLL_MS);
     } catch (err) {
       setError((err as Error).message || "Generation failed");
       setPhase("error");

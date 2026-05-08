@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.models.card import Card
 from app.models.card_audio import CardAudio
 from app.models.file import File
@@ -35,10 +35,12 @@ def _to_out(audio: CardAudio) -> CardAudioOut:
     return CardAudioOut(
         id=audio.id,
         card_id=audio.card_id,
-        narrative_text=audio.narrative_text,
+        narrative_text=audio.narrative_text or "",
         voice=audio.voice,
+        status=audio.status,
+        error_message=audio.error_message,
         created_at=audio.created_at,
-        audio_url=_audio_url(audio.card_id),
+        audio_url=_audio_url(audio.card_id) if audio.status == "ready" else None,
     )
 
 
@@ -79,9 +81,60 @@ def get_card_audio(
     return _to_out(audio)
 
 
-@router.post("/{card_id}/audio", response_model=CardAudioOut, status_code=201)
+def _run_card_audio_job(
+    *,
+    card_audio_id: UUID,
+    user_id: UUID,
+    card_title: str,
+    source_text: str,
+    voice: str | None,
+) -> None:
+    """Background worker. Owns its own DB session. Updates status on
+    the CardAudio row when finished/failed."""
+    db = SessionLocal()
+    try:
+        audio = db.get(CardAudio, card_audio_id)
+        if audio is None:
+            return
+        try:
+            result = generate_card_podcast(
+                title=card_title or "Untitled",
+                source_text=source_text,
+                voice=voice,
+            )
+            storage = get_storage()
+            new_file = storage.save(
+                db,
+                user_id=user_id,
+                content=result.audio_wav_bytes,
+                original_filename=f"{audio.card_id}.wav",
+                content_type="audio/wav",
+                purpose="card_audio",
+            )
+            old_file = db.get(File, audio.file_id) if audio.file_id else None
+            audio.file_id = new_file.id
+            audio.narrative_text = result.narrative_text
+            audio.voice = result.voice
+            audio.status = "ready"
+            audio.error_message = None
+            if old_file is not None and old_file.id != new_file.id:
+                try:
+                    storage.delete(db, old_file)
+                except Exception:  # noqa: BLE001
+                    pass
+            db.commit()
+        except Exception as exc:  # noqa: BLE001
+            audio.status = "failed"
+            audio.error_message = str(exc)[:500]
+            db.commit()
+    finally:
+        db.close()
+
+
+@router.post("/{card_id}/audio", response_model=CardAudioOut, status_code=202)
 def create_card_audio(
     card_id: UUID,
+    background_tasks: BackgroundTasks,
     payload: GenerateAudioRequest = GenerateAudioRequest(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -94,52 +147,36 @@ def create_card_audio(
             detail="Card has too little text to narrate. Add a summary or notes first.",
         )
 
-    try:
-        result = generate_card_podcast(
-            title=card.title or "Untitled",
-            source_text=source_text,
-            voice=payload.voice,
-        )
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    storage = get_storage()
-    new_file = storage.save(
-        db,
-        user_id=current_user.id,
-        content=result.audio_wav_bytes,
-        original_filename=f"{card.id}.wav",
-        content_type="audio/wav",
-        purpose="card_audio",
-    )
-
-    # Replace any prior audio row + delete its file (storage dedupes by
-    # sha256 so deleting an unrelated row is safe — only the audio bytes
-    # for THIS card go away, regenerated text + new sha → new file).
+    # Upsert a row in "processing" state, returning immediately.
     existing = db.execute(
         select(CardAudio).where(CardAudio.card_id == card_id)
     ).scalar_one_or_none()
     if existing is not None:
-        old_file = db.get(File, existing.file_id) if existing.file_id else None
-        existing.file_id = new_file.id
-        existing.narrative_text = result.narrative_text
-        existing.voice = result.voice
-        if old_file is not None and old_file.id != new_file.id:
-            try:
-                storage.delete(db, old_file)
-            except Exception:  # noqa: BLE001
-                pass
+        existing.status = "processing"
+        existing.error_message = None
+        # Keep the previous file_id around so the old audio stays playable
+        # while the new one renders; the worker swaps it on success.
         audio = existing
     else:
         audio = CardAudio(
             card_id=card_id,
-            file_id=new_file.id,
-            narrative_text=result.narrative_text,
-            voice=result.voice,
+            file_id=None,
+            narrative_text="",
+            voice=payload.voice or "Kore",
+            status="processing",
         )
         db.add(audio)
     db.commit()
     db.refresh(audio)
+
+    background_tasks.add_task(
+        _run_card_audio_job,
+        card_audio_id=audio.id,
+        user_id=current_user.id,
+        card_title=card.title or "",
+        source_text=source_text,
+        voice=payload.voice,
+    )
     return _to_out(audio)
 
 

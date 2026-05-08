@@ -14,12 +14,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.models.card import Card
 from app.models.file import File
 from app.models.podcast import (
@@ -66,6 +66,8 @@ def _episode_to_out(ep: PodcastEpisode) -> EpisodeOut:
         playlist_id=ep.playlist_id,
         title=ep.title,
         voice=ep.voice,
+        status=ep.status,
+        error_message=ep.error_message,
         has_audio=ep.audio_file_id is not None,
         has_cover=ep.cover_file_id is not None,
         audio_url=_episode_audio_url(ep.id) if ep.audio_file_id else None,
@@ -425,71 +427,106 @@ def episode_draft(
     return DraftResponse(title=title, narrative_text=narrative)
 
 
+def _run_episode_job(
+    *,
+    episode_id: UUID,
+    user_id: UUID,
+    voice: str | None,
+    generate_cover: bool,
+    cover_prompt: str | None,
+) -> None:
+    """Background worker for episode synthesis. Owns its own DB session."""
+    db = SessionLocal()
+    try:
+        ep = db.get(PodcastEpisode, episode_id)
+        if ep is None:
+            return
+        try:
+            wav_bytes, used_voice = synthesize_episode_audio(
+                ep.narrative_text, voice=voice
+            )
+            storage = get_storage()
+            audio_file = storage.save(
+                db,
+                user_id=user_id,
+                content=wav_bytes,
+                original_filename=f"episode-{ep.playlist_id}.wav",
+                content_type="audio/wav",
+                purpose="podcast_episode_audio",
+            )
+            ep.audio_file_id = audio_file.id
+            ep.voice = used_voice
+
+            if generate_cover:
+                try:
+                    png_bytes = generate_cover_image(
+                        title=ep.title,
+                        summary_hint=ep.narrative_text[:500],
+                        custom_prompt=cover_prompt,
+                    )
+                    cover_file = storage.save(
+                        db,
+                        user_id=user_id,
+                        content=png_bytes,
+                        original_filename=f"episode-{ep.playlist_id}-cover.png",
+                        content_type="image/png",
+                        purpose="podcast_episode_cover",
+                    )
+                    ep.cover_file_id = cover_file.id
+                except Exception as exc:  # noqa: BLE001
+                    # Cover is best-effort. Audio still ships.
+                    print(f"Cover generation failed: {exc}")
+
+            ep.status = "ready"
+            ep.error_message = None
+            db.commit()
+        except Exception as exc:  # noqa: BLE001
+            ep.status = "failed"
+            ep.error_message = str(exc)[:500]
+            db.commit()
+    finally:
+        db.close()
+
+
 @router.post(
     "/playlists/{playlist_id}/episodes",
     response_model=EpisodeOut,
-    status_code=201,
+    status_code=202,
 )
 def produce_episode(
     playlist_id: UUID,
     payload: ProduceRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> EpisodeOut:
     pl = _load_playlist(db, playlist_id, current_user)
-    storage = get_storage()
 
-    try:
-        wav_bytes, voice = synthesize_episode_audio(
-            payload.narrative_text, voice=payload.voice
-        )
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=f"Audio synthesis failed: {exc}") from exc
-
-    audio_file = storage.save(
-        db,
-        user_id=current_user.id,
-        content=wav_bytes,
-        original_filename=f"episode-{pl.id}.wav",
-        content_type="audio/wav",
-        purpose="podcast_episode_audio",
-    )
-
-    cover_file = None
-    if payload.generate_cover:
-        try:
-            png_bytes = generate_cover_image(
-                title=payload.title,
-                summary_hint=payload.narrative_text[:500],
-                custom_prompt=payload.cover_prompt,
-            )
-            cover_file = storage.save(
-                db,
-                user_id=current_user.id,
-                content=png_bytes,
-                original_filename=f"episode-{pl.id}-cover.png",
-                content_type="image/png",
-                purpose="podcast_episode_cover",
-            )
-        except Exception as exc:  # noqa: BLE001
-            # Non-fatal: keep the audio, skip the cover.
-            print(f"Cover generation failed: {exc}")
-
+    # Insert the episode in "processing" state and return immediately.
+    # Audio + cover get filled in by the background worker.
     ep = PodcastEpisode(
         playlist_id=pl.id,
         title=payload.title.strip(),
         narrative_text=payload.narrative_text,
-        voice=voice,
-        audio_file_id=audio_file.id,
-        cover_file_id=cover_file.id if cover_file else None,
+        voice=payload.voice or "Kore",
+        status="processing",
     )
     db.add(ep)
-    # Episode is locked in — clear the in-progress draft on this playlist.
+    # Producing locks the script in — clear the editable draft.
     pl.draft_title = None
     pl.draft_narrative_text = None
     pl.draft_target_minutes = None
     db.commit()
     db.refresh(ep)
+
+    background_tasks.add_task(
+        _run_episode_job,
+        episode_id=ep.id,
+        user_id=current_user.id,
+        voice=payload.voice,
+        generate_cover=payload.generate_cover,
+        cover_prompt=payload.cover_prompt,
+    )
     return _episode_to_out(ep)
 
 

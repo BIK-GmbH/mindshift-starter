@@ -9,10 +9,11 @@ class CardAudioOut(BaseModel):
     card_id: UUID
     narrative_text: str
     voice: str
+    status: str  # processing | ready | failed
+    error_message: str | None = None
     created_at: datetime
-    # Relative URL pointing at the WAV stream endpoint. The frontend
-    # prepends API_BASE if needed.
-    audio_url: str
+    # Relative URL pointing at the WAV stream endpoint, only when ready.
+    audio_url: str | None = None
 
 
 class GenerateAudioRequest(BaseModel):

@@ -55,11 +55,27 @@ export default function PodcastsPage() {
       return;
     }
     let cancelled = false;
-    void api.getPlaylist(activeId).then((d) => {
-      if (!cancelled) setDetail(d);
-    });
+    let timer: number | null = null;
+
+    const fetchOnce = async () => {
+      try {
+        const d = await api.getPlaylist(activeId);
+        if (cancelled) return;
+        setDetail(d);
+        // Keep polling while any episode is still processing — backend
+        // does the synthesis async, frontend just watches the row.
+        const stillRunning = d.episodes.some((e) => e.status === "processing");
+        if (stillRunning) {
+          timer = window.setTimeout(fetchOnce, 4000);
+        }
+      } catch {
+        // ignore — next user action will refetch
+      }
+    };
+    void fetchOnce();
     return () => {
       cancelled = true;
+      if (timer) window.clearTimeout(timer);
     };
   }, [activeId]);
 
@@ -635,13 +651,12 @@ function PlaylistDetailView({
                 </button>
               </div>
             </div>
-            {produceBusy && (
-              <p className="text-[11px] text-ink-400">
-                {t("podcastPage.produceHint", {
-                  defaultValue: "Synthesizing audio + generating cover art. ~30–60 s.",
-                })}
-              </p>
-            )}
+            <p className="text-[11px] text-ink-400">
+              {t("podcastPage.produceHint", {
+                defaultValue:
+                  "Production runs in the background — feel free to leave the page; the episode will show up when ready.",
+              })}
+            </p>
           </div>
         )}
       </section>
@@ -735,13 +750,26 @@ function EpisodeCard({
     };
   }, [episode.id, episode.has_audio, episode.has_cover]);
 
+  const isProcessing = episode.status === "processing";
+  const isFailed = episode.status === "failed";
+
   return (
-    <div className="surface-soft flex gap-4 rounded-xl border border-ink-800 bg-ink-800/40 p-4">
-      <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-ink-900">
+    <div
+      className={[
+        "surface-soft flex gap-4 rounded-xl border bg-ink-800/40 p-4 transition",
+        isFailed ? "border-red-500/30" : "border-ink-800",
+      ].join(" ")}
+    >
+      <div className="relative flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-ink-900">
         {coverBlob ? (
           <img src={coverBlob} alt="" className="h-full w-full object-cover" />
         ) : (
           <ImageIcon className="h-6 w-6 text-ink-500" />
+        )}
+        {isProcessing && (
+          <div className="absolute inset-0 flex items-center justify-center bg-ink-900/60 backdrop-blur-sm">
+            <Loader2 className="h-5 w-5 animate-spin text-ink-100" />
+          </div>
         )}
       </div>
       <div className="flex flex-1 min-w-0 flex-col justify-between gap-2">
@@ -761,7 +789,23 @@ function EpisodeCard({
             <Trash2 className="h-3 w-3" />
           </button>
         </div>
-        {audioBlob ? (
+        {isProcessing ? (
+          <div className="space-y-1.5">
+            <p className="inline-flex items-center gap-1.5 text-[11px] text-ink-300">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t("podcastPage.episodeProcessing", {
+                defaultValue: "Synthesizing audio + cover…",
+              })}
+            </p>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-ink-800">
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-emerald-400/70" />
+            </div>
+          </div>
+        ) : isFailed ? (
+          <p className="rounded-md bg-red-500/10 px-2 py-1 text-[11px] text-red-300">
+            {episode.error_message ?? t("common.error")}
+          </p>
+        ) : audioBlob ? (
           <audio controls src={audioBlob} className="w-full" preload="metadata">
             <track kind="captions" />
           </audio>

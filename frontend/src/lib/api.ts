@@ -761,6 +761,8 @@ export interface PodcastEpisodeOut {
   playlist_id: string;
   title: string;
   voice: string;
+  status: "processing" | "ready" | "failed";
+  error_message: string | null;
   has_audio: boolean;
   has_cover: boolean;
   audio_url: string | null;
@@ -789,8 +791,10 @@ export interface CardAudioOut {
   card_id: string;
   narrative_text: string;
   voice: string;
+  status: "processing" | "ready" | "failed";
+  error_message: string | null;
   created_at: string;
-  audio_url: string;
+  audio_url: string | null;
 }
 
 export interface SearchHit {

@@ -30,6 +30,8 @@ class EpisodeOut(BaseModel):
     playlist_id: UUID
     title: str
     voice: str
+    status: str  # processing | ready | failed
+    error_message: str | None = None
     has_audio: bool
     has_cover: bool
     audio_url: str | None
