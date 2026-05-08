@@ -361,7 +361,19 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "loading": "Loading…",
-    "error": "Something went wrong."
+    "error": "Something went wrong.",
+    "retry": "Retry"
+  },
+  "podcast": {
+    "heading": "Podcast",
+    "idleHint": "Listen to a narrated version of this card. Generation runs once and takes ~30 seconds — uses your Gemini quota.",
+    "generate": "Generate podcast",
+    "generating": "Writing narration and synthesizing voice…",
+    "regenerate": "Regenerate",
+    "regenerateTitle": "Regenerate (replaces current audio)",
+    "showTranscript": "Show transcript",
+    "hideTranscript": "Hide transcript",
+    "confirmDelete": "Delete generated podcast?"
   },
   "share": {
     "title": "Share",

@@ -361,7 +361,19 @@
     "cancel": "Abbrechen",
     "delete": "Löschen",
     "loading": "Wird geladen…",
-    "error": "Etwas ist schiefgelaufen."
+    "error": "Etwas ist schiefgelaufen.",
+    "retry": "Erneut versuchen"
+  },
+  "podcast": {
+    "heading": "Podcast",
+    "idleHint": "Höre dir eine erzählte Version dieser Card an. Die Generierung dauert etwa 30 Sekunden — verbraucht dein Gemini-Kontingent.",
+    "generate": "Podcast generieren",
+    "generating": "Erstelle Erzähltext und synthetisiere die Stimme…",
+    "regenerate": "Neu generieren",
+    "regenerateTitle": "Erneut generieren (ersetzt aktuelles Audio)",
+    "showTranscript": "Transkript anzeigen",
+    "hideTranscript": "Transkript ausblenden",
+    "confirmDelete": "Generierten Podcast löschen?"
   },
   "share": {
     "title": "Teilen",

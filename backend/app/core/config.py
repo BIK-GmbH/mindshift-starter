@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-5.4-mini", alias="OPENAI_MODEL")
 
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    gemini_tts_model: str = Field(
+        default="gemini-3.1-flash-tts-preview", alias="GEMINI_TTS_MODEL"
+    )
+
     # File storage. `local` writes under `storage_path` (great for dev and
     # Railway volume mounts). `s3` is reserved for a future implementation.
     storage_backend: str = Field(default="local", alias="STORAGE_BACKEND")

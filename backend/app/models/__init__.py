@@ -1,6 +1,7 @@
 """Aggregate model imports so Alembic and tests pick up all metadata."""
 
 from app.models.card import Card  # noqa: F401
+from app.models.card_audio import CardAudio  # noqa: F401
 from app.models.chat import ChatMessage, ChatSession  # noqa: F401
 from app.models.embedding import Embedding  # noqa: F401
 from app.models.entity import CardEntity, Entity  # noqa: F401

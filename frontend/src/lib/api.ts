@@ -351,6 +351,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ text, action, instruction }),
     }),
+  getCardAudio: (cardId: string) =>
+    request<CardAudioOut>(`/api/cards/${cardId}/audio`),
+  generateCardAudio: (cardId: string, voice?: string) =>
+    request<CardAudioOut>(`/api/cards/${cardId}/audio`, {
+      method: "POST",
+      body: JSON.stringify({ voice }),
+    }),
+  deleteCardAudio: (cardId: string) =>
+    request<void>(`/api/cards/${cardId}/audio`, { method: "DELETE" }),
+  cardAudioStreamUrl: (cardId: string) =>
+    `${BASE_URL}/api/cards/${cardId}/audio.wav`,
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
@@ -661,6 +672,15 @@ export interface ActivityDay {
   date: string; // YYYY-MM-DD
   count: number;
   correct: number;
+}
+
+export interface CardAudioOut {
+  id: string;
+  card_id: string;
+  narrative_text: string;
+  voice: string;
+  created_at: string;
+  audio_url: string;
 }
 
 export interface SearchHit {

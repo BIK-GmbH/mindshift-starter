@@ -23,6 +23,7 @@ import { useCallback, useEffect, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 
 import CardGraph from "./CardGraph";
+import CardPodcastPlayer from "./CardPodcastPlayer";
 import ChatPanel from "./ChatPanel";
 import MarkdownView, { markdownToPlainText } from "./MarkdownView";
 import RichTextEditor from "./RichTextEditor";
@@ -395,6 +396,8 @@ export default function CardDetailContent({
           <div key={tab} className="tab-content-enter">
             {tab === "summary" && (
               <div className="space-y-8 text-sm leading-relaxed">
+                <CardPodcastPlayer cardId={card.id} />
+
                 {card.concise_summary_md && (
                   <Section icon={BookOpen} label={t("card.tldr", { defaultValue: "TL;DR" })}>
                     <p className="text-base text-ink-100/90">{card.concise_summary_md}</p>
