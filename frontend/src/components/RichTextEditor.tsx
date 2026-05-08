@@ -10,12 +10,19 @@ import {
   Link2,
   List,
   ListOrdered,
+  Loader2,
+  Maximize2,
+  Minimize2,
   Quote,
+  Sparkles,
   Strikethrough,
+  Wand2,
 } from "lucide-react";
 import { marked } from "marked";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import TurndownService from "turndown";
+
+import { api } from "../lib/api";
 
 interface Props {
   /** Markdown source (controlled). */
@@ -63,6 +70,9 @@ export default function RichTextEditor({
   // Track the last markdown we emitted, so we don't loop the editor
   // when the parent re-passes the same string back.
   const lastEmitted = useRef<string>(markdown);
+  const [isFullscreen, setFullscreen] = useState(false);
+  const [aiBusy, setAiBusy] = useState<"expand" | "shorten" | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -105,20 +115,92 @@ export default function RichTextEditor({
     lastEmitted.current = markdown;
   }, [markdown, editor]);
 
+  // ESC exits fullscreen.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isFullscreen]);
+
+  const runAi = async (action: "expand" | "shorten") => {
+    if (!editor || aiBusy) return;
+    const { from, to } = editor.state.selection;
+    const hasSelection = from < to;
+    const inputText = hasSelection
+      ? editor.state.doc.textBetween(from, to, "\n", "\n")
+      : htmlToMarkdown(editor.getHTML());
+    if (!inputText.trim()) return;
+
+    setAiBusy(action);
+    setAiError(null);
+    try {
+      const result = await api.transformText(inputText, action);
+      if (hasSelection) {
+        editor
+          .chain()
+          .focus()
+          .deleteRange({ from, to })
+          .insertContent(result.text)
+          .run();
+      } else {
+        editor.commands.setContent(markdownToHtml(result.text), { emitUpdate: true });
+      }
+    } catch (err) {
+      setAiError((err as Error).message || "AI request failed");
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
   if (!editor) return null;
 
+  const wrapperClass = isFullscreen
+    ? "fixed inset-0 z-50 flex flex-col gap-2 bg-ink-900 p-6"
+    : "flex flex-col gap-2";
+  const editorClass = isFullscreen
+    ? "flex-1 min-h-0 overflow-y-auto rounded-md border border-ink-700 bg-ink-900/40 px-6 py-4 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40"
+    : "rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40";
+
   return (
-    <div className="flex flex-col gap-2">
-      {showToolbar && <Toolbar editor={editor} />}
-      <EditorContent
-        editor={editor}
-        className="rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40"
-      />
+    <div className={wrapperClass}>
+      {showToolbar && (
+        <Toolbar
+          editor={editor}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={() => setFullscreen((v) => !v)}
+          onAi={runAi}
+          aiBusy={aiBusy}
+        />
+      )}
+      {aiError && (
+        <p className="rounded-md bg-red-500/10 px-3 py-1.5 text-[11px] text-red-300 ring-1 ring-red-500/30">
+          {aiError}
+        </p>
+      )}
+      <EditorContent editor={editor} className={editorClass} />
     </div>
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({
+  editor,
+  isFullscreen,
+  onToggleFullscreen,
+  onAi,
+  aiBusy,
+}: {
+  editor: Editor;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
+  onAi: (action: "expand" | "shorten") => void;
+  aiBusy: "expand" | "shorten" | null;
+}) {
+  const { from, to } = editor.state.selection;
+  const hasSelection = from < to;
+  const aiTooltip = hasSelection ? " (selection)" : " (whole note)";
   return (
     <div className="flex flex-wrap items-center gap-0.5 rounded-md border border-ink-700 bg-ink-900/40 p-1">
       <ToolbarButton
@@ -186,6 +268,30 @@ function Toolbar({ editor }: { editor: Editor }) {
           editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
         }}
       />
+      <span className="mx-1 h-4 w-px bg-ink-700" />
+      <ToolbarButton
+        Icon={aiBusy === "expand" ? Loader2 : Sparkles}
+        label={`Expand${aiTooltip}`}
+        active={false}
+        disabled={aiBusy !== null}
+        spinning={aiBusy === "expand"}
+        onClick={() => onAi("expand")}
+      />
+      <ToolbarButton
+        Icon={aiBusy === "shorten" ? Loader2 : Wand2}
+        label={`Shorten${aiTooltip}`}
+        active={false}
+        disabled={aiBusy !== null}
+        spinning={aiBusy === "shorten"}
+        onClick={() => onAi("shorten")}
+      />
+      <span className="ml-auto" />
+      <ToolbarButton
+        Icon={isFullscreen ? Minimize2 : Maximize2}
+        label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+        active={isFullscreen}
+        onClick={onToggleFullscreen}
+      />
     </div>
   );
 }
@@ -195,17 +301,22 @@ function ToolbarButton({
   label,
   active,
   onClick,
+  disabled = false,
+  spinning = false,
 }: {
   Icon: typeof Bold;
   label: string;
   active: boolean;
   onClick: () => void;
+  disabled?: boolean;
+  spinning?: boolean;
 }) {
   return (
     <button
       type="button"
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
+      disabled={disabled}
       title={label}
       aria-label={label}
       className={[
@@ -213,9 +324,10 @@ function ToolbarButton({
         active
           ? "bg-ink-100 text-ink-900"
           : "text-ink-300 hover:bg-ink-700/60 hover:text-ink-100",
+        disabled ? "cursor-not-allowed opacity-50" : "",
       ].join(" ")}
     >
-      <Icon className="h-3.5 w-3.5" />
+      <Icon className={["h-3.5 w-3.5", spinning ? "animate-spin" : ""].join(" ")} />
     </button>
   );
 }

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.ai import router as ai_router
 from app.api.auth import router as auth_router
 from app.api.cards import router as cards_router
 from app.api.chat import router as chat_router
@@ -47,6 +48,7 @@ app.include_router(review_router, prefix="/api")
 app.include_router(tags_router, prefix="/api")
 app.include_router(graph_router, prefix="/api")
 app.include_router(graph_presets_router, prefix="/api")
+app.include_router(ai_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(wiki_router, prefix="/api")
 app.include_router(import_router, prefix="/api")

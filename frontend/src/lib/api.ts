@@ -342,6 +342,11 @@ export const api = {
   getLearningSession: (id: string) => request<SessionDetail>(`/api/review/sessions/${id}`),
   reviewActivity: (days = 365) =>
     request<ActivityDay[]>(`/api/review/activity?days=${days}`),
+  transformText: (text: string, action: "expand" | "shorten") =>
+    request<{ text: string }>("/api/ai/transform", {
+      method: "POST",
+      body: JSON.stringify({ text, action }),
+    }),
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
