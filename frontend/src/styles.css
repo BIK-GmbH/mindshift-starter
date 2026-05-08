@@ -296,15 +296,28 @@
     }
   }
 
-  /* Editor fullscreen — backdrop fades in, card scales/translates from
-     a slightly smaller resting state so it reads as "expanding open"
-     rather than just appearing. */
+  /* Editor fullscreen — soft satin backdrop (radial gradient + heavy
+     blur) so the page behind reads as "out of focus" without the harsh
+     flat black of a regular modal scrim. The card scales from 0.94 → 1
+     so it reads as expanding open rather than just appearing. */
+  .fullscreen-shell {
+    pointer-events: auto;
+  }
   .fullscreen-shell-enter {
+    background:
+      radial-gradient(ellipse 120% 80% at 50% 0%, rgb(var(--ink-700) / 0.55), transparent 60%),
+      radial-gradient(ellipse 100% 80% at 50% 100%, rgb(var(--ink-700) / 0.4), transparent 60%),
+      rgb(var(--ink-900) / 0.78);
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
     animation: fullscreen-fade 200ms ease-out both;
   }
   .fullscreen-card-enter {
     animation: fullscreen-pop 280ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
     transform-origin: center;
+  }
+  .fullscreen-prompt-enter {
+    animation: fullscreen-prompt 200ms ease-out both;
   }
   @keyframes fullscreen-fade {
     0% {
@@ -322,6 +335,16 @@
     100% {
       opacity: 1;
       transform: scale(1);
+    }
+  }
+  @keyframes fullscreen-prompt {
+    0% {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
 

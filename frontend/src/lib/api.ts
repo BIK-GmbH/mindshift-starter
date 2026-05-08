@@ -342,10 +342,14 @@ export const api = {
   getLearningSession: (id: string) => request<SessionDetail>(`/api/review/sessions/${id}`),
   reviewActivity: (days = 365) =>
     request<ActivityDay[]>(`/api/review/activity?days=${days}`),
-  transformText: (text: string, action: "expand" | "shorten") =>
+  transformText: (
+    text: string,
+    action: "expand" | "shorten" | "custom",
+    instruction?: string,
+  ) =>
     request<{ text: string }>("/api/ai/transform", {
       method: "POST",
-      body: JSON.stringify({ text, action }),
+      body: JSON.stringify({ text, action, instruction }),
     }),
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>

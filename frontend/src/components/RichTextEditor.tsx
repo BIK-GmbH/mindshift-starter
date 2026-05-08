@@ -4,6 +4,7 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
   Bold,
+  Bot,
   Code,
   Heading2,
   Italic,
@@ -14,9 +15,10 @@ import {
   Maximize2,
   Minimize2,
   Quote,
+  Scissors,
   Sparkles,
   Strikethrough,
-  Wand2,
+  X,
 } from "lucide-react";
 import { marked } from "marked";
 import { useEffect, useRef, useState } from "react";
@@ -72,8 +74,10 @@ export default function RichTextEditor({
   // when the parent re-passes the same string back.
   const lastEmitted = useRef<string>(markdown);
   const [isFullscreen, setFullscreen] = useState(false);
-  const [aiBusy, setAiBusy] = useState<"expand" | "shorten" | null>(null);
+  const [aiBusy, setAiBusy] = useState<"expand" | "shorten" | "custom" | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [customMode, setCustomMode] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
 
   const editor = useEditor({
     extensions: [
@@ -126,7 +130,7 @@ export default function RichTextEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [isFullscreen]);
 
-  const runAi = async (action: "expand" | "shorten") => {
+  const runAi = async (action: "expand" | "shorten" | "custom", instruction?: string) => {
     if (!editor || aiBusy) return;
     const { from, to } = editor.state.selection;
     const hasSelection = from < to;
@@ -134,26 +138,33 @@ export default function RichTextEditor({
       ? editor.state.doc.textBetween(from, to, "\n", "\n")
       : htmlToMarkdown(editor.getHTML());
     if (!inputText.trim()) return;
+    if (action === "custom" && !instruction?.trim()) return;
 
     setAiBusy(action);
     setAiError(null);
     try {
-      const result = await api.transformText(inputText, action);
+      const result = await api.transformText(inputText, action, instruction);
+      // Convert markdown → HTML so AI-emitted formatting (bold, lists,
+      // headings) actually renders instead of showing raw asterisks.
+      const html = markdownToHtml(result.text);
       if (hasSelection) {
-        editor
-          .chain()
-          .focus()
-          .deleteRange({ from, to })
-          .insertContent(result.text)
-          .run();
+        editor.chain().focus().deleteRange({ from, to }).insertContent(html).run();
       } else {
-        editor.commands.setContent(markdownToHtml(result.text), { emitUpdate: true });
+        editor.commands.setContent(html, { emitUpdate: true });
       }
     } catch (err) {
       setAiError((err as Error).message || "AI request failed");
     } finally {
       setAiBusy(null);
     }
+  };
+
+  const submitCustomPrompt = () => {
+    const instruction = customPrompt.trim();
+    if (!instruction) return;
+    void runAi("custom", instruction);
+    setCustomMode(false);
+    setCustomPrompt("");
   };
 
   if (!editor) return null;
@@ -169,9 +180,54 @@ export default function RichTextEditor({
           editor={editor}
           isFullscreen={isFullscreen}
           onToggleFullscreen={() => setFullscreen((v) => !v)}
-          onAi={runAi}
+          onAi={(action) => {
+            if (action === "custom") setCustomMode((v) => !v);
+            else void runAi(action);
+          }}
           aiBusy={aiBusy}
+          customActive={customMode}
         />
+      )}
+      {customMode && (
+        <div className="flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-900/60 px-2 py-1.5 fullscreen-prompt-enter">
+          <Bot className="h-3.5 w-3.5 flex-shrink-0 text-ink-400" />
+          <input
+            type="text"
+            autoFocus
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submitCustomPrompt();
+              } else if (e.key === "Escape") {
+                setCustomMode(false);
+                setCustomPrompt("");
+              }
+            }}
+            placeholder="Was soll die AI mit dem Text machen? (Enter = anwenden)"
+            className="flex-1 bg-transparent text-xs text-ink-100 placeholder:text-ink-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={submitCustomPrompt}
+            disabled={!customPrompt.trim() || aiBusy !== null}
+            className="rounded-md bg-ink-100 px-2 py-1 text-[10px] font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+          >
+            Anwenden
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCustomMode(false);
+              setCustomPrompt("");
+            }}
+            className="rounded p-1 text-ink-400 transition hover:bg-ink-700 hover:text-ink-100"
+            aria-label="Cancel"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
       )}
       {aiError && (
         <p className="rounded-md bg-red-500/10 px-3 py-1.5 text-[11px] text-red-300 ring-1 ring-red-500/30">
@@ -187,11 +243,17 @@ export default function RichTextEditor({
 
   if (isFullscreen) {
     // Portal-mounted into document.body so the parent modal's `transform`
-    // (from its enter animation) can't reframe `position: fixed`.
+    // (from its enter animation) can't reframe `position: fixed`. The
+    // backdrop has a soft satin gradient + heavy blur for depth; the
+    // card itself is constrained to ~A4 width (820 px) so reading lines
+    // stay short and comfortable.
     return createPortal(
-      <div className="fixed inset-0 z-[60] bg-ink-900/80 backdrop-blur-md fullscreen-shell-enter">
-        <div className="absolute inset-y-[6vh] inset-x-[8vw] flex flex-col gap-2 fullscreen-card-enter">
-          {editorBlock}
+      <div className="fixed inset-0 z-[60] fullscreen-shell">
+        <div className="absolute inset-0 fullscreen-shell-enter" />
+        <div className="absolute inset-0 flex justify-center px-4 py-[6vh]">
+          <div className="flex w-full max-w-[820px] flex-col gap-2 fullscreen-card-enter">
+            {editorBlock}
+          </div>
         </div>
       </div>,
       document.body,
@@ -201,10 +263,16 @@ export default function RichTextEditor({
   return <div className="flex flex-col gap-2">{editorBlock}</div>;
 }
 
-function AiSkeleton({ action }: { action: "expand" | "shorten" }) {
+function AiSkeleton({ action }: { action: "expand" | "shorten" | "custom" }) {
   // Five lines of varying widths — looks like prose loading. Stagger the
   // pulse so the eye reads it as activity rather than a static placeholder.
   const widths = ["w-11/12", "w-10/12", "w-9/12", "w-11/12", "w-7/12"];
+  const label =
+    action === "expand"
+      ? "Erweitern…"
+      : action === "shorten"
+        ? "Kürzen…"
+        : "AI bearbeitet…";
   return (
     <div
       role="status"
@@ -213,7 +281,7 @@ function AiSkeleton({ action }: { action: "expand" | "shorten" }) {
     >
       <div className="mb-1 inline-flex items-center gap-2 text-[11px] font-medium text-ink-300">
         <Loader2 className="h-3 w-3 animate-spin" />
-        {action === "expand" ? "Expanding…" : "Shortening…"}
+        {label}
       </div>
       {widths.map((w, i) => (
         <div
@@ -232,12 +300,14 @@ function Toolbar({
   onToggleFullscreen,
   onAi,
   aiBusy,
+  customActive,
 }: {
   editor: Editor;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
-  onAi: (action: "expand" | "shorten") => void;
-  aiBusy: "expand" | "shorten" | null;
+  onAi: (action: "expand" | "shorten" | "custom") => void;
+  aiBusy: "expand" | "shorten" | "custom" | null;
+  customActive: boolean;
 }) {
   const { from, to } = editor.state.selection;
   const hasSelection = from < to;
@@ -311,16 +381,24 @@ function Toolbar({
       />
       <span className="mx-1 h-4 w-px bg-ink-700" />
       <ToolbarButton
+        Icon={aiBusy === "custom" ? Loader2 : Bot}
+        label={`Eigener AI-Prompt${aiTooltip}`}
+        active={customActive}
+        disabled={aiBusy !== null}
+        spinning={aiBusy === "custom"}
+        onClick={() => onAi("custom")}
+      />
+      <ToolbarButton
         Icon={aiBusy === "expand" ? Loader2 : Sparkles}
-        label={`Expand${aiTooltip}`}
+        label={`Erweitern${aiTooltip}`}
         active={false}
         disabled={aiBusy !== null}
         spinning={aiBusy === "expand"}
         onClick={() => onAi("expand")}
       />
       <ToolbarButton
-        Icon={aiBusy === "shorten" ? Loader2 : Wand2}
-        label={`Shorten${aiTooltip}`}
+        Icon={aiBusy === "shorten" ? Loader2 : Scissors}
+        label={`Kürzen${aiTooltip}`}
         active={false}
         disabled={aiBusy !== null}
         spinning={aiBusy === "shorten"}
