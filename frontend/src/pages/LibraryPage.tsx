@@ -40,25 +40,25 @@ const SOURCE_META: Record<string, SourceMeta> = {
   youtube: {
     Icon: Youtube,
     color: "text-red-400",
-    fallback: "from-red-500/20 via-red-500/5 to-transparent ring-red-500/30",
+    fallback: "from-red-500/20 via-red-500/5 to-transparent",
     badge: "bg-red-500/90 text-white",
   },
   article: {
     Icon: Globe,
     color: "text-sky-300",
-    fallback: "from-sky-500/20 via-sky-500/5 to-transparent ring-sky-500/30",
+    fallback: "from-sky-500/20 via-sky-500/5 to-transparent",
     badge: "bg-sky-500/90 text-white",
   },
   pdf: {
     Icon: FileText,
     color: "text-rose-300",
-    fallback: "from-rose-500/20 via-rose-500/5 to-transparent ring-rose-500/30",
+    fallback: "from-rose-500/20 via-rose-500/5 to-transparent",
     badge: "bg-rose-500/90 text-white",
   },
   note: {
     Icon: StickyNote,
     color: "text-amber-300",
-    fallback: "from-amber-500/20 via-amber-500/5 to-transparent ring-amber-500/30",
+    fallback: "from-amber-500/20 via-amber-500/5 to-transparent",
     badge: "bg-amber-500/90 text-white",
   },
 };
@@ -555,7 +555,7 @@ function CardTile({ card, onClick }: { card: CardListItem; onClick: () => void }
       type="button"
       onClick={onClick}
       aria-label={card.title}
-      className="card-hover group relative flex flex-col overflow-hidden rounded-xl border border-ink-800 bg-ink-800/40 text-left shadow-sm hover:border-ink-600"
+      className="card-hover group relative flex flex-col overflow-hidden rounded-xl border border-transparent bg-ink-800/40 text-left shadow-sm hover:border-ink-600/60"
     >
       <div className="relative aspect-video w-full overflow-hidden bg-ink-800">
         {card.thumbnail_url ? (
@@ -583,7 +583,7 @@ function CardTile({ card, onClick }: { card: CardListItem; onClick: () => void }
           // ingestion failed.
           <div
             className={[
-              "flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br ring-1 ring-inset",
+              "flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br",
               fallback,
             ].join(" ")}
           >
