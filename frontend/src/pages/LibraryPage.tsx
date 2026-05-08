@@ -7,6 +7,7 @@ import {
   PanelRightOpen,
   Plus,
   Search as SearchIcon,
+  StickyNote,
   X,
   Youtube,
 } from "lucide-react";
@@ -22,10 +23,48 @@ import TagsTree from "../components/TagsTree";
 import { useSearchModal } from "../lib/SearchModalContext";
 import { api, type CardListItem } from "../lib/api";
 
-const SOURCE_ICONS: Record<string, FC<{ className?: string }>> = {
-  youtube: Youtube,
-  article: Globe,
-  pdf: FileText,
+interface SourceMeta {
+  Icon: FC<{ className?: string; strokeWidth?: number | string }>;
+  /** Foreground colour for the icon glyph. */
+  color: string;
+  /** Tailwind classes for the gradient + ring used in thumbnail fallbacks. */
+  fallback: string;
+  /** Solid badge background when shown over a card thumbnail. */
+  badge: string;
+}
+
+const SOURCE_META: Record<string, SourceMeta> = {
+  youtube: {
+    Icon: Youtube,
+    color: "text-red-400",
+    fallback: "from-red-500/20 via-red-500/5 to-transparent ring-red-500/30",
+    badge: "bg-red-500/90 text-white",
+  },
+  article: {
+    Icon: Globe,
+    color: "text-sky-300",
+    fallback: "from-sky-500/20 via-sky-500/5 to-transparent ring-sky-500/30",
+    badge: "bg-sky-500/90 text-white",
+  },
+  pdf: {
+    Icon: FileText,
+    color: "text-rose-300",
+    fallback: "from-rose-500/20 via-rose-500/5 to-transparent ring-rose-500/30",
+    badge: "bg-rose-500/90 text-white",
+  },
+  note: {
+    Icon: StickyNote,
+    color: "text-amber-300",
+    fallback: "from-amber-500/20 via-amber-500/5 to-transparent ring-amber-500/30",
+    badge: "bg-amber-500/90 text-white",
+  },
+};
+
+const FALLBACK_META: SourceMeta = {
+  Icon: FileText,
+  color: "text-ink-300",
+  fallback: "from-ink-700/40 via-ink-800/20 to-transparent ring-ink-700/40",
+  badge: "bg-ink-700 text-ink-100",
 };
 
 const RIGHT_PANE_KEY = "mindshift.libraryRightPane";
@@ -330,7 +369,8 @@ function LibraryTagsSidebar() {
 }
 
 function CardTile({ card, onClick }: { card: CardListItem; onClick: () => void }) {
-  const SourceIcon = SOURCE_ICONS[card.source_type] ?? FileText;
+  const meta = SOURCE_META[card.source_type] ?? FALLBACK_META;
+  const { Icon, color, fallback, badge } = meta;
   return (
     <button
       type="button"
@@ -340,15 +380,38 @@ function CardTile({ card, onClick }: { card: CardListItem; onClick: () => void }
     >
       <div className="relative aspect-video w-full overflow-hidden bg-ink-800">
         {card.thumbnail_url ? (
-          <img
-            src={card.thumbnail_url}
-            alt=""
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-            loading="lazy"
-          />
+          <>
+            <img
+              src={card.thumbnail_url}
+              alt=""
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+              loading="lazy"
+            />
+            {/* Source-type chip, top-left, sits above the thumbnail */}
+            <span
+              className={[
+                "absolute left-2 top-2 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wider shadow-md backdrop-blur-sm",
+                badge,
+              ].join(" ")}
+            >
+              <Icon className="h-3 w-3" />
+              {card.source_type}
+            </span>
+          </>
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ink-800 to-ink-900">
-            <SourceIcon className="h-8 w-8 text-ink-600" />
+          // No thumbnail → fill the aspect-video with a big, deliberately
+          // sized icon so PDF / Article / Note cards don't look like the
+          // ingestion failed.
+          <div
+            className={[
+              "flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br ring-1 ring-inset",
+              fallback,
+            ].join(" ")}
+          >
+            <Icon className={["h-16 w-16", color].join(" ")} strokeWidth={1.5} />
+            <span className={["text-[10px] font-semibold uppercase tracking-[0.16em]", color].join(" ")}>
+              {card.source_type}
+            </span>
           </div>
         )}
         <div className="absolute right-2 top-2">
@@ -357,10 +420,6 @@ function CardTile({ card, onClick }: { card: CardListItem; onClick: () => void }
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-ink-900/60 to-transparent" />
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-3">
-        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-ink-500">
-          <SourceIcon className="h-3 w-3" />
-          {card.source_type}
-        </div>
         <h3 className="line-clamp-2 text-sm font-medium leading-snug text-ink-100">
           {card.title}
         </h3>
