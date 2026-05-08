@@ -296,6 +296,35 @@
     }
   }
 
+  /* Editor fullscreen — backdrop fades in, card scales/translates from
+     a slightly smaller resting state so it reads as "expanding open"
+     rather than just appearing. */
+  .fullscreen-shell-enter {
+    animation: fullscreen-fade 200ms ease-out both;
+  }
+  .fullscreen-card-enter {
+    animation: fullscreen-pop 280ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+    transform-origin: center;
+  }
+  @keyframes fullscreen-fade {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  @keyframes fullscreen-pop {
+    0% {
+      opacity: 0;
+      transform: scale(0.94);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
   /* Right-side pane (chat / context) — slides in from the right with a fade. */
   .pane-enter-right {
     animation: pane-slide-in 240ms cubic-bezier(0.2, 0.8, 0.25, 1) both;

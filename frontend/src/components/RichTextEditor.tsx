@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { marked } from "marked";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import TurndownService from "turndown";
 
 import { api } from "../lib/api";
@@ -157,15 +158,12 @@ export default function RichTextEditor({
 
   if (!editor) return null;
 
-  const wrapperClass = isFullscreen
-    ? "fixed inset-0 z-50 flex flex-col gap-2 bg-ink-900 p-6"
-    : "flex flex-col gap-2";
   const editorClass = isFullscreen
-    ? "flex-1 min-h-0 overflow-y-auto rounded-md border border-ink-700 bg-ink-900/40 px-6 py-4 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40"
+    ? "flex-1 min-h-0 overflow-y-auto rounded-md border border-ink-700 bg-ink-900/40 px-8 py-6 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40"
     : "rounded-md border border-ink-700 bg-ink-900/40 px-3 py-2 transition focus-within:border-ink-500 focus-within:ring-2 focus-within:ring-ink-700/40";
 
-  return (
-    <div className={wrapperClass}>
+  const editorBlock = (
+    <>
       {showToolbar && (
         <Toolbar
           editor={editor}
@@ -184,8 +182,23 @@ export default function RichTextEditor({
         <EditorContent editor={editor} className={editorClass} />
         {aiBusy && <AiSkeleton action={aiBusy} />}
       </div>
-    </div>
+    </>
   );
+
+  if (isFullscreen) {
+    // Portal-mounted into document.body so the parent modal's `transform`
+    // (from its enter animation) can't reframe `position: fixed`.
+    return createPortal(
+      <div className="fixed inset-0 z-[60] bg-ink-900/80 backdrop-blur-md fullscreen-shell-enter">
+        <div className="absolute inset-y-[6vh] inset-x-[8vw] flex flex-col gap-2 fullscreen-card-enter">
+          {editorBlock}
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
+  return <div className="flex flex-col gap-2">{editorBlock}</div>;
 }
 
 function AiSkeleton({ action }: { action: "expand" | "shorten" }) {
