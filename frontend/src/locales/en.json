@@ -19,7 +19,9 @@
     "newTagPlaceholder": "Tag name…",
     "untagged": "Untagged",
     "new": "New",
-    "search": "Search tags…"
+    "search": "Search tags…",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all"
   },
   "library": {
     "empty": {

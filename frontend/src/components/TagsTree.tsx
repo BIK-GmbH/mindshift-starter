@@ -1,5 +1,7 @@
 import {
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   FileText,
   Globe,
   Hash,
@@ -392,22 +394,34 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
     }
   };
 
+  const persistExpansion = () => {
+    const tree = treeApiRef.current;
+    if (!tree) return;
+    const open: string[] = [];
+    tree.visibleNodes.forEach((node) => {
+      if (node.isOpen) open.push(node.id);
+    });
+    try {
+      localStorage.setItem(EXPANDED_KEY, JSON.stringify(open));
+    } catch {
+      /* ignore */
+    }
+  };
+
   const onToggle = (id: string) => {
     // Persist expansion state.
-    setTimeout(() => {
-      const tree = treeApiRef.current;
-      if (!tree) return;
-      const open: string[] = [];
-      tree.visibleNodes.forEach((node) => {
-        if (node.isOpen) open.push(node.id);
-      });
-      try {
-        localStorage.setItem(EXPANDED_KEY, JSON.stringify(open));
-      } catch {
-        /* ignore */
-      }
-    }, 0);
+    setTimeout(persistExpansion, 0);
     void id;
+  };
+
+  const expandAll = () => {
+    treeApiRef.current?.openAll();
+    setTimeout(persistExpansion, 0);
+  };
+
+  const collapseAll = () => {
+    treeApiRef.current?.closeAll();
+    setTimeout(persistExpansion, 0);
   };
 
   return (
@@ -418,9 +432,9 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
         </p>
       )}
 
-      {/* Search */}
-      <div className="px-3 pb-1">
-        <div className="relative">
+      {/* Search + expand / collapse-all controls */}
+      <div className="flex items-center gap-1 px-3 pb-1">
+        <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-500" />
           <input
             type="search"
@@ -440,6 +454,24 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
             </button>
           )}
         </div>
+        <button
+          type="button"
+          onClick={expandAll}
+          title={t("tags.expandAll", { defaultValue: "Expand all" }) ?? ""}
+          aria-label="Expand all"
+          className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-800/40 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+        >
+          <ChevronsUpDown className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={collapseAll}
+          title={t("tags.collapseAll", { defaultValue: "Collapse all" }) ?? ""}
+          aria-label="Collapse all"
+          className="flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-800/40 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+        >
+          <ChevronsDownUp className="h-3 w-3" />
+        </button>
       </div>
 
       {/* Synthetic top-level entries that aren't part of the dnd-tree */}
