@@ -21,6 +21,7 @@ from app.api.review import router as review_router
 from app.api.search import router as search_router
 from app.api.share import router as share_router
 from app.api.tags import router as tags_router
+from app.api.translations import router as translations_router
 from app.api.wiki import router as wiki_router
 from app.core.config import get_settings
 
@@ -49,6 +50,7 @@ app.include_router(search_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 app.include_router(review_router, prefix="/api")
 app.include_router(tags_router, prefix="/api")
+app.include_router(translations_router, prefix="/api")
 app.include_router(graph_router, prefix="/api")
 app.include_router(graph_presets_router, prefix="/api")
 app.include_router(ai_router, prefix="/api")

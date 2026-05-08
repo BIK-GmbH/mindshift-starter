@@ -24,6 +24,7 @@ import { useCallback, useEffect, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 
 import CardGraph from "./CardGraph";
+import CardLanguagePicker from "./CardLanguagePicker";
 import CardPodcastPlayer from "./CardPodcastPlayer";
 import ChatPanel from "./ChatPanel";
 import MarkdownView, { markdownToPlainText } from "./MarkdownView";
@@ -31,7 +32,7 @@ import RichTextEditor from "./RichTextEditor";
 import ShareModal from "./ShareModal";
 import StatusBadge from "./StatusBadge";
 import { useDialog } from "../lib/DialogContext";
-import { api, type Card, type QuizQuestion } from "../lib/api";
+import { api, type Card, type CardTranslationOut, type QuizQuestion } from "../lib/api";
 
 export type CardDetailTab =
   | "summary"
@@ -80,6 +81,7 @@ export default function CardDetailContent({
   const { confirm } = useDialog();
   const [shareOpen, setShareOpen] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
+  const [activeTranslation, setActiveTranslation] = useState<CardTranslationOut | null>(null);
   const [tab, setTab] = useState<CardDetailTab>(initialTab);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
@@ -302,9 +304,15 @@ export default function CardDetailContent({
                   <span className="rounded-md bg-ink-800 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-300">
                     {card.source_type}
                   </span>
+                  {card.status === "completed" && (
+                    <CardLanguagePicker
+                      cardId={card.id}
+                      onActive={setActiveTranslation}
+                    />
+                  )}
                 </div>
                 <h1 className="text-lg font-semibold leading-tight tracking-tight text-ink-100">
-                  {card.title}
+                  {activeTranslation?.title ?? card.title}
                 </h1>
                 {card.is_public && card.public_via_tags && card.public_via_tags.length > 0 && (
                   <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300 ring-1 ring-emerald-500/30">
@@ -399,9 +407,11 @@ export default function CardDetailContent({
           <div key={tab} className="tab-content-enter">
             {tab === "summary" && (
               <div className="space-y-8 text-sm leading-relaxed">
-                {card.concise_summary_md && (
+                {(activeTranslation?.concise_summary_md ?? card.concise_summary_md) && (
                   <Section icon={BookOpen} label={t("card.tldr", { defaultValue: "TL;DR" })}>
-                    <p className="text-base text-ink-100/90">{card.concise_summary_md}</p>
+                    <p className="text-base text-ink-100/90">
+                      {activeTranslation?.concise_summary_md ?? card.concise_summary_md}
+                    </p>
                   </Section>
                 )}
 
@@ -421,9 +431,13 @@ export default function CardDetailContent({
                   </Section>
                 )}
 
-                {card.detailed_summary_md && (
+                {(activeTranslation?.detailed_summary_md ?? card.detailed_summary_md) && (
                   <Section icon={FileText} label={t("card.summary")}>
-                    <MarkdownView source={card.detailed_summary_md} />
+                    <MarkdownView
+                      source={
+                        activeTranslation?.detailed_summary_md ?? card.detailed_summary_md ?? ""
+                      }
+                    />
                   </Section>
                 )}
               </div>

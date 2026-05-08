@@ -468,6 +468,22 @@ export const api = {
     `${BASE_URL}/api/public/episodes/${token}/audio.wav`,
   publicEpisodeCoverUrl: (token: string) =>
     `${BASE_URL}/api/public/episodes/${token}/cover.png`,
+  listTranslations: (cardId: string) =>
+    request<CardTranslationOut[]>(`/api/cards/${cardId}/translations`),
+  createTranslation: (cardId: string, language: string) =>
+    request<CardTranslationOut>(`/api/cards/${cardId}/translations`, {
+      method: "POST",
+      body: JSON.stringify({ language }),
+    }),
+  getTranslation: (cardId: string, language: string) =>
+    request<CardTranslationOut>(
+      `/api/cards/${cardId}/translations/${encodeURIComponent(language)}`,
+    ),
+  deleteTranslation: (cardId: string, language: string) =>
+    request<void>(
+      `/api/cards/${cardId}/translations/${encodeURIComponent(language)}`,
+      { method: "DELETE" },
+    ),
   createPlaylistFromTag: (
     tagName: string,
     options: { include_subtags?: boolean; name?: string } = {},
@@ -846,6 +862,18 @@ export interface PublicEpisodeOut {
   narrative_text: string;
   audio_url: string;
   cover_url: string | null;
+  created_at: string;
+}
+
+export interface CardTranslationOut {
+  id: string;
+  card_id: string;
+  language: string;
+  title: string | null;
+  concise_summary_md: string | null;
+  detailed_summary_md: string | null;
+  status: "processing" | "ready" | "failed";
+  error_message: string | null;
   created_at: string;
 }
 
