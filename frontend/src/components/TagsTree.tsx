@@ -620,8 +620,8 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
           state={sharePopover}
           publicUrlFor={publicUrlFor}
           onClose={() => setSharePopover(null)}
-          onTogglePublic={(rawId, next) => {
-            void togglePublic(rawId, next);
+          onTogglePublic={async (rawId, next) => {
+            await togglePublic(rawId, next);
             if (!next) setSharePopover(null);
           }}
         />
@@ -641,10 +641,12 @@ function TagSharePopover({
   state: SharePopoverState;
   publicUrlFor: (slug: string) => string | null;
   onClose: () => void;
-  onTogglePublic: (rawId: string, next: boolean) => void;
+  onTogglePublic: (rawId: string, next: boolean) => Promise<void> | void;
 }) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -679,6 +681,11 @@ function TagSharePopover({
         </p>
       ) : (
         <div className="space-y-1.5">
+          {error && (
+            <p className="rounded-md bg-red-500/10 px-2 py-1 text-[10px] text-red-300">
+              {error}
+            </p>
+          )}
           <div className="flex items-center gap-1">
             <input
               type="text"
@@ -722,10 +729,21 @@ function TagSharePopover({
             </a>
             <button
               type="button"
-              onClick={() => onTogglePublic(state.rawId, false)}
-              className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError(null);
+                try {
+                  await onTogglePublic(state.rawId, false);
+                } catch (err) {
+                  setError((err as Error).message ?? "Failed");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] text-ink-300 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
             >
-              <EyeOff className="h-3 w-3" />
+              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <EyeOff className="h-3 w-3" />}
               Make private
             </button>
           </div>
