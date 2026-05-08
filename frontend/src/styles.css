@@ -354,15 +354,15 @@
       0 32px 56px -14px rgb(15 23 42 / 0.28);
   }
 
-  /* Side panels (tags sidebar, chat history, graph settings).
-     Dark mode → inner highlight strip on top + a strong outer halo
-     that reads as the panel casting onto the page. Light mode → a
-     visible right-edge line + soft drop shadow on the content side. */
+  /* Side panels (outer rail, tags sidebar, chat history, graph settings).
+     Dark mode → soft white glow that bleeds rightwards onto the
+     content area, matching the card vignette aesthetic.
+     Light mode → classic dark drop shadow casting the same way. */
   .panel-elevated {
     box-shadow:
-      0 1px 0 rgb(255 255 255 / 0.07) inset,
-      4px 0 16px -2px rgb(0 0 0 / 0.45),
-      8px 0 32px -8px rgb(0 0 0 / 0.55);
+      4px 0 18px rgb(255 255 255 / 0.05),
+      10px 0 40px rgb(255 255 255 / 0.04),
+      4px 0 16px rgb(0 0 0 / 0.35);
   }
   :root.light .panel-elevated {
     box-shadow:
@@ -374,9 +374,9 @@
   /* Right-side panel variant (chat pane in library). Mirror the cast. */
   .panel-elevated-right {
     box-shadow:
-      0 1px 0 rgb(255 255 255 / 0.07) inset,
-      -4px 0 16px -2px rgb(0 0 0 / 0.45),
-      -8px 0 32px -8px rgb(0 0 0 / 0.55);
+      -4px 0 18px rgb(255 255 255 / 0.05),
+      -10px 0 40px rgb(255 255 255 / 0.04),
+      -4px 0 16px rgb(0 0 0 / 0.35);
   }
   :root.light .panel-elevated-right {
     box-shadow:

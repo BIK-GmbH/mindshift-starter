@@ -22,7 +22,7 @@ export default function AppLayout() {
   return (
     <div className="flex h-full bg-ink-900">
       {/* Outer rail — narrow icon-only navigation. Always visible. */}
-      <aside className="flex w-14 flex-col items-center border-r border-ink-800 bg-ink-900 py-3">
+      <aside className="panel-elevated relative z-10 flex w-14 flex-col items-center border-r border-ink-800 bg-ink-900 py-3">
         <div
           className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-ink-100 text-ink-900 shadow-md"
           role="img"
