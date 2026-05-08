@@ -95,7 +95,6 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const pollTimerRef = useRef<number | null>(null);
 
   const fetchCards = useCallback(async () => {
     try {
@@ -132,24 +131,18 @@ export default function LibraryPage() {
     setParams(next, { replace: true });
   };
 
+  // Polling: only run an interval while at least one card is still
+  // ingesting. Keying the effect on a *boolean* (not the array) means
+  // the same interval keeps running across fetches instead of being
+  // torn down + recreated every 2.5 s, which the previous version did.
+  const hasInflight = cards.some(
+    (c) => c.status === "queued" || c.status === "processing",
+  );
   useEffect(() => {
-    const hasInflight = cards.some((c) => c.status === "queued" || c.status === "processing");
-    if (!hasInflight) {
-      if (pollTimerRef.current) {
-        window.clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-      return;
-    }
-    if (pollTimerRef.current) return;
-    pollTimerRef.current = window.setInterval(() => void fetchCards(), 2500);
-    return () => {
-      if (pollTimerRef.current) {
-        window.clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
-  }, [cards, fetchCards]);
+    if (!hasInflight) return;
+    const id = window.setInterval(() => void fetchCards(), 2500);
+    return () => window.clearInterval(id);
+  }, [hasInflight, fetchCards]);
 
   const counts = cards.reduce(
     (acc, c) => {
