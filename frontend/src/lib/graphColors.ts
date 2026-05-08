@@ -6,25 +6,29 @@
  * is curated to look good on the dark canvas.
  */
 
+// "Curated Tonal" palette — perceptually balanced, IBM-Carbon /
+// Solarized-inspired. Same lightness across all hues so no single tag
+// shouts louder than the others; reads as a research-grade graph
+// rather than a Disco floor.
 export const SOURCE_COLORS: Record<string, string> = {
-  youtube: "#f87171",
-  article: "#60a5fa",
-  pdf: "#34d399",
+  youtube: "#dc8a7d",
+  article: "#7da7dc",
+  pdf: "#7dbf9c",
 };
 
 const TAG_PALETTE = [
-  "#f87171", // red
-  "#fb923c", // orange
-  "#fbbf24", // amber
-  "#a3e635", // lime
-  "#34d399", // emerald
-  "#22d3ee", // cyan
-  "#60a5fa", // blue
-  "#818cf8", // indigo
-  "#a78bfa", // violet
-  "#e879f9", // fuchsia
-  "#f472b6", // pink
-  "#fda4af", // rose
+  "#cb6e6e", // muted red
+  "#d18a4f", // burnt orange
+  "#cda94e", // ochre
+  "#a4be59", // moss
+  "#5fb88a", // sage
+  "#5dabb5", // teal
+  "#6f93c9", // dusk blue
+  "#7e7dc7", // periwinkle
+  "#a07dc7", // muted violet
+  "#c46fb4", // mauve
+  "#cb6e8e", // dusty pink
+  "#c97385", // rose
 ];
 
 function hashString(s: string): number {
@@ -53,5 +57,5 @@ export function nodeColor(
     const sorted = [...tags].sort();
     return colorForTag(sorted[0]);
   }
-  return SOURCE_COLORS[sourceType] ?? "#a78bfa";
+  return SOURCE_COLORS[sourceType] ?? "#a07dc7";
 }

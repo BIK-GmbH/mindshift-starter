@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { api, type ConnectionReason } from "../lib/api";
+import { SOURCE_COLORS } from "../lib/graphColors";
 import { useTheme } from "../lib/ThemeContext";
 
 interface Props {
@@ -26,12 +27,6 @@ interface Link {
   score: number;
   reasons: ConnectionReason[];
 }
-
-const SOURCE_COLORS: Record<string, string> = {
-  youtube: "#f87171",
-  article: "#60a5fa",
-  pdf: "#34d399",
-};
 
 export default function CardGraph({ rootCardId, rootTitle, rootSourceType }: Props) {
   const { t } = useTranslation();
@@ -243,7 +238,7 @@ export default function CardGraph({ rootCardId, rootTitle, rootSourceType }: Pro
             const radius = n.isRoot ? 9 : n.expanded ? 7 : 5;
             ctx.beginPath();
             ctx.arc(n.x, n.y, radius, 0, 2 * Math.PI);
-            ctx.fillStyle = SOURCE_COLORS[n.sourceType] ?? "#a78bfa";
+            ctx.fillStyle = SOURCE_COLORS[n.sourceType] ?? "#a07dc7";
             ctx.fill();
             if (n.isRoot) {
               ctx.strokeStyle = "#ffffff";
