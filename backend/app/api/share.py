@@ -34,6 +34,8 @@ class PublicCard(BaseModel):
     detailed_summary_md: str | None = None
     key_takeaways_json: list | None = None
     notes_md: str | None = None
+    source_url: str | None = None
+    external_id: str | None = None
 
 
 @router.post("/cards/{card_id}/share", response_model=ShareOut)
@@ -102,4 +104,12 @@ def public_card(
     card = db.get(Card, share.card_id)
     if card is None:
         raise HTTPException(status_code=404, detail="Card no longer exists")
-    return PublicCard.model_validate(CardOut.model_validate(card).model_dump())
+    payload = CardOut.model_validate(card).model_dump()
+    if card.source_id:
+        from app.models.source import Source
+
+        s = db.get(Source, card.source_id)
+        if s is not None:
+            payload["source_url"] = s.canonical_url or s.url
+            payload["external_id"] = s.external_id
+    return PublicCard.model_validate(payload)

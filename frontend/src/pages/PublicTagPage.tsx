@@ -163,13 +163,7 @@ export default function PublicTagPage() {
                       {t("share.public.backToTag", { defaultValue: "Back to tag" })}
                     </button>
                   </div>
-                  {activeCard.thumbnail_url && (
-                    <img
-                      src={activeCard.thumbnail_url}
-                      alt=""
-                      className="mb-4 aspect-video w-full rounded-lg object-cover"
-                    />
-                  )}
+                  <CardMedia card={activeCard} />
                   {activeCard.concise_summary_md && (
                     <p className="mb-4 text-base leading-relaxed text-ink-200">
                       {activeCard.concise_summary_md}
@@ -263,4 +257,52 @@ export default function PublicTagPage() {
       </main>
     </div>
   );
+}
+
+function CardMedia({ card }: { card: PublicCard }) {
+  // YouTube → embed iframe (so the visitor can actually watch).
+  if (card.source_type === "youtube" && card.external_id) {
+    return (
+      <div className="mb-4 aspect-video w-full overflow-hidden rounded-lg ring-1 ring-ink-700">
+        <iframe
+          src={`https://www.youtube.com/embed/${card.external_id}`}
+          title={card.title}
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="h-full w-full"
+        />
+      </div>
+    );
+  }
+  // Article / PDF / others with a known source URL → thumbnail wrapped
+  // in a link that opens the original in a new tab.
+  if (card.thumbnail_url && card.source_url) {
+    return (
+      <a
+        href={card.source_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group mb-4 block overflow-hidden rounded-lg ring-1 ring-ink-700 transition hover:ring-ink-500"
+        title={card.source_url}
+      >
+        <img
+          src={card.thumbnail_url}
+          alt=""
+          className="aspect-video w-full object-cover transition group-hover:opacity-80"
+        />
+      </a>
+    );
+  }
+  // Fallback: flat thumbnail.
+  if (card.thumbnail_url) {
+    return (
+      <img
+        src={card.thumbnail_url}
+        alt=""
+        className="mb-4 aspect-video w-full rounded-lg object-cover"
+      />
+    );
+  }
+  return null;
 }

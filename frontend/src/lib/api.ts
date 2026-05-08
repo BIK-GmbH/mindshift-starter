@@ -712,6 +712,8 @@ export interface PublicCard {
   detailed_summary_md: string | null;
   key_takeaways_json: unknown[] | null;
   notes_md: string | null;
+  source_url?: string | null;
+  external_id?: string | null;
 }
 
 export interface UserOut {
@@ -744,6 +746,8 @@ export interface PublicCardSummary {
   source_type: string;
   thumbnail_url: string | null;
   concise_summary_md: string | null;
+  source_url: string | null;
+  external_id: string | null;
 }
 
 export interface PublicTagDetail {

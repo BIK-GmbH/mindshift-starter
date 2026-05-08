@@ -135,13 +135,7 @@ function CardView({ card }: { card: PublicCard }) {
         </button>
       </header>
 
-      {card.thumbnail_url && (
-        <img
-          src={card.thumbnail_url}
-          alt=""
-          className="aspect-video w-full rounded-xl object-cover ring-1 ring-ink-800"
-        />
-      )}
+      <CardMedia card={card} />
 
       {card.concise_summary_md && (
         <section>
@@ -201,4 +195,48 @@ function CardView({ card }: { card: PublicCard }) {
       </footer>
     </article>
   );
+}
+
+function CardMedia({ card }: { card: PublicCard }) {
+  if (card.source_type === "youtube" && card.external_id) {
+    return (
+      <div className="aspect-video w-full overflow-hidden rounded-xl ring-1 ring-ink-800">
+        <iframe
+          src={`https://www.youtube.com/embed/${card.external_id}`}
+          title={card.title}
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="h-full w-full"
+        />
+      </div>
+    );
+  }
+  if (card.thumbnail_url && card.source_url) {
+    return (
+      <a
+        href={card.source_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group block overflow-hidden rounded-xl ring-1 ring-ink-800 transition hover:ring-ink-500"
+        title={card.source_url}
+      >
+        <img
+          src={card.thumbnail_url}
+          alt=""
+          className="aspect-video w-full object-cover transition group-hover:opacity-80"
+        />
+      </a>
+    );
+  }
+  if (card.thumbnail_url) {
+    return (
+      <img
+        src={card.thumbnail_url}
+        alt=""
+        className="aspect-video w-full rounded-xl object-cover ring-1 ring-ink-800"
+      />
+    );
+  }
+  return null;
 }

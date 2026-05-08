@@ -208,20 +208,32 @@ def get_public_tag(
         .order_by(Card.created_at.desc())
     ).scalars().all()
 
+    # Bulk-fetch sources so we don't N+1 when serializing.
+    source_ids = {c.source_id for c in cards if c.source_id}
+    sources_by_id = {}
+    if source_ids:
+        from app.models.source import Source
+
+        rows = db.execute(select(Source).where(Source.id.in_(source_ids))).scalars().all()
+        sources_by_id = {s.id: s for s in rows}
+
+    def _summary(c: Card) -> PublicCardSummary:
+        s = sources_by_id.get(c.source_id) if c.source_id else None
+        return PublicCardSummary(
+            id=c.id,
+            title=c.title,
+            source_type=c.source_type,
+            thumbnail_url=c.thumbnail_url,
+            concise_summary_md=c.concise_summary_md,
+            source_url=s.canonical_url or s.url if s else None,
+            external_id=s.external_id if s else None,
+        )
+
     return PublicTagDetail(
         name=tag.name,
         slug=_slug_path(db, user.id, tag),
         card_count=len(cards),
-        cards=[
-            PublicCardSummary(
-                id=c.id,
-                title=c.title,
-                source_type=c.source_type,
-                thumbnail_url=c.thumbnail_url,
-                concise_summary_md=c.concise_summary_md,
-            )
-            for c in cards
-        ],
+        cards=[_summary(c) for c in cards],
     )
 
 
@@ -256,6 +268,17 @@ def get_public_card(
         raise HTTPException(status_code=404, detail="Card not found")
 
     out = CardOut.model_validate(card).model_dump()
+    # Pull the original Source so the public viewer can embed YouTube /
+    # link out to articles + PDFs.
+    source_url: str | None = None
+    external_id: str | None = None
+    if card.source_id:
+        from app.models.source import Source
+
+        s = db.get(Source, card.source_id)
+        if s is not None:
+            source_url = s.canonical_url or s.url
+            external_id = s.external_id
     # Trim sensitive-ish fields.
     return {
         "id": out["id"],
@@ -266,6 +289,8 @@ def get_public_card(
         "detailed_summary_md": out["detailed_summary_md"],
         "key_takeaways_json": out["key_takeaways_json"],
         "notes_md": out["notes_md"],
+        "source_url": source_url,
+        "external_id": external_id,
     }
 
 

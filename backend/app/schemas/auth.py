@@ -72,6 +72,13 @@ class PublicCardSummary(BaseModel):
     source_type: str
     thumbnail_url: str | None = None
     concise_summary_md: str | None = None
+    # Original source URL (YouTube watch link, article URL, …) so the
+    # public viewer can embed / link out instead of just showing a flat
+    # thumbnail.
+    source_url: str | None = None
+    # YouTube video id when source_type == "youtube" — used to build an
+    # iframe embed without re-parsing the URL on the client.
+    external_id: str | None = None
 
 
 PublicProfileOut.model_rebuild()
