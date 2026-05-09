@@ -1,9 +1,10 @@
-import { ExternalLink, FileText, Loader2, StickyNote } from "lucide-react";
+import { ExternalLink, FileText, Loader2, Moon, StickyNote, Sun } from "lucide-react";
 import { useEffect, useMemo, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 
 import MarkdownView from "../components/MarkdownView";
+import { useTheme } from "../lib/ThemeContext";
 import { api, tokenStorage, type Card } from "../lib/api";
 
 type EmbedTab = "summary" | "transcript" | "notes";
@@ -50,6 +51,7 @@ export default function EmbedCardPage() {
   const [transcriptText, setTranscriptText] = useState<string | null>(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const tok = tokenStorage.get();
@@ -157,6 +159,14 @@ export default function EmbedCardPage() {
         <span className="ml-auto rounded-full bg-ink-800/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-400">
           {card.source_type}
         </span>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Light mode" : "Dark mode"}
+          className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+        >
+          {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+        </button>
       </div>
 
       {/* Scrollable body */}

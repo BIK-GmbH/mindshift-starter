@@ -10,6 +10,15 @@
  * idempotent (early-out when the button is already there).
  */
 
+// First line of execution — emit a banner so we can verify the script
+// loaded at all. If this banner doesn't appear in the DevTools console,
+// the manifest didn't match the URL or the extension wasn't reloaded.
+console.info(
+  "%c[Mindshift] %ccontent script loaded — version 0.3 — on " + window.location.href,
+  "color: #8b5cf6; font-weight: bold",
+  "color: inherit",
+);
+
 const BUTTON_ID = "mindshift-save-btn";
 const POLL_INTERVAL_MS = 800;
 const MAX_POLL_ATTEMPTS = 30;
