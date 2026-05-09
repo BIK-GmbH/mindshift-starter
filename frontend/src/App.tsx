@@ -13,6 +13,7 @@ import PublicEpisodePage from "./pages/PublicEpisodePage";
 import PublicProfilePage from "./pages/PublicProfilePage";
 import PublicTagPage from "./pages/PublicTagPage";
 import ReviewPage from "./pages/ReviewPage";
+import ShareTargetPage from "./pages/ShareTargetPage";
 
 export default function App() {
   return (
@@ -65,6 +66,7 @@ function RootRoutes() {
         <Route path="graph" element={<GraphPage />} />
         <Route path="review" element={<ReviewPage />} />
         <Route path="podcasts" element={<PodcastsPage />} />
+        <Route path="share-target" element={<ShareTargetPage />} />
       </Route>
     </Routes>
   );
