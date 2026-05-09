@@ -23,9 +23,23 @@ function findActionBar() {
   // YouTube renders the like/dislike/share/etc buttons inside
   // `#top-level-buttons-computed` (a ytd-menu-renderer's slot).
   // It can take a moment to mount on hard navigations.
-  return document.querySelector(
-    "ytd-watch-metadata #top-level-buttons-computed, #top-level-buttons-computed",
-  );
+  // We try multiple selectors because YouTube redesigns the watch page
+  // every few months and the exact path drifts.
+  const selectors = [
+    "ytd-watch-metadata #top-level-buttons-computed",
+    "#top-level-buttons-computed",
+    // Newer YouTube redesign — segmented like/dislike pill block:
+    "ytd-watch-metadata #actions",
+    "ytd-watch-metadata #actions-inner",
+    "#actions-inner",
+    // Last-resort: whatever holds the share button.
+    "ytd-menu-renderer.ytd-watch-metadata",
+  ];
+  for (const sel of selectors) {
+    const el = document.querySelector(sel);
+    if (el) return el;
+  }
+  return null;
 }
 
 function buildButton(state) {
@@ -116,8 +130,12 @@ async function handleClick(btn) {
 async function inject() {
   if (document.getElementById(BUTTON_ID)) return; // idempotent
   const bar = findActionBar();
-  if (!bar) return;
+  if (!bar) {
+    console.debug("[Mindshift] action bar not found yet");
+    return;
+  }
 
+  console.debug("[Mindshift] mounting Save button into", bar);
   const btn = buildButton("save");
   btn.addEventListener("click", () => void handleClick(btn));
   bar.prepend(btn);
@@ -169,6 +187,11 @@ function watchForNavigations() {
   window.setInterval(tick, 1000);
 }
 
+console.info(
+  "[Mindshift] content script loaded on",
+  window.location.href,
+  "— if no Save pill appears, run: document.querySelector('#mindshift-save-btn') in DevTools",
+);
 void inject();
 pollUntilInjected();
 watchForNavigations();
