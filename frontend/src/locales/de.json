@@ -103,6 +103,21 @@
     "editTitle": "Klicken zum Umbenennen",
     "confirmDelete": "Dieses Abonnement entfernen?"
   },
+  "ingest": {
+    "queued": "In der Warteschlange…",
+    "processing": "Card wird generiert…",
+    "phase": {
+      "fetching": "Inhalte werden geladen…",
+      "transcript": "Transkript wird extrahiert…",
+      "summary": "AI erstellt Zusammenfassung…",
+      "tags": "Tags & Quiz werden generiert…",
+      "embedding": "Embeddings werden berechnet…"
+    },
+    "section": {
+      "summary": "Zusammenfassung",
+      "takeaways": "Key Takeaways"
+    }
+  },
   "shareTarget": {
     "saving": "Wird zu Mindshift gespeichert…",
     "savingHint": "Wir stellen die Seite in die Verarbeitung. Du wirst gleich weitergeleitet.",

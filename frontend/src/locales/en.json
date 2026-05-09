@@ -103,6 +103,21 @@
     "editTitle": "Click to rename",
     "confirmDelete": "Remove this subscription?"
   },
+  "ingest": {
+    "queued": "Queued for processing…",
+    "processing": "Generating your card…",
+    "phase": {
+      "fetching": "Fetching source content…",
+      "transcript": "Extracting transcript…",
+      "summary": "Drafting AI summary…",
+      "tags": "Generating tags & quiz…",
+      "embedding": "Computing embeddings…"
+    },
+    "section": {
+      "summary": "Summary",
+      "takeaways": "Key takeaways"
+    }
+  },
   "shareTarget": {
     "saving": "Saving to Mindshift…",
     "savingHint": "We're queuing the page for ingestion. You'll be redirected in a second.",

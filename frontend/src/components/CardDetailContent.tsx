@@ -35,6 +35,7 @@ import ChatPanel from "./ChatPanel";
 import MarkdownView, { markdownToPlainText } from "./MarkdownView";
 import RichTextEditor from "./RichTextEditor";
 import ShareModal from "./ShareModal";
+import IngestionSkeleton from "./IngestionSkeleton";
 import StatusBadge from "./StatusBadge";
 import { useDialog } from "../lib/DialogContext";
 import { api, type Card, type CardTranslationOut, type QuizQuestion } from "../lib/api";
@@ -441,6 +442,18 @@ export default function CardDetailContent({
             </div>
           )}
 
+          {/* While the card is being processed, show the animated
+              skeleton in place of the tabs' empty bodies. The polling
+              poll in LibraryPage refreshes the card object so we flip
+              back to the real layout once status === completed. */}
+          {(card.status === "queued" || card.status === "processing") ? (
+            <IngestionSkeleton
+              status={card.status}
+              thumbnailUrl={card.thumbnail_url}
+              title={card.title}
+              variant="full"
+            />
+          ) : (
           <div key={tab} className="tab-content-enter">
             {tab === "summary" && (
               <div className="space-y-8 text-sm leading-relaxed">
@@ -608,6 +621,7 @@ export default function CardDetailContent({
 
             {tab === "podcast" && <CardPodcastPlayer cardId={card.id} />}
           </div>
+          )}
         </div>
       </div>
       <ShareModal cardId={shareOpen ? cardId : null} onClose={() => setShareOpen(false)} />

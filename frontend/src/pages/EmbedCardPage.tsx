@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 
+import IngestionSkeleton from "../components/IngestionSkeleton";
 import MarkdownView from "../components/MarkdownView";
 import { useTheme } from "../lib/ThemeContext";
 import { api, tokenStorage, type Card } from "../lib/api";
@@ -66,6 +67,23 @@ export default function EmbedCardPage() {
       }
     })();
   }, [cardId]);
+
+  // Poll while the card is still being processed so the side panel
+  // catches up to "completed" without the user having to refresh.
+  // Cheap GET, single in-flight at a time, stops once status changes.
+  useEffect(() => {
+    if (!card) return;
+    if (card.status === "completed" || card.status === "failed") return;
+    const id = window.setInterval(async () => {
+      try {
+        const fresh = await api.getCard(cardId);
+        setCard(fresh);
+      } catch {
+        /* swallow — next tick will retry */
+      }
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [card?.status, cardId, card]);
 
   // Lazy-load transcript only when the user opens that tab.
   useEffect(() => {
@@ -169,7 +187,19 @@ export default function EmbedCardPage() {
         </button>
       </div>
 
-      {/* Scrollable body */}
+      {/* While the card is still being processed, replace the regular
+          tabbed body with the animated skeleton. Polling above flips
+          us back to the real layout once status flips to completed. */}
+      {(card.status === "queued" || card.status === "processing") ? (
+        <div className="flex-1 overflow-y-auto">
+          <IngestionSkeleton
+            status={card.status}
+            thumbnailUrl={card.thumbnail_url}
+            title={card.title}
+            variant="compact"
+          />
+        </div>
+      ) : (
       <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
         {/* Hero — scrolls away */}
         {card.thumbnail_url ? (
@@ -255,6 +285,7 @@ export default function EmbedCardPage() {
           {tab === "notes" && <NotesTab card={card} />}
         </div>
       </div>
+      )}
 
       {/* Sticky bottom CTA — opens the full card detail in the main
           Mindshift tab. Recall puts a chat composer here; we don't

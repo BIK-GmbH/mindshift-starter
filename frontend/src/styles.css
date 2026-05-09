@@ -629,6 +629,21 @@
   }
 }
 
+/* Skeleton shimmer used in IngestionSkeleton + future loading
+   placeholders. The element should already carry a horizontal
+   gradient (via Tailwind's `bg-gradient-to-r` + ink color stops);
+   this animation only sweeps the gradient's `background-position`. */
+@layer utilities {
+  .animate-shimmer {
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
 /* Honor prefers-reduced-motion — strip every animation defined above
    plus Tailwind's transitions to ~instant. */
 @media (prefers-reduced-motion: reduce) {
