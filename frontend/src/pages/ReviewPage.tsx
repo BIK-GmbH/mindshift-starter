@@ -13,6 +13,7 @@ import {
   type SessionDetail,
 } from "../lib/api";
 import { playSound } from "../lib/sounds";
+import MobileDesktopHint from "../components/MobileDesktopHint";
 
 const RATINGS: { id: ReviewRating; classes: string; hint: string }[] = [
   {
@@ -198,6 +199,7 @@ export default function ReviewPage() {
 
       {/* Main column */}
       <div className="flex flex-1 min-w-0 flex-col">
+        <MobileDesktopHint reasonKey="mobileHint.review" />
         <div className="page-header">
           <div className="page-header-inner">
             <h1 className="page-header-title">{t("nav.review")}</h1>

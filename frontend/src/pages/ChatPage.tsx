@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import ChatPanel from "../components/ChatPanel";
+import MobileDesktopHint from "../components/MobileDesktopHint";
 import { useDialog } from "../lib/DialogContext";
 import { api, type ChatSessionDetail, type ChatSessionItem } from "../lib/api";
 import { playSound } from "../lib/sounds";
@@ -131,6 +132,7 @@ export default function ChatPage() {
 
       {/* Main */}
       <div className="flex flex-1 min-w-0 flex-col">
+        <MobileDesktopHint reasonKey="mobileHint.chat" />
         <div className="page-header">
           <div className="page-header-inner flex items-center gap-2.5">
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-ink-700/60 ring-1 ring-ink-700">

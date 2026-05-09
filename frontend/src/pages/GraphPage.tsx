@@ -23,6 +23,7 @@ import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { useTranslation } from "react-i18next";
 
 import GraphCardDrawer from "../components/GraphCardDrawer";
+import MobileDesktopHint from "../components/MobileDesktopHint";
 import {
   api,
   type ConnectionReason,
@@ -947,6 +948,7 @@ export default function GraphPage() {
 
       {/* Main */}
       <div className="flex flex-1 min-w-0 flex-col">
+        <MobileDesktopHint reasonKey="mobileHint.graph" />
         <div className="page-header">
           <div className="page-header-inner flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
