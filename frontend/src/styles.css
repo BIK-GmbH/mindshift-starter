@@ -641,3 +641,17 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Touch devices have no hover state — every action that hides itself
+   behind `opacity-0 group-hover:opacity-100` becomes invisible & untappable.
+   On primary-touch input, expose those buttons at half opacity so they
+   read as "secondary, but tappable" rather than "missing". */
+@media (hover: none) {
+  .opacity-0.group-hover\:opacity-100 {
+    opacity: 0.5;
+  }
+  .opacity-0.group-hover\:opacity-100:focus,
+  .opacity-0.group-hover\:opacity-100:active {
+    opacity: 1;
+  }
+}

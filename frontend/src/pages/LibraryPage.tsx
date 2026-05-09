@@ -8,6 +8,7 @@ import {
   Hash,
   LayoutGrid,
   List as ListIcon,
+  Menu,
   MessageSquare,
   PanelRightClose,
   PanelRightOpen,
@@ -111,6 +112,9 @@ export default function LibraryPage() {
   // type and external_id too).
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [chatPlayerOpen, setChatPlayerOpen] = useState(false);
+  // Mobile-only: tags sidebar slides in as a drawer. Closed by default;
+  // closes again whenever the URL changes so picking a tag dismisses it.
+  const [tagsDrawerOpen, setTagsDrawerOpen] = useState(false);
 
   const fetchCards = useCallback(async () => {
     try {
@@ -160,6 +164,12 @@ export default function LibraryPage() {
     return () => window.clearInterval(id);
   }, [hasInflight, fetchCards]);
 
+  // Auto-close the mobile tags drawer whenever the user picks a tag /
+  // card / changes filters — the URL params are the source of truth.
+  useEffect(() => {
+    setTagsDrawerOpen(false);
+  }, [tag, untaggedFilter, selectedCardId, sourceFilter]);
+
   const counts = cards.reduce(
     (acc, c) => {
       acc.total += 1;
@@ -197,7 +207,10 @@ export default function LibraryPage() {
   if (selectedCardId) {
     return (
       <div className="flex h-full">
-        <LibraryTagsSidebar />
+        <LibraryTagsSidebar
+          mobileOpen={tagsDrawerOpen}
+          onMobileClose={() => setTagsDrawerOpen(false)}
+        />
         <div className="flex flex-1 min-w-0">
           <div className="flex-1 min-w-0 overflow-hidden">
             <CardDetailContent
@@ -286,7 +299,17 @@ export default function LibraryPage() {
       {/* Title band — same height across pages */}
       <div className="page-header">
         <div className="page-header-inner flex items-center justify-between gap-4">
-          <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {/* Hamburger toggle for the tags drawer (mobile only) */}
+            <button
+              type="button"
+              onClick={() => setTagsDrawerOpen(true)}
+              aria-label={t("nav.tags") ?? "Tags"}
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100 md:hidden"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+            <div className="min-w-0 flex-1">
             <h1 className="page-header-title">{t("nav.library")}</h1>
             {counts.total > 0 && (
               <p className="page-header-subtitle flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
@@ -323,6 +346,7 @@ export default function LibraryPage() {
                 )}
               </p>
             )}
+            </div>
           </div>
           <button
             type="button"
@@ -575,32 +599,59 @@ function SelectPill({
   );
 }
 
-function LibraryTagsSidebar() {
+interface LibraryTagsSidebarProps {
+  /** When true on `<md` viewports, the sidebar shows as a fixed drawer with a
+   *  backdrop. Desktop ignores this prop — the sidebar is always inline. */
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+function LibraryTagsSidebar({ mobileOpen = false, onMobileClose }: LibraryTagsSidebarProps) {
   const { t } = useTranslation();
   const tagsTreeRef = useRef<TagsTreeHandle>(null);
   return (
-    <aside className="panel-elevated hidden md:flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
-          {t("nav.tags")}
-        </span>
+    <>
+      {/* Mobile backdrop — only rendered when the drawer is open. */}
+      {mobileOpen && (
         <button
           type="button"
-          onClick={() => {
-            playSound("click");
-            tagsTreeRef.current?.createTag();
-          }}
-          title={t("tags.newTag") ?? ""}
-          className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
-        >
-          <Plus className="h-3 w-3" />
-          {t("tags.new", { defaultValue: "New" })}
-        </button>
-      </div>
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden py-2">
-        <TagsTree ref={tagsTreeRef} />
-      </div>
-    </aside>
+          aria-label="Close tags"
+          onClick={onMobileClose}
+          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+        />
+      )}
+      <aside
+        className={[
+          "panel-elevated w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60",
+          // Desktop: always in flow.
+          "md:relative md:flex",
+          // Mobile: fixed overlay anchored to the right of the icon rail
+          // (left-14 = 56 px). Display flips between flex and hidden.
+          mobileOpen ? "fixed inset-y-0 left-14 z-40 flex" : "hidden",
+        ].join(" ")}
+      >
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
+            {t("nav.tags")}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              playSound("click");
+              tagsTreeRef.current?.createTag();
+            }}
+            title={t("tags.newTag") ?? ""}
+            className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
+          >
+            <Plus className="h-3 w-3" />
+            {t("tags.new", { defaultValue: "New" })}
+          </button>
+        </div>
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden py-2">
+          <TagsTree ref={tagsTreeRef} />
+        </div>
+      </aside>
+    </>
   );
 }
 
