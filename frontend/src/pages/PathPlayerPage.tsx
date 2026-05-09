@@ -28,13 +28,29 @@ export default function PathPlayerPage() {
 
   const fetchPath = useCallback(async () => {
     try {
-      setPath(await api.getPath(pathId));
+      const detail = await api.getPath(pathId);
+      setPath(detail);
+      // If the user has prior progress and the URL doesn't already
+      // override the step, jump them to where they left off.
+      if (!params.get("step")) {
+        try {
+          const prog = await api.getPathProgress(pathId);
+          if (prog && prog.current_position > 0) {
+            const next = new URLSearchParams(params);
+            next.set("step", String(prog.current_position + 1));
+            setParams(next, { replace: true });
+          }
+        } catch {
+          /* ignore — progress is best-effort */
+        }
+      }
       setError(null);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathId]);
 
   useEffect(() => {
@@ -45,6 +61,15 @@ export default function PathPlayerPage() {
   const total = path?.cards.length ?? 0;
   const step = Number.isFinite(stepRaw) ? Math.min(Math.max(1, stepRaw), Math.max(1, total)) : 1;
   const current = path?.cards[step - 1] ?? null;
+
+  // Persist progress whenever the active step changes. Server takes the
+  // max so revisiting earlier steps doesn't roll the bookmark back.
+  useEffect(() => {
+    if (!path || total === 0) return;
+    void api.updatePathProgress(pathId, step - 1).catch(() => {
+      /* progress is best-effort; don't block the player on failure */
+    });
+  }, [pathId, step, total, path]);
 
   const goTo = (s: number) => {
     const next = new URLSearchParams(params);

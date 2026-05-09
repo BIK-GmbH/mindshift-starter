@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,6 +9,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.card import Card
 from app.models.path import Path, PathCard
+from app.models.path_progress import PathProgress
 from app.models.user import User
 from app.schemas.path import (
     AddCardsRequest,
@@ -16,6 +18,8 @@ from app.schemas.path import (
     PathDetail,
     PathListItem,
     PathUpdate,
+    ProgressOut,
+    ProgressUpdate,
     PublicPathOut,
     ReorderRequest,
     UpdateLessonRequest,
@@ -28,7 +32,9 @@ router = APIRouter(prefix="/paths", tags=["paths"])
 # --- Owner CRUD --------------------------------------------------------------
 
 
-def _path_to_list_item(db: Session, path: Path) -> PathListItem:
+def _path_to_list_item(
+    db: Session, path: Path, progress: PathProgress | None = None
+) -> PathListItem:
     count = db.execute(
         select(func.count(PathCard.path_id)).where(PathCard.path_id == path.id)
     ).scalar_one()
@@ -42,6 +48,8 @@ def _path_to_list_item(db: Session, path: Path) -> PathListItem:
         card_count=int(count or 0),
         created_at=path.created_at,
         updated_at=path.updated_at,
+        progress_position=progress.current_position if progress else None,
+        progress_completed_at=progress.completed_at if progress else None,
     )
 
 
@@ -91,7 +99,18 @@ def list_paths(
         .scalars()
         .all()
     )
-    return [_path_to_list_item(db, p) for p in rows]
+    # Single query for everyone's progress on these paths so the list
+    # endpoint stays O(1) round-trips regardless of path count.
+    progress_by_path: dict[UUID, PathProgress] = {
+        pp.path_id: pp
+        for pp in db.execute(
+            select(PathProgress).where(
+                PathProgress.user_id == current_user.id,
+                PathProgress.path_id.in_([p.id for p in rows]) if rows else False,
+            )
+        ).scalars().all()
+    }
+    return [_path_to_list_item(db, p, progress_by_path.get(p.id)) for p in rows]
 
 
 @router.post("", response_model=PathDetail, status_code=status.HTTP_201_CREATED)
@@ -275,6 +294,101 @@ def update_lesson(
     db.commit()
     db.refresh(path)
     return _path_to_detail(db, path)
+
+
+# --- Progress tracking -------------------------------------------------------
+
+
+def _accessible_path(db: Session, path_id: UUID, user: User) -> Path:
+    """A path is accessible to its owner unconditionally, and to anyone
+    else only when public. Returns the path or raises 404."""
+    path = db.get(Path, path_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Path not found")
+    if path.user_id != user.id and not path.is_public:
+        raise HTTPException(status_code=404, detail="Path not found")
+    return path
+
+
+@router.get("/{path_id}/progress", response_model=ProgressOut | None)
+def get_progress(
+    path_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProgressOut | None:
+    path = _accessible_path(db, path_id, current_user)
+    pp = db.execute(
+        select(PathProgress).where(
+            PathProgress.user_id == current_user.id,
+            PathProgress.path_id == path_id,
+        )
+    ).scalar_one_or_none()
+    if pp is None:
+        return None
+    total = db.execute(
+        select(func.count(PathCard.path_id)).where(PathCard.path_id == path.id)
+    ).scalar_one()
+    return ProgressOut(
+        current_position=pp.current_position,
+        started_at=pp.started_at,
+        completed_at=pp.completed_at,
+        total=int(total or 0),
+    )
+
+
+@router.post("/{path_id}/progress", response_model=ProgressOut)
+def update_progress(
+    path_id: UUID,
+    payload: ProgressUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProgressOut:
+    """Record that the user navigated to `current_position` (0-based).
+
+    Idempotent: re-sending the same position changes nothing. The stored
+    position only ever advances — replaying earlier steps doesn't move
+    the bookmark backwards. Reaching the last step stamps `completed_at`
+    and bumps the path's `completion_count` exactly once."""
+    path = _accessible_path(db, path_id, current_user)
+    total = db.execute(
+        select(func.count(PathCard.path_id)).where(PathCard.path_id == path.id)
+    ).scalar_one()
+    if total == 0:
+        raise HTTPException(status_code=400, detail="Path has no steps")
+    new_pos = max(0, min(int(payload.current_position), int(total) - 1))
+
+    pp = db.execute(
+        select(PathProgress).where(
+            PathProgress.user_id == current_user.id,
+            PathProgress.path_id == path_id,
+        )
+    ).scalar_one_or_none()
+    if pp is None:
+        pp = PathProgress(
+            user_id=current_user.id,
+            path_id=path_id,
+            current_position=new_pos,
+        )
+        db.add(pp)
+    else:
+        # Don't move the bookmark backwards.
+        pp.current_position = max(pp.current_position, new_pos)
+
+    # Stamp completion exactly once. Bump path's count when it first
+    # transitions to completed (so it remains accurate even if the user
+    # later re-plays the path).
+    if pp.completed_at is None and pp.current_position >= int(total) - 1:
+        pp.completed_at = datetime.now(tz=timezone.utc)
+        path.completion_count += 1
+
+    db.commit()
+    db.refresh(pp)
+    return ProgressOut(
+        current_position=pp.current_position,
+        started_at=pp.started_at,
+        completed_at=pp.completed_at,
+        total=int(total),
+    )
 
 
 # --- Public read endpoint ----------------------------------------------------

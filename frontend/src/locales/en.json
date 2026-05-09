@@ -41,6 +41,7 @@
     "openEditor": "Open editor",
     "noStepsToPlay": "This path has no steps yet.",
     "deletePath": "Delete path",
+    "completed": "Completed",
     "notFound": "Path not found",
     "confirmDelete": {
       "title": "Delete this path?",

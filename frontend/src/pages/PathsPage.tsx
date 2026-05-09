@@ -1,4 +1,4 @@
-import { Compass, Globe, Loader2, Lock, Plus } from "lucide-react";
+import { CheckCircle2, Compass, Globe, Loader2, Lock, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -137,12 +137,28 @@ export default function PathsPage() {
                       <h3 className="mb-1 line-clamp-2 text-sm font-semibold text-ink-100 group-hover:text-fuchsia-300">
                         {p.title}
                       </h3>
-                      <p className="mt-auto text-[10px] uppercase tracking-wider text-ink-500">
-                        {p.card_count}{" "}
-                        {p.card_count === 1
-                          ? t("paths.cardSingular", { defaultValue: "card" })
-                          : t("paths.cardPlural", { defaultValue: "cards" })}
-                      </p>
+                      <div className="mt-auto flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-ink-500">
+                        <span>
+                          {p.card_count}{" "}
+                          {p.card_count === 1
+                            ? t("paths.cardSingular", { defaultValue: "card" })
+                            : t("paths.cardPlural", { defaultValue: "cards" })}
+                        </span>
+                        {/* Progress pill — only shows when the user has
+                            interacted with this path. Three states:
+                            completed (green check), in progress (% bar),
+                            no progress (nothing). */}
+                        {p.progress_completed_at ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-300">
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            {t("paths.completed", { defaultValue: "Completed" })}
+                          </span>
+                        ) : p.progress_position !== null && p.card_count > 0 ? (
+                          <span className="text-fuchsia-300">
+                            {Math.round(((p.progress_position + 1) / p.card_count) * 100)}%
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                   </button>
                 </li>

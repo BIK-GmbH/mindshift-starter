@@ -9,6 +9,7 @@ from app.models.entity import CardEntity, Entity  # noqa: F401
 from app.models.feed import Feed  # noqa: F401
 from app.models.file import File  # noqa: F401
 from app.models.path import Path, PathCard  # noqa: F401
+from app.models.path_progress import PathProgress  # noqa: F401
 from app.models.graph_preset import GraphPreset  # noqa: F401
 from app.models.job import Job  # noqa: F401
 from app.models.learning_session import LearningSession  # noqa: F401

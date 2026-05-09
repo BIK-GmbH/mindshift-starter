@@ -26,6 +26,9 @@ class PathListItem(BaseModel):
     card_count: int
     created_at: datetime
     updated_at: datetime
+    # Progress for the requesting user (omitted on public list views).
+    progress_position: int | None = None
+    progress_completed_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -63,6 +66,24 @@ class ReorderRequest(BaseModel):
 
 class UpdateLessonRequest(BaseModel):
     lesson_md: str | None = None
+
+
+class ProgressUpdate(BaseModel):
+    """Step the user just navigated to. 0-based; the server enforces
+    bounds against the path's card count."""
+    current_position: int
+
+
+class ProgressOut(BaseModel):
+    current_position: int
+    started_at: datetime
+    completed_at: datetime | None
+    # Total steps in the path — denormalised for the player so it can
+    # render a "5 / 12" indicator in one round-trip.
+    total: int
+
+    class Config:
+        from_attributes = True
 
 
 class PublicPathOut(BaseModel):

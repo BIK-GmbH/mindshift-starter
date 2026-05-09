@@ -626,6 +626,13 @@ export const api = {
     }),
   publicPath: (username: string, slug: string) =>
     request<PublicPathOut>(`/api/public/paths/${username}/${slug}`),
+  getPathProgress: (id: string) =>
+    request<PathProgress | null>(`/api/paths/${id}/progress`),
+  updatePathProgress: (id: string, currentPosition: number) =>
+    request<PathProgress>(`/api/paths/${id}/progress`, {
+      method: "POST",
+      body: JSON.stringify({ current_position: currentPosition }),
+    }),
 
   // RSS / Atom feed subscriptions
   listFeeds: () => request<FeedOut[]>("/api/feeds"),
@@ -684,6 +691,15 @@ export interface PathListItem {
   card_count: number;
   created_at: string;
   updated_at: string;
+  progress_position: number | null;
+  progress_completed_at: string | null;
+}
+
+export interface PathProgress {
+  current_position: number;
+  started_at: string;
+  completed_at: string | null;
+  total: number;
 }
 
 export interface PathDetail extends PathListItem {
