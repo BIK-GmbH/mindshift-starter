@@ -111,7 +111,10 @@ export default function LibraryPage() {
   // have the selectedCardId from the URL, but the panel needs the source
   // type and external_id too).
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
-  const [chatPlayerOpen, setChatPlayerOpen] = useState(false);
+  // Player visible by default in the right chat pane — when the card has
+  // a video source. Toggle in the pane header lets the user collapse it
+  // for a wider chat surface; setting persists during the session.
+  const [chatPlayerOpen, setChatPlayerOpen] = useState(true);
   // Mobile-only: tags sidebar slides in as a drawer. Closed by default;
   // closes again whenever the URL changes so picking a tag dismisses it.
   const [tagsDrawerOpen, setTagsDrawerOpen] = useState(false);
