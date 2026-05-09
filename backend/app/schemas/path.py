@@ -106,6 +106,33 @@ class PathQuiz(BaseModel):
     questions: list[PathQuizQuestion]
 
 
+class QuizAttemptCreate(BaseModel):
+    score: int
+    total: int
+    duration_seconds: int | None = None
+
+
+class QuizAttemptOut(BaseModel):
+    id: UUID
+    score: int
+    total: int
+    duration_seconds: int | None
+    completed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class QuizStats(BaseModel):
+    """Aggregate of one user's quiz history on a single path."""
+    attempt_count: int
+    best_score: int | None
+    best_total: int | None
+    last_score: int | None
+    last_total: int | None
+    last_completed_at: datetime | None
+
+
 class PublicPathOut(BaseModel):
     """Public read-only view — username + slug pair instead of the
     owner's UUID."""

@@ -43,6 +43,10 @@
     "noStepsToPlay": "Dieser Path hat noch keine Schritte.",
     "deletePath": "Path löschen",
     "completed": "Abgeschlossen",
+    "completedSteps": "Schritte erledigt",
+    "resetProgress": "Zurücksetzen",
+    "markComplete": "Als erledigt markieren",
+    "markIncomplete": "Markierung entfernen",
     "takeQuiz": "Quiz starten",
     "cover": "Cover-Bild",
     "coverHint": "Wird automatisch aus Titel, Beschreibung und den ersten Card-Titeln generiert. Kostet einen Image-API-Aufruf.",
@@ -65,7 +69,11 @@
     "markWrong": "Falsch",
     "finalScore": "Endpunktzahl",
     "tryAgain": "Nochmal",
-    "backToPlayer": "Zurück zum Player"
+    "backToPlayer": "Zurück zum Player",
+    "best": "Bestleistung",
+    "newBest": "Neue Bestleistung!",
+    "bestTooltip": "Persönliche Bestleistung über alle Versuche",
+    "attemptCount": "{{count}} Versuche"
   },
   "cardPicker": {
     "title": "Cards auswählen",

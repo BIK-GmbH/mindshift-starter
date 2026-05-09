@@ -1,10 +1,10 @@
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, Loader2, RotateCw, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, Loader2, RotateCw, Sparkles, Trophy, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import MobileDesktopHint from "../components/MobileDesktopHint";
-import { api, type PathQuiz, type PathQuizQuestion } from "../lib/api";
+import { api, type PathQuiz, type PathQuizQuestion, type QuizStats } from "../lib/api";
 
 type Phase = "loading" | "ready" | "answering" | "showing-answer" | "done" | "empty";
 
@@ -39,16 +39,27 @@ export default function PathQuizPage() {
   const [answers, setAnswers] = useState<AnswerRecord[]>([]);
   // For MC questions — the choice the user clicked, before reveal.
   const [pickedChoice, setPickedChoice] = useState<string | null>(null);
+  const [stats, setStats] = useState<QuizStats | null>(null);
+  // Persist start time so we can submit duration on completion. Uses
+  // a ref because a state update would re-render the timer needlessly.
+  const startedAtRef = useRef<number>(Date.now());
+  const submittedRef = useRef(false);
 
   useEffect(() => {
     void (async () => {
       try {
-        const q = await api.getPathQuiz(pathId);
+        const [q, s] = await Promise.all([
+          api.getPathQuiz(pathId),
+          api.getQuizStats(pathId).catch(() => null),
+        ]);
         setQuiz(q);
+        setStats(s);
         if (q.questions.length === 0) {
           setPhase("empty");
         } else {
           setQuestions(shuffle(q.questions));
+          startedAtRef.current = Date.now();
+          submittedRef.current = false;
           setPhase("answering");
         }
       } catch (err) {
@@ -85,11 +96,32 @@ export default function PathQuizPage() {
     }
   };
 
+  // Persist the attempt the moment we transition to "done". Guard
+  // against Strict-mode double mounts and re-renders so we never
+  // record the same attempt twice.
+  useEffect(() => {
+    if (phase !== "done" || submittedRef.current) return;
+    submittedRef.current = true;
+    const duration = Math.round((Date.now() - startedAtRef.current) / 1000);
+    void (async () => {
+      try {
+        await api.recordQuizAttempt(pathId, { score, total, duration_seconds: duration });
+        // Re-fetch stats so the next "Try again" sees the updated best-score.
+        const fresh = await api.getQuizStats(pathId);
+        setStats(fresh);
+      } catch {
+        /* stats are best-effort; don't block the score screen */
+      }
+    })();
+  }, [phase, pathId, score, total]);
+
   const restart = () => {
     setQuestions(shuffle(quiz?.questions ?? []));
     setIndex(0);
     setAnswers([]);
     setPickedChoice(null);
+    startedAtRef.current = Date.now();
+    submittedRef.current = false;
     setPhase("answering");
   };
 
@@ -154,9 +186,22 @@ export default function PathQuizPage() {
             <h1 className="truncate text-sm font-semibold text-ink-100">{quiz.path_title}</h1>
           </div>
           {phase !== "done" && (
-            <span className="rounded-md bg-ink-800/60 px-2 py-1 font-mono text-[10px] tabular-nums text-ink-300">
-              {Math.min(index + 1, total)} / {total}
-            </span>
+            <>
+              {stats?.best_score !== null && stats?.best_total ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[10px] uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30"
+                  title={t("pathQuiz.bestTooltip", {
+                    defaultValue: `Personal best across ${stats.attempt_count} attempts`,
+                  }) ?? ""}
+                >
+                  <Trophy className="h-3 w-3" />
+                  {stats.best_score}/{stats.best_total}
+                </span>
+              ) : null}
+              <span className="rounded-md bg-ink-800/60 px-2 py-1 font-mono text-[10px] tabular-nums text-ink-300">
+                {Math.min(index + 1, total)} / {total}
+              </span>
+            </>
           )}
         </div>
         <div className="h-0.5 w-full bg-ink-800">
@@ -173,6 +218,7 @@ export default function PathQuizPage() {
             <FinalScore
               score={score}
               total={total}
+              stats={stats}
               onRestart={restart}
               onBack={() => navigate(`/paths/${pathId}/play`)}
             />
@@ -333,11 +379,13 @@ function QuestionCard({
 function FinalScore({
   score,
   total,
+  stats,
   onRestart,
   onBack,
 }: {
   score: number;
   total: number;
+  stats: QuizStats | null;
   onRestart: () => void;
   onBack: () => void;
 }) {
@@ -349,6 +397,14 @@ function FinalScore({
       : pct >= 50
         ? "text-amber-300"
         : "text-red-300";
+  // The stats endpoint includes THIS attempt because we call it after
+  // the POST. Compare current run to the personal best so we can call
+  // out a new high score.
+  const isNewBest =
+    stats?.best_score != null &&
+    stats?.best_total === total &&
+    stats.best_score === score &&
+    stats.attempt_count >= 1;
   return (
     <div className="rounded-xl border border-ink-800 bg-ink-800/30 p-6 text-center">
       <Sparkles className={`mx-auto mb-3 h-8 w-8 ${tone}`} />
@@ -359,6 +415,32 @@ function FinalScore({
         {score} <span className="text-base text-ink-500">/ {total}</span>
       </p>
       <p className="mt-1 text-sm text-ink-300">{pct}%</p>
+
+      {stats && stats.attempt_count > 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-ink-400">
+          {isNewBest ? (
+            <span className="inline-flex items-center gap-1 text-amber-300">
+              <Trophy className="h-3 w-3" />
+              {t("pathQuiz.newBest", { defaultValue: "New personal best!" })}
+            </span>
+          ) : stats.best_score != null ? (
+            <span className="inline-flex items-center gap-1">
+              <Trophy className="h-3 w-3 text-amber-400" />
+              {t("pathQuiz.best", { defaultValue: "Best" })}:{" "}
+              <span className="tabular-nums text-ink-200">
+                {stats.best_score}/{stats.best_total}
+              </span>
+            </span>
+          ) : null}
+          <span className="text-ink-600">·</span>
+          <span>
+            {t("pathQuiz.attemptCount", {
+              count: stats.attempt_count,
+              defaultValue: `${stats.attempt_count} attempts`,
+            })}
+          </span>
+        </div>
+      )}
 
       <div className="mt-6 flex items-center justify-center gap-2">
         <button

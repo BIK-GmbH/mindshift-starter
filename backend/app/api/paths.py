@@ -11,6 +11,7 @@ from app.models.card import Card
 from app.models.file import File
 from app.models.path import Path, PathCard
 from app.models.path_progress import PathProgress
+from app.models.path_quiz_attempt import PathQuizAttempt
 from app.models.quiz import QuizQuestion
 from app.models.user import User
 from app.schemas.path import (
@@ -25,6 +26,9 @@ from app.schemas.path import (
     ProgressOut,
     ProgressUpdate,
     PublicPathOut,
+    QuizAttemptCreate,
+    QuizAttemptOut,
+    QuizStats,
     ReorderRequest,
     UpdateLessonRequest,
 )
@@ -527,6 +531,102 @@ def get_path_quiz(
         for q, card, pc in rows
     ]
     return PathQuiz(path_id=path.id, path_title=path.title, questions=questions)
+
+
+@router.post("/{path_id}/quiz/attempts", response_model=QuizAttemptOut, status_code=status.HTTP_201_CREATED)
+def record_quiz_attempt(
+    path_id: UUID,
+    payload: QuizAttemptCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> QuizAttemptOut:
+    """Persist a single completed quiz run. The frontend computes the
+    score and posts it; the server enforces sane bounds."""
+    path = _accessible_path(db, path_id, current_user)
+    score = max(0, min(int(payload.score), int(payload.total)))
+    total = max(0, int(payload.total))
+    duration = (
+        max(0, int(payload.duration_seconds)) if payload.duration_seconds is not None else None
+    )
+    attempt = PathQuizAttempt(
+        user_id=current_user.id,
+        path_id=path.id,
+        score=score,
+        total=total,
+        duration_seconds=duration,
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+    return QuizAttemptOut.model_validate(attempt)
+
+
+@router.get("/{path_id}/quiz/attempts", response_model=list[QuizAttemptOut])
+def list_quiz_attempts(
+    path_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[QuizAttemptOut]:
+    path = _accessible_path(db, path_id, current_user)
+    rows = (
+        db.execute(
+            select(PathQuizAttempt)
+            .where(
+                PathQuizAttempt.user_id == current_user.id,
+                PathQuizAttempt.path_id == path.id,
+            )
+            .order_by(PathQuizAttempt.completed_at.desc())
+            .limit(50)
+        )
+        .scalars()
+        .all()
+    )
+    return [QuizAttemptOut.model_validate(r) for r in rows]
+
+
+@router.get("/{path_id}/quiz/stats", response_model=QuizStats)
+def quiz_stats(
+    path_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> QuizStats:
+    """Single round-trip aggregate for the editor / player UI: how many
+    attempts, what's the personal best, what was the most recent run."""
+    path = _accessible_path(db, path_id, current_user)
+    rows = (
+        db.execute(
+            select(PathQuizAttempt)
+            .where(
+                PathQuizAttempt.user_id == current_user.id,
+                PathQuizAttempt.path_id == path.id,
+            )
+            .order_by(PathQuizAttempt.completed_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        return QuizStats(
+            attempt_count=0,
+            best_score=None,
+            best_total=None,
+            last_score=None,
+            last_total=None,
+            last_completed_at=None,
+        )
+    # "Best" by ratio — same total across attempts is normal; if totals
+    # differ across attempts (path was edited), we pick the highest
+    # ratio first, then highest absolute score as a tiebreak.
+    best = max(rows, key=lambda a: (a.score / a.total if a.total else 0, a.score))
+    last = rows[0]
+    return QuizStats(
+        attempt_count=len(rows),
+        best_score=best.score,
+        best_total=best.total,
+        last_score=last.score,
+        last_total=last.total,
+        last_completed_at=last.completed_at,
+    )
 
 
 # --- Public read endpoint ----------------------------------------------------

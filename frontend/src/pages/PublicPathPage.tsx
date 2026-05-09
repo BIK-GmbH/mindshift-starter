@@ -1,5 +1,5 @@
-import { Brain, Compass, FileText, Github, Globe, Loader2, Youtube, type LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Brain, Check, Compass, FileText, Github, Globe, Loader2, RotateCw, Youtube, type LucideIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
@@ -7,6 +7,7 @@ import MarkdownView from "../components/MarkdownView";
 import RailFooterButtons from "../components/RailFooterButtons";
 import { api, type PublicPathOut } from "../lib/api";
 import { setMetaTags } from "../lib/metaTags";
+import { clearCompleted, loadCompleted, saveCompleted } from "../lib/publicPathProgress";
 
 const SOURCE_ICONS: Record<string, LucideIcon> = {
   youtube: Youtube,
@@ -28,6 +29,35 @@ export default function PublicPathPage() {
   const { username = "", slug = "" } = useParams<{ username: string; slug: string }>();
   const [path, setPath] = useState<PublicPathOut | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Anonymous client-side progress — checked steps live in localStorage
+  // so visitors who aren't logged in can still mark progress on a path
+  // they're working through. Survives refresh, doesn't sync across
+  // devices (this is intentional — the moment you want sync you log in).
+  const [completed, setCompleted] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    setCompleted(loadCompleted(username, slug));
+  }, [username, slug]);
+
+  const toggleStep = (i: number) => {
+    setCompleted((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      saveCompleted(username, slug, next);
+      return next;
+    });
+  };
+
+  const reset = () => {
+    clearCompleted(username, slug);
+    setCompleted(new Set());
+  };
+
+  const progressPct = useMemo(() => {
+    if (!path || path.cards.length === 0) return 0;
+    return Math.round((completed.size / path.cards.length) * 100);
+  }, [completed, path]);
 
   useEffect(() => {
     void (async () => {
@@ -103,21 +133,69 @@ export default function PublicPathPage() {
               <MarkdownView source={path.description_md} />
             </div>
           )}
+          {/* Anonymous progress bar + reset. Only shows once the visitor
+              has marked at least one step. */}
+          {completed.size > 0 && (
+            <div className="mt-4 rounded-md border border-fuchsia-500/20 bg-fuchsia-500/5 p-3">
+              <div className="mb-1.5 flex items-center justify-between text-[11px] text-ink-300">
+                <span>
+                  <span className="font-semibold text-fuchsia-200">{completed.size}</span> /{" "}
+                  {path.cards.length} {t("paths.completedSteps", { defaultValue: "steps done" })}
+                  {" · "}
+                  <span className="text-ink-500">{progressPct}%</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-ink-400 transition hover:text-ink-100"
+                >
+                  <RotateCw className="h-2.5 w-2.5" />
+                  {t("paths.resetProgress", { defaultValue: "Reset" })}
+                </button>
+              </div>
+              <div className="h-1 w-full overflow-hidden rounded-full bg-ink-800">
+                <div
+                  className="h-full bg-gradient-to-r from-fuchsia-500 to-fuchsia-300 transition-all"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Steps */}
         <ol className="space-y-3">
           {path.cards.map((c, i) => {
             const Icon = SOURCE_ICONS[c.source_type] ?? FileText;
+            const isDone = completed.has(i);
             return (
               <li
                 key={c.card_id}
-                className="rounded-xl border border-ink-800 bg-ink-800/30 p-4"
+                className={[
+                  "rounded-xl border p-4 transition",
+                  isDone
+                    ? "border-emerald-500/30 bg-emerald-500/5"
+                    : "border-ink-800 bg-ink-800/30",
+                ].join(" ")}
               >
                 <div className="flex items-start gap-3">
-                  <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-fuchsia-500/15 text-[11px] font-bold tabular-nums text-fuchsia-200 ring-1 ring-fuchsia-500/30">
-                    {i + 1}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleStep(i)}
+                    aria-label={
+                      isDone
+                        ? t("paths.markIncomplete", { defaultValue: "Mark as incomplete" }) ?? ""
+                        : t("paths.markComplete", { defaultValue: "Mark as complete" }) ?? ""
+                    }
+                    className={[
+                      "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-bold tabular-nums transition",
+                      isDone
+                        ? "border-emerald-400 bg-emerald-400/15 text-emerald-200 hover:bg-emerald-400/25"
+                        : "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-200 hover:border-fuchsia-500/60",
+                    ].join(" ")}
+                  >
+                    {isDone ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                  </button>
                   <div className="min-w-0 flex-1">
                     <div className="mb-0.5 flex items-center gap-2 text-[10px] uppercase tracking-wider text-ink-500">
                       <Icon className="h-3 w-3" />

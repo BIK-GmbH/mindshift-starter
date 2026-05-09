@@ -634,6 +634,17 @@ export const api = {
       body: JSON.stringify({ current_position: currentPosition }),
     }),
   getPathQuiz: (id: string) => request<PathQuiz>(`/api/paths/${id}/quiz`),
+  recordQuizAttempt: (
+    id: string,
+    body: { score: number; total: number; duration_seconds?: number },
+  ) =>
+    request<QuizAttemptOut>(`/api/paths/${id}/quiz/attempts`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listQuizAttempts: (id: string) =>
+    request<QuizAttemptOut[]>(`/api/paths/${id}/quiz/attempts`),
+  getQuizStats: (id: string) => request<QuizStats>(`/api/paths/${id}/quiz/stats`),
   generatePathCover: (id: string) =>
     request<PathDetail>(`/api/paths/${id}/generate-cover`, { method: "POST" }),
 
@@ -720,6 +731,23 @@ export interface PathQuiz {
   path_id: string;
   path_title: string;
   questions: PathQuizQuestion[];
+}
+
+export interface QuizAttemptOut {
+  id: string;
+  score: number;
+  total: number;
+  duration_seconds: number | null;
+  completed_at: string;
+}
+
+export interface QuizStats {
+  attempt_count: number;
+  best_score: number | null;
+  best_total: number | null;
+  last_score: number | null;
+  last_total: number | null;
+  last_completed_at: string | null;
 }
 
 export interface PathDetail extends PathListItem {

@@ -43,6 +43,10 @@
     "noStepsToPlay": "This path has no steps yet.",
     "deletePath": "Delete path",
     "completed": "Completed",
+    "completedSteps": "steps done",
+    "resetProgress": "Reset",
+    "markComplete": "Mark as complete",
+    "markIncomplete": "Mark as incomplete",
     "takeQuiz": "Take quiz",
     "cover": "Cover image",
     "coverHint": "Auto-generated from the path title, description and first few card titles. Costs one image-API call.",
@@ -65,7 +69,11 @@
     "markWrong": "I was wrong",
     "finalScore": "Final score",
     "tryAgain": "Try again",
-    "backToPlayer": "Back to player"
+    "backToPlayer": "Back to player",
+    "best": "Best",
+    "newBest": "New personal best!",
+    "bestTooltip": "Personal best across all attempts",
+    "attemptCount": "{{count}} attempts"
   },
   "cardPicker": {
     "title": "Pick cards",
