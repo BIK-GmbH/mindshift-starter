@@ -21,7 +21,7 @@ const els = {
   settingsStatus: document.getElementById("settingsStatus"),
 };
 
-let state = { apiUrl: "", token: "" };
+let state = { apiUrl: "", token: "", webUrl: "" };
 let activeTab = null;
 
 function setStatus(node, msg, kind) {
@@ -36,13 +36,34 @@ function showPane(which) {
 }
 
 async function loadState() {
-  const stored = await chrome.storage.local.get(["apiUrl", "token"]);
+  const stored = await chrome.storage.local.get(["apiUrl", "token", "webUrl"]);
   state.apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
   state.token = stored.token || "";
+  state.webUrl = (stored.webUrl || "").replace(/\/$/, "");
 }
 
 async function saveState() {
-  await chrome.storage.local.set({ apiUrl: state.apiUrl, token: state.token });
+  await chrome.storage.local.set({
+    apiUrl: state.apiUrl,
+    token: state.token,
+    webUrl: state.webUrl,
+  });
+}
+
+/** Discover the web app URL from the backend so deep-links go to the
+ *  right place. Falls back to apiUrl when the endpoint isn't available
+ *  (older backend) — matches the local-dev case where API and web are
+ *  on the same host but different ports. */
+async function discoverWebUrl() {
+  try {
+    const res = await fetch(`${state.apiUrl}/api/info`);
+    if (!res.ok) return state.apiUrl;
+    const data = await res.json();
+    const url = (data?.web_url || "").replace(/\/$/, "");
+    return url || state.apiUrl;
+  } catch {
+    return state.apiUrl;
+  }
 }
 
 /** Custom error so callers can branch on auth-expired vs other failures. */
@@ -143,7 +164,11 @@ async function addCurrentPage() {
       link.className = "status-link";
       link.addEventListener("click", (ev) => {
         ev.preventDefault();
-        chrome.tabs.create({ url: `${state.apiUrl}/cards/${cardId}` });
+        // webUrl is discovered from /api/info on connect; falls back to
+        // apiUrl when the backend hasn't been told about its web URL
+        // yet (works in same-origin deployments).
+        const webBase = state.webUrl || state.apiUrl;
+        chrome.tabs.create({ url: `${webBase}/cards/${cardId}` });
         window.close();
       });
       els.status.append(span, link);
@@ -244,7 +269,11 @@ async function trySave() {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    state = { apiUrl: url, token };
+    state = { apiUrl: url, token, webUrl: "" };
+    // Resolve the web app URL from the backend so the "open card" link
+    // goes to the right place even when API and web are on different
+    // hosts (e.g. Railway: api.example.com vs app.example.com).
+    state.webUrl = await discoverWebUrl();
     await saveState();
     setStatus(els.settingsStatus, "Connected.", "ok");
     showPane("connected");
@@ -267,6 +296,13 @@ async function trySave() {
   showPane("connected");
   await refreshActiveTab();
   await refreshBookmarkCount();
+  // Backfill webUrl for installations from before /api/info existed.
+  // Best-effort, no UI feedback — the worst case is the open-card link
+  // falls back to apiUrl which is what the old code did anyway.
+  if (!state.webUrl) {
+    state.webUrl = await discoverWebUrl();
+    if (state.webUrl) await saveState();
+  }
 })();
 
 els.addBtn.addEventListener("click", () => void addCurrentPage());
