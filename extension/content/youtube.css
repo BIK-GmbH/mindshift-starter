@@ -1,0 +1,91 @@
+/* "Save to Mindshift" button injected into the YouTube watch page
+   action bar. Designed to look at home next to YouTube's own pill
+   buttons (Like, Share, …) without clashing — same height, same
+   border-radius shape, distinct violet accent so it reads as a
+   third-party affordance rather than a YT control. */
+
+.mindshift-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  margin-right: 8px;
+  border: none;
+  border-radius: 18px;
+  background: rgba(139, 92, 246, 0.15);
+  color: #c4b5fd;
+  font-family: "Roboto", "YouTube Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.mindshift-save-btn:hover {
+  background: rgba(139, 92, 246, 0.25);
+  color: #ddd6fe;
+}
+
+.mindshift-save-btn:active {
+  background: rgba(139, 92, 246, 0.35);
+}
+
+/* Light-mode YouTube — the channel page background can be white. We
+   detect via prefers-color-scheme since YouTube doesn't set a class
+   we can rely on. */
+@media (prefers-color-scheme: light) {
+  .mindshift-save-btn {
+    background: rgba(139, 92, 246, 0.1);
+    color: #6d28d9;
+  }
+  .mindshift-save-btn:hover {
+    background: rgba(139, 92, 246, 0.2);
+    color: #5b21b6;
+  }
+}
+
+.mindshift-save-btn .ms-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.mindshift-save-btn .ms-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Saved state — emerald-tinted to mirror the "completed" pill used
+   throughout the web app. */
+.mindshift-save-btn.mindshift-state-saved {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+}
+
+.mindshift-save-btn.mindshift-state-saved:hover {
+  background: rgba(16, 185, 129, 0.25);
+  color: #a7f3d0;
+}
+
+/* Pending state during the save POST. */
+.mindshift-save-btn.mindshift-state-saving {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Error state — red-tinted, still clickable to retry. */
+.mindshift-save-btn.mindshift-state-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+.mindshift-save-btn.mindshift-state-error:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fecaca;
+}
