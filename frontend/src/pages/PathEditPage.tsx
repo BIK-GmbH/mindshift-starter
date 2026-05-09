@@ -6,6 +6,7 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  GripVertical,
   Loader2,
   Lock,
   Play,
@@ -43,6 +44,10 @@ export default function PathEditPage() {
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Native HTML5 drag-drop state. We keep both indices so we can render
+  // a drop indicator and skip the no-op when source == over.
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   const fetchPath = useCallback(async () => {
     try {
@@ -117,6 +122,32 @@ export default function PathEditPage() {
   const updateLesson = async (cardId: string, value: string) => {
     const next = await api.updatePathLesson(pathId, cardId, value || null);
     setPath(next);
+  };
+
+  /**
+   * Apply a finished drag — moves the card at `from` to `to` and posts
+   * the new ordering. Optimistic UI; reverts on server error.
+   */
+  const handleDrop = async (from: number, to: number) => {
+    if (!path) return;
+    if (from === to) return;
+    const ids = path.cards.map((c) => c.card_id);
+    const [moved] = ids.splice(from, 1);
+    ids.splice(to, 0, moved);
+    setPath({
+      ...path,
+      cards: ids.map((id, i) => {
+        const original = path.cards.find((c) => c.card_id === id)!;
+        return { ...original, position: i };
+      }),
+    });
+    try {
+      const next = await api.reorderPath(pathId, ids);
+      setPath(next);
+    } catch (err) {
+      setError((err as Error).message);
+      void fetchPath();
+    }
   };
 
   const publicUrl = path && path.is_public && user?.username
@@ -283,9 +314,50 @@ export default function PathEditPage() {
                 {path.cards.map((c, i) => (
                   <li
                     key={c.card_id}
-                    className="rounded-xl border border-ink-800 bg-ink-800/30 p-3"
+                    onDragOver={(e) => {
+                      if (dragIndex === null) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (overIndex !== i) setOverIndex(i);
+                    }}
+                    onDragLeave={() => {
+                      if (overIndex === i) setOverIndex(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragIndex !== null) void handleDrop(dragIndex, i);
+                      setDragIndex(null);
+                      setOverIndex(null);
+                    }}
+                    className={[
+                      "rounded-xl border bg-ink-800/30 p-3 transition",
+                      dragIndex === i ? "opacity-40" : "",
+                      overIndex === i && dragIndex !== i
+                        ? "border-fuchsia-500/60 ring-2 ring-fuchsia-500/20"
+                        : "border-ink-800",
+                    ].join(" ")}
                   >
                     <div className="flex items-start gap-3">
+                      {/* Drag handle — only the handle is draggable so
+                          the lesson textarea stays editable. */}
+                      <button
+                        type="button"
+                        draggable
+                        onDragStart={(e) => {
+                          setDragIndex(i);
+                          e.dataTransfer.effectAllowed = "move";
+                          // Required by Firefox to actually start the drag.
+                          e.dataTransfer.setData("text/plain", c.card_id);
+                        }}
+                        onDragEnd={() => {
+                          setDragIndex(null);
+                          setOverIndex(null);
+                        }}
+                        title={t("paths.drag", { defaultValue: "Drag to reorder" }) ?? ""}
+                        className="flex h-7 w-4 flex-shrink-0 cursor-grab items-center justify-center rounded text-ink-500 transition hover:text-ink-200 active:cursor-grabbing"
+                      >
+                        <GripVertical className="h-4 w-4" />
+                      </button>
                       <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-fuchsia-500/15 text-[11px] font-bold tabular-nums text-fuchsia-200 ring-1 ring-fuchsia-500/30">
                         {i + 1}
                       </span>

@@ -34,6 +34,7 @@
     "addCards": "Add cards",
     "moveUp": "Move up",
     "moveDown": "Move down",
+    "drag": "Drag to reorder",
     "play": "Play",
     "next": "Next",
     "prev": "Previous step",
