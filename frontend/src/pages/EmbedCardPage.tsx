@@ -218,9 +218,7 @@ export default function EmbedCardPage() {
                         ? "Summary"
                         : id === "transcript"
                           ? "Transcript"
-                          : id === "notes"
-                            ? "Notes"
-                            : "Chat",
+                          : "Notes",
                   })}
                 </span>
                 {active && (
@@ -231,8 +229,13 @@ export default function EmbedCardPage() {
           })}
         </nav>
 
-        {/* Tab content */}
-        <div className="flex flex-1 min-h-0 flex-col">
+        {/* Tab content. The `min-h-[120vh]` guarantees the scroll
+            container stays scrollable taller than the viewport even
+            when the active tab has very little content (e.g. an
+            empty Notes tab). Without it the browser would clamp
+            scrollTop back to 0 on tab switch — pulling the hero
+            image back into view and forcing the user to re-scroll. */}
+        <div className="flex flex-1 min-h-[120vh] flex-col">
           {tab === "summary" && (
             <SummaryTab card={card} depth={summaryDepth} onDepthChange={setSummaryDepth} />
           )}
