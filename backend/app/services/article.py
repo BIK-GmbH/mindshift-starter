@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from urllib.parse import urljoin
 
 import httpx
 import trafilatura
@@ -16,9 +18,51 @@ class ArticleResult:
     site_name: str | None
     canonical_url: str | None
     language: str | None
+    image_url: str | None
 
 
-_USER_AGENT = "Mindshift/0.1 (+https://mindshift.local)"
+# Browser-like UA — many sites (Wikipedia, NYTimes, several CDNs) reject
+# generic bot UAs outright with 403. We still identify ourselves by name
+# at the end so server logs can attribute the traffic.
+_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Mindshift/0.1"
+)
+
+
+# Match <meta property="og:image" content="…"> regardless of attribute order
+# and quote style. Also catches twitter:image as a secondary signal.
+_META_IMAGE_PATTERNS = [
+    re.compile(
+        r"""<meta[^>]+(?:property|name)\s*=\s*['"]og:image(?::secure_url)?['"][^>]*?content\s*=\s*['"]([^'"]+)['"]""",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"""<meta[^>]+content\s*=\s*['"]([^'"]+)['"][^>]*?(?:property|name)\s*=\s*['"]og:image(?::secure_url)?['"]""",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"""<meta[^>]+(?:property|name)\s*=\s*['"]twitter:image(?::src)?['"][^>]*?content\s*=\s*['"]([^'"]+)['"]""",
+        re.IGNORECASE,
+    ),
+]
+
+
+def _extract_lead_image(html: str, base_url: str) -> str | None:
+    """Find a representative image URL from page meta tags.
+
+    Strategy: og:image → twitter:image. We don't fall back to <img> tags
+    inside the body because those are usually inline figures (or trackers)
+    and pollute the thumbnail more than they help.
+    """
+    for pattern in _META_IMAGE_PATTERNS:
+        match = pattern.search(html)
+        if match:
+            raw = match.group(1).strip()
+            if raw:
+                # Resolve protocol-relative & relative URLs against the page.
+                return urljoin(base_url, raw)
+    return None
 
 
 def fetch_article(url: str) -> ArticleResult | None:
@@ -54,6 +98,12 @@ def fetch_article(url: str) -> ArticleResult | None:
     if not text:
         return None
 
+    # trafilatura sometimes populates "image" itself (from og:image); fall
+    # back to a direct meta-tag scan when it doesn't.
+    image_url = (data.get("image") or "").strip() or None
+    if not image_url:
+        image_url = _extract_lead_image(html, final_url)
+
     return ArticleResult(
         title=(data.get("title") or "").strip() or None,
         text=text,
@@ -61,4 +111,5 @@ def fetch_article(url: str) -> ArticleResult | None:
         site_name=(data.get("sitename") or "").strip() or None,
         canonical_url=data.get("url") or final_url,
         language=data.get("language"),
+        image_url=image_url,
     )

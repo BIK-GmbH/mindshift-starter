@@ -18,6 +18,7 @@ from app.models.tag import CardTag, Tag
 from app.models.transcript import Transcript
 from app.services.article import fetch_article
 from app.services.embeddings import chunk_text, embed_texts
+from app.services.github import build_summary_block, fetch_repo
 from app.services.openai_summarizer import summarize_transcript
 from app.services.pdf import extract_pdf
 from app.services.youtube import fetch_metadata, fetch_transcript
@@ -140,6 +141,8 @@ def process_article_card(card_id: UUID, job_id: UUID, url: str) -> None:
 
         if article.title:
             card.title = article.title
+        if article.image_url:
+            card.thumbnail_url = article.image_url
         db.commit()
 
         db.add(
@@ -154,6 +157,66 @@ def process_article_card(card_id: UUID, job_id: UUID, url: str) -> None:
         db.commit()
 
         _summarize_and_attach(db, card, article.text)
+        _mark_completed(db, card, job)
+
+
+def process_github_card(card_id: UUID, job_id: UUID, url: str) -> None:
+    """Fetch a GitHub repo's metadata + README and run the summarization pipeline."""
+    with _job_context(card_id, job_id) as ctx:
+        if ctx is None:
+            return
+        db, card, job = ctx
+
+        repo = fetch_repo(url)
+        if repo is None:
+            _mark_failed(
+                db,
+                card,
+                job,
+                "Could not fetch GitHub repository (private, deleted, or rate-limited).",
+            )
+            return
+
+        # Title prefers description; falls back to "owner/repo".
+        card.title = repo.description or repo.full_name
+        card.thumbnail_url = repo.thumbnail_url
+
+        # Persist structured metadata on the source row so the frontend
+        # can show stars/forks/topics without re-fetching.
+        if card.source_id:
+            from app.models.source import Source
+
+            src = db.get(Source, card.source_id)
+            if src is not None:
+                src.metadata_json = {
+                    "owner": repo.owner,
+                    "repo": repo.repo,
+                    "full_name": repo.full_name,
+                    "description": repo.description,
+                    "homepage": repo.homepage,
+                    "default_branch": repo.default_branch,
+                    "language": repo.language,
+                    "languages": repo.languages,
+                    "topics": repo.topics,
+                    "stars": repo.stars,
+                    "forks": repo.forks,
+                    "license": repo.license_name,
+                }
+        db.commit()
+
+        text = build_summary_block(repo)
+        db.add(
+            Transcript(
+                card_id=card.id,
+                language="en",
+                text=text,
+                segments_json=None,
+                provider="github-api",
+            )
+        )
+        db.commit()
+
+        _summarize_and_attach(db, card, text)
         _mark_completed(db, card, job)
 
 
