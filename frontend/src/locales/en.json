@@ -43,11 +43,24 @@
     "noStepsToPlay": "This path has no steps yet.",
     "deletePath": "Delete path",
     "completed": "Completed",
+    "takeQuiz": "Take quiz",
     "notFound": "Path not found",
     "confirmDelete": {
       "title": "Delete this path?",
       "body": "The path will be removed; the cards stay in your library."
     }
+  },
+  "pathQuiz": {
+    "title": "Path quiz",
+    "empty": "No quiz questions in this path's cards yet. Add cards with quizzes to start.",
+    "fromStep": "From step {{step}}",
+    "reveal": "Reveal answer",
+    "answer": "Answer",
+    "markCorrect": "I got it",
+    "markWrong": "I was wrong",
+    "finalScore": "Final score",
+    "tryAgain": "Try again",
+    "backToPlayer": "Back to player"
   },
   "cardPicker": {
     "title": "Pick cards",

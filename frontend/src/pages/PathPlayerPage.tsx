@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, ChevronLeft, Loader2, Pencil } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, Loader2, Pencil, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -157,15 +157,26 @@ export default function PathPlayerPage() {
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              disabled={step >= total}
-              onClick={() => goTo(step + 1)}
-              className="flex h-9 items-center gap-1 rounded-md bg-fuchsia-500/15 px-3 text-xs font-semibold text-fuchsia-200 ring-1 ring-fuchsia-500/30 transition hover:bg-fuchsia-500/25 disabled:opacity-30"
-            >
-              {t("paths.next", { defaultValue: "Next" })}
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+            {step >= total ? (
+              // On the last step, swap "Next" for the path-quiz CTA.
+              <button
+                type="button"
+                onClick={() => navigate(`/paths/${pathId}/quiz`)}
+                className="flex h-9 items-center gap-1 rounded-md bg-fuchsia-500/20 px-3 text-xs font-semibold text-fuchsia-100 ring-1 ring-fuchsia-500/40 transition hover:bg-fuchsia-500/30"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {t("paths.takeQuiz", { defaultValue: "Take quiz" })}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => goTo(step + 1)}
+                className="flex h-9 items-center gap-1 rounded-md bg-fuchsia-500/15 px-3 text-xs font-semibold text-fuchsia-200 ring-1 ring-fuchsia-500/30 transition hover:bg-fuchsia-500/25"
+              >
+                {t("paths.next", { defaultValue: "Next" })}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
         {/* Progress bar */}

@@ -43,11 +43,24 @@
     "noStepsToPlay": "Dieser Path hat noch keine Schritte.",
     "deletePath": "Path löschen",
     "completed": "Abgeschlossen",
+    "takeQuiz": "Quiz starten",
     "notFound": "Path nicht gefunden",
     "confirmDelete": {
       "title": "Diesen Path löschen?",
       "body": "Der Path wird entfernt; die Cards bleiben in deiner Bibliothek."
     }
+  },
+  "pathQuiz": {
+    "title": "Path-Quiz",
+    "empty": "In den Cards dieses Paths sind noch keine Quiz-Fragen. Füge Cards mit Quiz hinzu, um zu starten.",
+    "fromStep": "Aus Schritt {{step}}",
+    "reveal": "Antwort zeigen",
+    "answer": "Antwort",
+    "markCorrect": "Richtig",
+    "markWrong": "Falsch",
+    "finalScore": "Endpunktzahl",
+    "tryAgain": "Nochmal",
+    "backToPlayer": "Zurück zum Player"
   },
   "cardPicker": {
     "title": "Cards auswählen",

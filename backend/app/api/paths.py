@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.card import Card
 from app.models.path import Path, PathCard
 from app.models.path_progress import PathProgress
+from app.models.quiz import QuizQuestion
 from app.models.user import User
 from app.schemas.path import (
     AddCardsRequest,
@@ -17,6 +18,8 @@ from app.schemas.path import (
     PathCreate,
     PathDetail,
     PathListItem,
+    PathQuiz,
+    PathQuizQuestion,
     PathUpdate,
     ProgressOut,
     ProgressUpdate,
@@ -389,6 +392,42 @@ def update_progress(
         completed_at=pp.completed_at,
         total=int(total),
     )
+
+
+@router.get("/{path_id}/quiz", response_model=PathQuiz)
+def get_path_quiz(
+    path_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PathQuiz:
+    """Aggregate quiz questions across every card in the path.
+
+    Order: cards in path-position order, questions per card in their
+    original order. The frontend may shuffle for the actual run; we
+    return a stable order so re-asking is deterministic when needed.
+    """
+    path = _accessible_path(db, path_id, current_user)
+    rows = db.execute(
+        select(QuizQuestion, Card, PathCard)
+        .join(PathCard, PathCard.card_id == QuizQuestion.card_id)
+        .join(Card, Card.id == QuizQuestion.card_id)
+        .where(PathCard.path_id == path.id)
+        .order_by(PathCard.position, QuizQuestion.created_at)
+    ).all()
+    questions = [
+        PathQuizQuestion(
+            id=q.id,
+            card_id=q.card_id,
+            card_title=card.title,
+            card_position=pc.position,
+            question=q.question,
+            answer=q.answer,
+            question_type=q.question_type,
+            choices_json=q.choices_json,
+        )
+        for q, card, pc in rows
+    ]
+    return PathQuiz(path_id=path.id, path_title=path.title, questions=questions)
 
 
 # --- Public read endpoint ----------------------------------------------------

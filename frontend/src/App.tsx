@@ -9,6 +9,7 @@ import FeedsPage from "./pages/FeedsPage";
 import GraphPage from "./pages/GraphPage";
 import PathEditPage from "./pages/PathEditPage";
 import PathPlayerPage from "./pages/PathPlayerPage";
+import PathQuizPage from "./pages/PathQuizPage";
 import PathsPage from "./pages/PathsPage";
 import PublicPathPage from "./pages/PublicPathPage";
 import LibraryPage from "./pages/LibraryPage";
@@ -76,6 +77,7 @@ function RootRoutes() {
         <Route path="paths" element={<PathsPage />} />
         <Route path="paths/:pathId" element={<PathEditPage />} />
         <Route path="paths/:pathId/play" element={<PathPlayerPage />} />
+        <Route path="paths/:pathId/quiz" element={<PathQuizPage />} />
         <Route path="share-target" element={<ShareTargetPage />} />
       </Route>
     </Routes>

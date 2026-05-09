@@ -633,6 +633,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ current_position: currentPosition }),
     }),
+  getPathQuiz: (id: string) => request<PathQuiz>(`/api/paths/${id}/quiz`),
 
   // RSS / Atom feed subscriptions
   listFeeds: () => request<FeedOut[]>("/api/feeds"),
@@ -700,6 +701,23 @@ export interface PathProgress {
   started_at: string;
   completed_at: string | null;
   total: number;
+}
+
+export interface PathQuizQuestion {
+  id: string;
+  card_id: string;
+  card_title: string;
+  card_position: number;
+  question: string;
+  answer: string;
+  question_type: string;
+  choices_json: string[] | null;
+}
+
+export interface PathQuiz {
+  path_id: string;
+  path_title: string;
+  questions: PathQuizQuestion[];
 }
 
 export interface PathDetail extends PathListItem {

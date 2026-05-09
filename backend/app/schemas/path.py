@@ -86,6 +86,26 @@ class ProgressOut(BaseModel):
         from_attributes = True
 
 
+class PathQuizQuestion(BaseModel):
+    """Single quiz question, scoped to its source card. The card title
+    is denormalised so the player can show "From: <title>" beneath each
+    question without a second join."""
+    id: UUID
+    card_id: UUID
+    card_title: str
+    card_position: int
+    question: str
+    answer: str
+    question_type: str
+    choices_json: list[str] | None = None
+
+
+class PathQuiz(BaseModel):
+    path_id: UUID
+    path_title: str
+    questions: list[PathQuizQuestion]
+
+
 class PublicPathOut(BaseModel):
     """Public read-only view — username + slug pair instead of the
     owner's UUID."""
