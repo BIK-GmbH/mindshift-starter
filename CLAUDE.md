@@ -140,6 +140,22 @@ docs/
   an immediate first poll via BackgroundTasks. Polling is fail-soft —
   one feed's HTTP / parse error doesn't block the others.
 
+- **Learning paths**: `paths` + `path_cards` tables; an ordered,
+  user-curated sequence of cards. Slug per user (`uq_paths_user_slug`)
+  generated from title via `services/paths.slugify` with `-2` / `-3`
+  collision suffixes; renaming does NOT regenerate the slug unless
+  `regenerate_slug` is requested, so public URLs stay stable. Position
+  is dense (0…N-1) and re-numbered on every move/remove via
+  `services.paths.renumber_positions`. Owner CRUD lives at
+  `/api/paths/*`, public read at `/api/public/paths/{username}/{slug}`.
+  Frontend pages: `PathsPage` (list + create), `PathEditPage` (inline-
+  edit title/description/cover, public-toggle, drag-free reorder via
+  up/down arrows, per-step lesson note, `CardPickerModal` for adding
+  cards), `PathPlayerPage` (linear walkthrough with sticky header +
+  prev/next + arrow-key navigation, embeds `CardDetailContent` so all
+  card features work in player mode), `PublicPathPage` (read-only
+  view at `/u/<user>/path/<slug>`).
+
 ## Conventions
 
 - **Commits**: English, conventional-commits (`feat:`, `fix:`, `chore:`,

@@ -9,7 +9,52 @@
     "chat": "Der volle Chat-Workspace funktioniert auf einem breiteren Bildschirm besser. Du kannst stattdessen die Karte öffnen und im Karten-Chat fragen.",
     "review": "Das Lern-Dashboard ist auf nebeneinander liegende Panels ausgelegt.",
     "podcasts": "Das Podcast-Studio braucht mehr Platz für Voice-Auswahl und Skript-Editor.",
-    "feeds": "Die Feed-Verwaltung lässt sich am Desktop bequemer überblicken."
+    "feeds": "Die Feed-Verwaltung lässt sich am Desktop bequemer überblicken.",
+    "paths": "Path-Editor und -Player nutzen mehr Bildschirmfläche optimal."
+  },
+  "paths": {
+    "title": "Paths",
+    "subtitle": "Stelle aus deinen Cards geordnete Lernpfade zusammen. Teile sie unter deinem öffentlichen Profil.",
+    "new": "Neuer Path",
+    "untitled": "Unbenannter Path",
+    "publicPill": "Öffentlich",
+    "privatePill": "Privat",
+    "publicHint": "Jeder mit dem Link kann diesen Path unter deinem öffentlichen Profil lesen.",
+    "privateHint": "Nur du siehst diesen Path. Auf öffentlich schalten, um zu teilen.",
+    "visibility": "Sichtbarkeit",
+    "description": "Beschreibung",
+    "cardSingular": "Card",
+    "cardPlural": "Cards",
+    "empty": {
+      "title": "Noch keine Paths",
+      "body": "Lege deinen ersten Path an, um eine Reihe von Cards zu einem Mini-Kurs zu bündeln."
+    },
+    "steps": "Schritte",
+    "emptySteps": "Noch keine Schritte — füge Cards hinzu, um zu starten.",
+    "addCards": "Cards hinzufügen",
+    "moveUp": "Nach oben",
+    "moveDown": "Nach unten",
+    "play": "Abspielen",
+    "next": "Weiter",
+    "prev": "Zurück",
+    "lesson": "Lektion",
+    "openEditor": "Editor öffnen",
+    "noStepsToPlay": "Dieser Path hat noch keine Schritte.",
+    "deletePath": "Path löschen",
+    "notFound": "Path nicht gefunden",
+    "confirmDelete": {
+      "title": "Diesen Path löschen?",
+      "body": "Der Path wird entfernt; die Cards bleiben in deiner Bibliothek."
+    }
+  },
+  "cardPicker": {
+    "title": "Cards auswählen",
+    "searchPlaceholder": "Nach Titel suchen…",
+    "noResults": "Keine passenden Cards.",
+    "alreadyIn": "im Path",
+    "selected": "{{count}} ausgewählt",
+    "selectHint": "Tippe eine Card, um sie auszuwählen.",
+    "add": "Hinzufügen"
   },
   "feeds": {
     "title": "Feeds",
@@ -51,6 +96,7 @@
     "review": "Learning",
     "podcasts": "Podcasts",
     "feeds": "Feeds",
+    "paths": "Paths",
     "search": "Suche",
     "settings": "Einstellungen",
     "tags": "Tags",

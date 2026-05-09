@@ -56,11 +56,35 @@ Caps: 25 new items per poll per feed. Errors are persisted on the row
 so the user can diagnose without server logs. New subscriptions are
 polled immediately via BackgroundTasks so cards appear in seconds.
 
-## Phase 4 — Learning paths / mini-courses
+## ✅ Phase 4 — Learning paths / mini-courses *(MVP shipped 2026-05-09)*
 
-Cards bundled into ordered "paths" with progress tracking and a path-
-wide quiz mode. Public paths discoverable on the user's profile.
-Biggest item — design before building.
+Ordered, user-curated sequences of cards. Author them in the editor,
+walk through them in the player, share them publicly under your
+profile.
+
+Backend
+- `paths` (id, user_id, title, slug, description_md, cover_url,
+  is_public, completion_count) + `path_cards` (path_id, card_id,
+  position, lesson_md). Unique slug per user; positions dense, re-
+  numbered on every move/remove.
+- `services/paths.py` carries the slug + position helpers.
+- `api/paths.py` — CRUD plus reorder, add cards (bulk), remove card,
+  per-step lesson update, public read at `/api/public/paths/{user}/{slug}`.
+
+Frontend
+- `PathsPage` (list + create), `PathEditPage` (inline-edit
+  everything, up/down reorder, `CardPickerModal` for adding cards,
+  public-toggle with copy-to-clipboard share URL), `PathPlayerPage`
+  (sticky header, prev/next, arrow-key navigation, lesson banner,
+  embeds CardDetailContent so every card feature works in player
+  mode), `PublicPathPage` at `/u/:username/path/:slug`.
+- New `Compass` rail entry; `CardPickerModal` is reusable for future
+  bundle-style features.
+
+Hooks left in place for phase 4.5: `paths.completion_count`,
+`path_cards.lesson_md` (already wired), and the schema is ready for a
+later `path_progress` table without migrations to existing tables.
+Quiz mode + completion tracking explicitly deferred.
 
 ## Phase 5 — Audio upload + Whisper *(deferred)*
 

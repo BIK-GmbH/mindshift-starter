@@ -9,7 +9,52 @@
     "chat": "The full chat workspace works better on a wider screen. You can open a card and ask questions in its in-card chat instead.",
     "review": "The learning dashboard is laid out for side-by-side panels.",
     "podcasts": "The podcast studio needs space for voice selection and script editor.",
-    "feeds": "Managing your feed subscriptions is easier with more horizontal room."
+    "feeds": "Managing your feed subscriptions is easier with more horizontal room.",
+    "paths": "Path editor and player are designed for a wider screen."
+  },
+  "paths": {
+    "title": "Paths",
+    "subtitle": "Curate ordered learning paths from your cards. Share them publicly under your profile.",
+    "new": "New path",
+    "untitled": "Untitled path",
+    "publicPill": "Public",
+    "privatePill": "Private",
+    "publicHint": "Anyone with the link can read this path under your public profile.",
+    "privateHint": "Only you can see this path. Toggle public to share it.",
+    "visibility": "Visibility",
+    "description": "Description",
+    "cardSingular": "card",
+    "cardPlural": "cards",
+    "empty": {
+      "title": "No paths yet",
+      "body": "Create your first path to bundle a series of cards into a mini-course."
+    },
+    "steps": "Steps",
+    "emptySteps": "No steps yet — add cards to start building.",
+    "addCards": "Add cards",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "play": "Play",
+    "next": "Next",
+    "prev": "Previous step",
+    "lesson": "Lesson",
+    "openEditor": "Open editor",
+    "noStepsToPlay": "This path has no steps yet.",
+    "deletePath": "Delete path",
+    "notFound": "Path not found",
+    "confirmDelete": {
+      "title": "Delete this path?",
+      "body": "The path will be removed; the cards stay in your library."
+    }
+  },
+  "cardPicker": {
+    "title": "Pick cards",
+    "searchPlaceholder": "Search by title…",
+    "noResults": "No matching cards.",
+    "alreadyIn": "in path",
+    "selected": "{{count}} selected",
+    "selectHint": "Tap a card to select it.",
+    "add": "Add to path"
   },
   "feeds": {
     "title": "Feeds",
@@ -51,6 +96,7 @@
     "review": "Learning",
     "podcasts": "Podcasts",
     "feeds": "Feeds",
+    "paths": "Paths",
     "search": "Search",
     "settings": "Settings",
     "tags": "Tags",

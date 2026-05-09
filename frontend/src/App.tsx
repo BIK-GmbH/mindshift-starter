@@ -7,6 +7,10 @@ import CardDetailPage from "./pages/CardDetailPage";
 import ChatPage from "./pages/ChatPage";
 import FeedsPage from "./pages/FeedsPage";
 import GraphPage from "./pages/GraphPage";
+import PathEditPage from "./pages/PathEditPage";
+import PathPlayerPage from "./pages/PathPlayerPage";
+import PathsPage from "./pages/PathsPage";
+import PublicPathPage from "./pages/PublicPathPage";
 import LibraryPage from "./pages/LibraryPage";
 import PodcastsPage from "./pages/PodcastsPage";
 import PublicCardPage from "./pages/PublicCardPage";
@@ -40,6 +44,7 @@ function RootRoutes() {
         <Route path="embed/episode/:token" element={<PublicEpisodePage embed />} />
         <Route path="share/:token" element={<PublicCardPage />} />
         <Route path="u/:username" element={<PublicProfilePage />} />
+        <Route path="u/:username/path/:slug" element={<PublicPathPage />} />
         <Route path="u/:username/*" element={<PublicTagPage />} />
       </Routes>
     );
@@ -68,6 +73,9 @@ function RootRoutes() {
         <Route path="review" element={<ReviewPage />} />
         <Route path="podcasts" element={<PodcastsPage />} />
         <Route path="feeds" element={<FeedsPage />} />
+        <Route path="paths" element={<PathsPage />} />
+        <Route path="paths/:pathId" element={<PathEditPage />} />
+        <Route path="paths/:pathId/play" element={<PathPlayerPage />} />
         <Route path="share-target" element={<ShareTargetPage />} />
       </Route>
     </Routes>

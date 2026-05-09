@@ -584,6 +584,49 @@ export const api = {
       body: JSON.stringify({ from_id: fromId, to_id: toId, max_hops: maxHops }),
     }),
 
+  // Learning paths
+  listPaths: () => request<PathListItem[]>("/api/paths"),
+  createPath: (title: string, description_md?: string | null) =>
+    request<PathDetail>("/api/paths", {
+      method: "POST",
+      body: JSON.stringify({ title, description_md }),
+    }),
+  getPath: (id: string) => request<PathDetail>(`/api/paths/${id}`),
+  updatePath: (
+    id: string,
+    body: {
+      title?: string;
+      description_md?: string | null;
+      cover_url?: string | null;
+      is_public?: boolean;
+      regenerate_slug?: boolean;
+    },
+  ) =>
+    request<PathDetail>(`/api/paths/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deletePath: (id: string) => request<void>(`/api/paths/${id}`, { method: "DELETE" }),
+  addCardsToPath: (id: string, cardIds: string[]) =>
+    request<PathDetail>(`/api/paths/${id}/cards`, {
+      method: "POST",
+      body: JSON.stringify({ card_ids: cardIds }),
+    }),
+  removeCardFromPath: (id: string, cardId: string) =>
+    request<PathDetail>(`/api/paths/${id}/cards/${cardId}`, { method: "DELETE" }),
+  reorderPath: (id: string, cardIds: string[]) =>
+    request<PathDetail>(`/api/paths/${id}/reorder`, {
+      method: "PATCH",
+      body: JSON.stringify({ card_ids: cardIds }),
+    }),
+  updatePathLesson: (id: string, cardId: string, lessonMd: string | null) =>
+    request<PathDetail>(`/api/paths/${id}/cards/${cardId}/lesson`, {
+      method: "PATCH",
+      body: JSON.stringify({ lesson_md: lessonMd }),
+    }),
+  publicPath: (username: string, slug: string) =>
+    request<PublicPathOut>(`/api/public/paths/${username}/${slug}`),
+
   // RSS / Atom feed subscriptions
   listFeeds: () => request<FeedOut[]>("/api/feeds"),
   createFeed: (feedUrl: string, title?: string) =>
@@ -618,6 +661,43 @@ export interface FeedRefreshResult {
   queued: number;
   skipped_seen: number;
   error: string | null;
+}
+
+export interface PathCardItem {
+  card_id: string;
+  position: number;
+  lesson_md: string | null;
+  title: string;
+  source_type: string;
+  status: string;
+  thumbnail_url: string | null;
+  concise_summary_md: string | null;
+}
+
+export interface PathListItem {
+  id: string;
+  title: string;
+  slug: string;
+  description_md: string | null;
+  cover_url: string | null;
+  is_public: boolean;
+  card_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PathDetail extends PathListItem {
+  cards: PathCardItem[];
+}
+
+export interface PublicPathOut {
+  title: string;
+  slug: string;
+  description_md: string | null;
+  cover_url: string | null;
+  author_username: string;
+  cards: PathCardItem[];
+  created_at: string;
 }
 
 export interface GraphNode {

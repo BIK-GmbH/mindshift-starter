@@ -18,6 +18,8 @@ from app.api.health import router as health_router
 from app.api.imports import router as import_router
 from app.api.jobs import router as jobs_router
 from app.api.og import router as og_router
+from app.api.paths import public_router as paths_public_router
+from app.api.paths import router as paths_router
 from app.api.podcasts import public_router as podcasts_public_router
 from app.api.podcasts import router as podcasts_router
 from app.api.review import router as review_router
@@ -83,6 +85,8 @@ app.include_router(ai_router, prefix="/api")
 app.include_router(audio_router, prefix="/api")
 app.include_router(podcasts_router, prefix="/api")
 app.include_router(podcasts_public_router, prefix="/api")
+app.include_router(paths_router, prefix="/api")
+app.include_router(paths_public_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(feeds_router, prefix="/api")
 app.include_router(wiki_router, prefix="/api")
