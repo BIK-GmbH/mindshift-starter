@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./lib/AuthContext";
 import AuthPage from "./pages/AuthPage";
 import CardDetailPage from "./pages/CardDetailPage";
 import ChatPage from "./pages/ChatPage";
+import EmbedCardPage from "./pages/EmbedCardPage";
 import FeedsPage from "./pages/FeedsPage";
 import GraphPage from "./pages/GraphPage";
 import PathEditPage from "./pages/PathEditPage";
@@ -32,11 +33,14 @@ export default function App() {
 function RootRoutes() {
   const { user, loading } = useAuth();
 
-  // Public routes don't require auth.
+  // Public routes don't require auth. Note that /embed/cards/:id is
+  // authenticated (it's the side-panel iframe target — relies on the
+  // user's existing localStorage session), so we whitelist only the
+  // public-token embed paths here.
   const path = window.location.pathname;
   if (
     path.startsWith("/share/") ||
-    path.startsWith("/embed/") ||
+    path.startsWith("/embed/episode/") ||
     path.startsWith("/u/")
   ) {
     return (
@@ -63,6 +67,7 @@ function RootRoutes() {
     <Routes>
       <Route path="share/episode/:token" element={<PublicEpisodePage />} />
       <Route path="embed/episode/:token" element={<PublicEpisodePage embed />} />
+      <Route path="embed/cards/:cardId" element={<EmbedCardPage />} />
       <Route path="share/:token" element={<PublicCardPage />} />
       <Route path="u/:username" element={<PublicProfilePage />} />
       <Route path="u/:username/*" element={<PublicTagPage />} />

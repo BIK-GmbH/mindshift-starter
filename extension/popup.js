@@ -11,6 +11,7 @@ const els = {
   pageTitle: document.getElementById("pageTitle"),
   pageUrl: document.getElementById("pageUrl"),
   addBtn: document.getElementById("addPageBtn"),
+  sidePanelBtn: document.getElementById("openSidePanelBtn"),
   importBtn: document.getElementById("importBookmarksBtn"),
   bookmarkCount: document.getElementById("bookmarkCount"),
   status: document.getElementById("status"),
@@ -306,6 +307,19 @@ async function trySave() {
 })();
 
 els.addBtn.addEventListener("click", () => void addCurrentPage());
+els.sidePanelBtn?.addEventListener("click", async () => {
+  // Ask the service worker to open the side panel for the active tab.
+  // The service worker holds the sidePanel permission; popup doesn't
+  // need to import it directly.
+  const tabId = activeTab?.id;
+  if (tabId == null) return;
+  const res = await chrome.runtime.sendMessage({ type: "openSidePanel", tabId });
+  if (res?.ok) {
+    window.close();
+  } else {
+    setStatus(els.status, res?.error || "Could not open side panel.", "err");
+  }
+});
 els.importBtn.addEventListener("click", () => void importAllBookmarks());
 els.saveBtn.addEventListener("click", () => void trySave());
 els.settingsBtn.addEventListener("click", () => {

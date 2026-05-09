@@ -387,6 +387,36 @@ def _card_response(db: Session, card: Card) -> CardOut:
     return out
 
 
+@router.get("/by-source-url", response_model=CardOut)
+def find_card_by_source_url(
+    url: str = Query(..., min_length=1),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CardOut:
+    """Lookup the user's card whose source matches the given URL.
+
+    Used by the browser extension's side panel to figure out whether
+    the page the user is looking at is already saved. Matches against
+    Source.url OR Source.canonical_url so a YouTube link with extra
+    query params still resolves.
+    """
+    needle = url.strip()
+    if not needle:
+        raise HTTPException(status_code=400, detail="url is required")
+    card = db.execute(
+        select(Card)
+        .join(Source, Source.id == Card.source_id)
+        .where(
+            Card.user_id == current_user.id,
+            (Source.url == needle) | (Source.canonical_url == needle),
+        )
+        .limit(1)
+    ).scalar_one_or_none()
+    if card is None:
+        raise HTTPException(status_code=404, detail="No card matches this URL")
+    return _card_response(db, card)
+
+
 @router.get("/{card_id}", response_model=CardOut)
 def get_card(
     card_id: UUID,

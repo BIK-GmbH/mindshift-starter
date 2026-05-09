@@ -1,0 +1,77 @@
+/* Side panel takes the full available height + width Chrome gives it. */
+html, body { height: 100%; }
+.sp-body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0a0d12;
+  color: #f0f4fa;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.sp-hdr {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #262d3a;
+  background: rgba(10, 13, 18, 0.7);
+  backdrop-filter: blur(8px);
+}
+
+.sp-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sp-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  text-align: center;
+  gap: 12px;
+}
+
+.sp-pad { padding: 16px; }
+
+.sp-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 4px 0 8px;
+  word-wrap: break-word;
+}
+
+.sp-url {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: #8b94a8;
+  word-break: break-all;
+  margin-bottom: 16px;
+}
+
+.sp-cta { width: 100%; }
+
+.small { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; }
+
+.sp-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #8b5cf6;
+  border-radius: 50%;
+  animation: sp-spin 0.8s linear infinite;
+}
+@keyframes sp-spin { to { transform: rotate(360deg); } }
+
+#cardFrame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #0a0d12;
+}

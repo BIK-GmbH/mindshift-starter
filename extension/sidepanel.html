@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mindshift — side panel</title>
+    <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body class="sp-body">
+    <header class="sp-hdr">
+      <div class="brand">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path>
+          <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path>
+        </svg>
+        <span>Mindshift</span>
+      </div>
+      <button id="reloadBtn" type="button" class="icon-btn" title="Re-detect this page" aria-label="Reload">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      </button>
+    </header>
+
+    <!-- Empty state — shown before we know what tab the user is on -->
+    <main id="loadingPane" class="sp-pane">
+      <div class="sp-center">
+        <div class="sp-spinner"></div>
+        <p class="muted">Detecting page…</p>
+      </div>
+    </main>
+
+    <!-- "Not configured" state -->
+    <main id="notConnectedPane" class="sp-pane hidden">
+      <div class="sp-center">
+        <p>Connect the extension first.</p>
+        <button id="openPopupBtn" type="button" class="primary">Open settings</button>
+      </div>
+    </main>
+
+    <!-- "Page not in library" state — offer to save it -->
+    <main id="savePane" class="sp-pane hidden">
+      <div class="sp-pad">
+        <p class="muted small">Not saved yet</p>
+        <p id="savePageTitle" class="title sp-title"></p>
+        <p id="savePageUrl" class="url sp-url"></p>
+        <button id="saveBtn" type="button" class="primary full sp-cta">Save to Mindshift</button>
+        <p id="saveStatus" class="status"></p>
+      </div>
+    </main>
+
+    <!-- "Card already saved" state — embed it via iframe -->
+    <main id="cardPane" class="sp-pane hidden">
+      <iframe id="cardFrame" title="Card" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
+    </main>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>
