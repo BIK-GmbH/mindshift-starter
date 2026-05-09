@@ -86,6 +86,28 @@ Hooks left in place for phase 4.5: `paths.completion_count`,
 later `path_progress` table without migrations to existing tables.
 Quiz mode + completion tracking explicitly deferred.
 
+## ✅ Phase 4.5 — Path power features *(shipped 2026-05-09)*
+
+Four small wins on top of the MVP, each in its own commit:
+
+- **Per-user progress tracking** — new `path_progress` table; player
+  resumes where you left off; list page shows in-progress % or a
+  "Completed" pill. Public-path-aware so visitors of someone's shared
+  path also track their own bookmark.
+- **Drag-and-drop reorder** — native HTML5 DnD on a dedicated handle
+  (so the lesson textarea stays editable). Up/down buttons stay as
+  the touch fallback.
+- **Path-wide quiz mode** — `/paths/:id/quiz` aggregates every quiz
+  question across the path's cards. MC questions auto-grade, open
+  questions reveal-and-self-rate. Color-coded final score, retry,
+  back-to-player.
+- **Auto cover via gpt-image-2** — `POST /paths/:id/generate-cover`
+  fires the image API with a prompt built from title + description +
+  first 5 card titles. PNG persisted via the storage service; served
+  through `/api/paths/:id/cover.png` (auth) or `/api/public/paths/
+  :user/:slug/cover.png` (public). New `useAuthedImage` hook lets
+  `<img>` tags display authenticated endpoints.
+
 ## Phase 5 — Audio upload + Whisper *(deferred)*
 
 Was originally phase 2. Moved here because the user has a tested

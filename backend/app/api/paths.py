@@ -1,13 +1,14 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.card import Card
+from app.models.file import File
 from app.models.path import Path, PathCard
 from app.models.path_progress import PathProgress
 from app.models.quiz import QuizQuestion
@@ -28,6 +29,7 @@ from app.schemas.path import (
     UpdateLessonRequest,
 )
 from app.services.paths import next_position, renumber_positions, slugify, unique_slug_for
+from app.services.storage import get_storage
 
 router = APIRouter(prefix="/paths", tags=["paths"])
 
@@ -394,6 +396,103 @@ def update_progress(
     )
 
 
+@router.post("/{path_id}/generate-cover", response_model=PathDetail)
+def generate_cover(
+    path_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PathDetail:
+    """Generate a path cover via gpt-image-2, persist as a File and
+    point `cover_url` at the streaming endpoint. Synchronous — calls
+    the OpenAI image API directly so the user gets the new cover in
+    the response. ~10–30 s in practice."""
+    from app.services.podcast import generate_cover_image
+
+    path = _get_owned_path(db, path_id, current_user.id)
+
+    # Build a hint from the path metadata so the cover reflects the
+    # actual content.
+    hint_parts = [path.title]
+    if path.description_md:
+        hint_parts.append(path.description_md.strip()[:300])
+    # First few card titles add concrete texture.
+    card_titles = (
+        db.execute(
+            select(Card.title)
+            .join(PathCard, PathCard.card_id == Card.id)
+            .where(PathCard.path_id == path.id)
+            .order_by(PathCard.position)
+            .limit(5)
+        ).scalars().all()
+    )
+    if card_titles:
+        hint_parts.append("Topics covered: " + " · ".join(card_titles))
+    summary_hint = "\n".join(hint_parts)
+
+    try:
+        png_bytes = generate_cover_image(
+            title=path.title,
+            summary_hint=summary_hint,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Cover generation failed: {exc}") from exc
+
+    storage = get_storage()
+    saved = storage.save(
+        db,
+        user_id=current_user.id,
+        content=png_bytes,
+        original_filename=f"path-{path.id}-cover.png",
+        content_type="image/png",
+        purpose="path_cover",
+    )
+    path.cover_url = f"/api/paths/{path.id}/cover.png"
+    # Stash the file id in metadata so we can stream it back without an
+    # extra schema column. Path doesn't have a JSON metadata field today,
+    # so we re-use the cover_url's last segment by convention plus a
+    # parallel lookup via File.purpose=path_cover (cheap by index).
+    db.commit()
+    db.refresh(path)
+    return _path_to_detail(db, path)
+
+
+@router.get("/{path_id}/cover.png")
+def stream_cover(
+    path_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    path = _get_owned_path(db, path_id, current_user.id)
+    file = _find_cover_file(db, path)
+    if file is None:
+        raise HTTPException(status_code=404, detail="No cover")
+    blob = get_storage().read(file)
+    return Response(
+        content=blob,
+        media_type="image/png",
+        headers={
+            "Content-Length": str(len(blob)),
+            "Cache-Control": "private, max-age=86400",
+        },
+    )
+
+
+def _find_cover_file(db: Session, path: Path) -> File | None:
+    """Most recent path_cover file owned by the path's user with our
+    naming convention. Avoids adding a column on `paths` for one
+    nullable foreign key."""
+    return db.execute(
+        select(File)
+        .where(
+            File.user_id == path.user_id,
+            File.purpose == "path_cover",
+            File.original_filename == f"path-{path.id}-cover.png",
+        )
+        .order_by(File.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
 @router.get("/{path_id}/quiz", response_model=PathQuiz)
 def get_path_quiz(
     path_id: UUID,
@@ -475,12 +574,48 @@ def get_public_path(
         )
         for pc, card in rows
     ]
+    # Rewrite cover URL to the public endpoint so unauthenticated
+    # browsers can render it via plain <img>.
+    public_cover = (
+        f"/api/public/paths/{user.username}/{path.slug}/cover.png" if path.cover_url else None
+    )
     return PublicPathOut(
         title=path.title,
         slug=path.slug,
         description_md=path.description_md,
-        cover_url=path.cover_url,
+        cover_url=public_cover,
         author_username=user.username or "",
         cards=cards,
         created_at=path.created_at,
+    )
+
+
+@public_router.get("/{username}/{slug}/cover.png")
+def stream_public_cover(
+    username: str,
+    slug: str,
+    db: Session = Depends(get_db),
+) -> Response:
+    """Unauthenticated cover stream — only public paths."""
+    user = db.execute(
+        select(User).where(User.username == username, User.public_profile.is_(True))
+    ).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="Cover not found")
+    path = db.execute(
+        select(Path).where(Path.user_id == user.id, Path.slug == slug, Path.is_public.is_(True))
+    ).scalar_one_or_none()
+    if path is None:
+        raise HTTPException(status_code=404, detail="Cover not found")
+    file = _find_cover_file(db, path)
+    if file is None:
+        raise HTTPException(status_code=404, detail="No cover")
+    blob = get_storage().read(file)
+    return Response(
+        content=blob,
+        media_type="image/png",
+        headers={
+            "Content-Length": str(len(blob)),
+            "Cache-Control": "public, max-age=86400",
+        },
     )

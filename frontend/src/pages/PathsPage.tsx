@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 import MobileDesktopHint from "../components/MobileDesktopHint";
 import { api, type PathListItem } from "../lib/api";
+import { useAuthedImage } from "../lib/useAuthedImage";
 
 /**
  * Lists every path the user owns. Click → editor. Create button → new
@@ -107,60 +108,7 @@ export default function PathsPage() {
             <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
               {paths.map((p) => (
                 <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/paths/${p.id}`)}
-                    className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-ink-800 bg-ink-800/30 text-left transition hover:border-fuchsia-500/40 hover:bg-ink-800/50"
-                  >
-                    <div className="aspect-[16/8] w-full bg-gradient-to-br from-fuchsia-500/20 via-ink-800/40 to-ink-900/40">
-                      {p.cover_url && (
-                        // eslint-disable-next-line jsx-a11y/img-redundant-alt
-                        <img src={p.cover_url} alt="" className="h-full w-full object-cover" />
-                      )}
-                    </div>
-                    <div className="flex flex-1 flex-col p-3">
-                      <div className="mb-1 flex items-center gap-2">
-                        <span
-                          className={[
-                            "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] uppercase tracking-wider",
-                            p.is_public
-                              ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30"
-                              : "bg-ink-800 text-ink-500 ring-1 ring-ink-700",
-                          ].join(" ")}
-                        >
-                          {p.is_public ? <Globe className="h-2.5 w-2.5" /> : <Lock className="h-2.5 w-2.5" />}
-                          {p.is_public
-                            ? t("paths.publicPill", { defaultValue: "Public" })
-                            : t("paths.privatePill", { defaultValue: "Private" })}
-                        </span>
-                      </div>
-                      <h3 className="mb-1 line-clamp-2 text-sm font-semibold text-ink-100 group-hover:text-fuchsia-300">
-                        {p.title}
-                      </h3>
-                      <div className="mt-auto flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-ink-500">
-                        <span>
-                          {p.card_count}{" "}
-                          {p.card_count === 1
-                            ? t("paths.cardSingular", { defaultValue: "card" })
-                            : t("paths.cardPlural", { defaultValue: "cards" })}
-                        </span>
-                        {/* Progress pill — only shows when the user has
-                            interacted with this path. Three states:
-                            completed (green check), in progress (% bar),
-                            no progress (nothing). */}
-                        {p.progress_completed_at ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-300">
-                            <CheckCircle2 className="h-2.5 w-2.5" />
-                            {t("paths.completed", { defaultValue: "Completed" })}
-                          </span>
-                        ) : p.progress_position !== null && p.card_count > 0 ? (
-                          <span className="text-fuchsia-300">
-                            {Math.round(((p.progress_position + 1) / p.card_count) * 100)}%
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </button>
+                  <PathTile path={p} onOpen={() => navigate(`/paths/${p.id}`)} />
                 </li>
               ))}
             </ul>
@@ -168,5 +116,66 @@ export default function PathsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+ * Tile — extracted so it can call the auth-image hook per path.
+ * -------------------------------------------------------------------- */
+
+function PathTile({ path: p, onOpen }: { path: PathListItem; onOpen: () => void }) {
+  const { t } = useTranslation();
+  const { src: coverSrc } = useAuthedImage(p.cover_url);
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-ink-800 bg-ink-800/30 text-left transition hover:border-fuchsia-500/40 hover:bg-ink-800/50"
+    >
+      <div className="aspect-[16/8] w-full bg-gradient-to-br from-fuchsia-500/20 via-ink-800/40 to-ink-900/40">
+        {coverSrc && (
+          // eslint-disable-next-line jsx-a11y/img-redundant-alt
+          <img src={coverSrc} alt="" className="h-full w-full object-cover" />
+        )}
+      </div>
+      <div className="flex flex-1 flex-col p-3">
+        <div className="mb-1 flex items-center gap-2">
+          <span
+            className={[
+              "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] uppercase tracking-wider",
+              p.is_public
+                ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30"
+                : "bg-ink-800 text-ink-500 ring-1 ring-ink-700",
+            ].join(" ")}
+          >
+            {p.is_public ? <Globe className="h-2.5 w-2.5" /> : <Lock className="h-2.5 w-2.5" />}
+            {p.is_public
+              ? t("paths.publicPill", { defaultValue: "Public" })
+              : t("paths.privatePill", { defaultValue: "Private" })}
+          </span>
+        </div>
+        <h3 className="mb-1 line-clamp-2 text-sm font-semibold text-ink-100 group-hover:text-fuchsia-300">
+          {p.title}
+        </h3>
+        <div className="mt-auto flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-ink-500">
+          <span>
+            {p.card_count}{" "}
+            {p.card_count === 1
+              ? t("paths.cardSingular", { defaultValue: "card" })
+              : t("paths.cardPlural", { defaultValue: "cards" })}
+          </span>
+          {p.progress_completed_at ? (
+            <span className="inline-flex items-center gap-1 text-emerald-300">
+              <CheckCircle2 className="h-2.5 w-2.5" />
+              {t("paths.completed", { defaultValue: "Completed" })}
+            </span>
+          ) : p.progress_position !== null && p.card_count > 0 ? (
+            <span className="text-fuchsia-300">
+              {Math.round(((p.progress_position + 1) / p.card_count) * 100)}%
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </button>
   );
 }

@@ -44,6 +44,11 @@
     "deletePath": "Delete path",
     "completed": "Completed",
     "takeQuiz": "Take quiz",
+    "cover": "Cover image",
+    "coverHint": "Auto-generated from the path title, description and first few card titles. Costs one image-API call.",
+    "generateCover": "Generate cover",
+    "regenerateCover": "Regenerate",
+    "coverPending": "Takes 10–30 seconds — gpt-image-2 is rendering.",
     "notFound": "Path not found",
     "confirmDelete": {
       "title": "Delete this path?",

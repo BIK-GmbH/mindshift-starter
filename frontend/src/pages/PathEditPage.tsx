@@ -7,10 +7,12 @@ import {
   ExternalLink,
   Globe,
   GripVertical,
+  Image as ImageIcon,
   Loader2,
   Lock,
   Play,
   Plus,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,6 +24,7 @@ import MobileDesktopHint from "../components/MobileDesktopHint";
 import { useAuth } from "../lib/AuthContext";
 import { useDialog } from "../lib/DialogContext";
 import { api, type PathDetail } from "../lib/api";
+import { useAuthedImage } from "../lib/useAuthedImage";
 
 /**
  * Owner-only path editor. Three regions:
@@ -48,6 +51,8 @@ export default function PathEditPage() {
   // a drop indicator and skip the no-op when source == over.
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [generatingCover, setGeneratingCover] = useState(false);
+  const { src: coverSrc, refresh: refreshCover } = useAuthedImage(path?.cover_url ?? null);
 
   const fetchPath = useCallback(async () => {
     try {
@@ -122,6 +127,22 @@ export default function PathEditPage() {
   const updateLesson = async (cardId: string, value: string) => {
     const next = await api.updatePathLesson(pathId, cardId, value || null);
     setPath(next);
+  };
+
+  const generateCover = async () => {
+    setGeneratingCover(true);
+    setError(null);
+    try {
+      const next = await api.generatePathCover(pathId);
+      setPath(next);
+      // Force the authed-image hook to re-fetch even if the URL string
+      // is unchanged (regenerating overwrites the same file).
+      refreshCover();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setGeneratingCover(false);
+    }
   };
 
   /**
@@ -215,6 +236,53 @@ export default function PathEditPage() {
               value={path.description_md ?? ""}
               onCommit={(v) => update({ description_md: v })}
             />
+          </section>
+
+          {/* Cover */}
+          <section className="rounded-xl border border-ink-800 bg-ink-800/30 p-4">
+            <div className="flex items-start gap-4">
+              <div className="aspect-[16/8] w-40 flex-shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-fuchsia-500/20 via-ink-800/40 to-ink-900/40 ring-1 ring-ink-700">
+                {coverSrc ? (
+                  <img src={coverSrc} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <ImageIcon className="h-5 w-5 text-ink-600" />
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-300">
+                  {t("paths.cover", { defaultValue: "Cover image" })}
+                </h2>
+                <p className="mb-2 text-[11px] leading-relaxed text-ink-400">
+                  {t("paths.coverHint", {
+                    defaultValue: "Auto-generated from the path title, description and first few card titles. Costs one image-API call.",
+                  })}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void generateCover()}
+                  disabled={generatingCover}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-200 transition hover:bg-fuchsia-500/20 disabled:opacity-50"
+                >
+                  {generatingCover ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  {coverSrc
+                    ? t("paths.regenerateCover", { defaultValue: "Regenerate" })
+                    : t("paths.generateCover", { defaultValue: "Generate cover" })}
+                </button>
+                {generatingCover && (
+                  <p className="mt-2 text-[10px] text-ink-500">
+                    {t("paths.coverPending", {
+                      defaultValue: "Takes 10–30 seconds — gpt-image-2 is rendering.",
+                    })}
+                  </p>
+                )}
+              </div>
+            </div>
           </section>
 
           {/* Visibility */}

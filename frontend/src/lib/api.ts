@@ -634,6 +634,8 @@ export const api = {
       body: JSON.stringify({ current_position: currentPosition }),
     }),
   getPathQuiz: (id: string) => request<PathQuiz>(`/api/paths/${id}/quiz`),
+  generatePathCover: (id: string) =>
+    request<PathDetail>(`/api/paths/${id}/generate-cover`, { method: "POST" }),
 
   // RSS / Atom feed subscriptions
   listFeeds: () => request<FeedOut[]>("/api/feeds"),
