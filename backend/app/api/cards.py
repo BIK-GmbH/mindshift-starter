@@ -94,8 +94,13 @@ def create_card_from_url(
 ) -> IngestionResponse:
     url = str(payload.url)
 
-    # Auto-route GitHub URLs through the dedicated repo importer so users
-    # can paste any github.com link without picking a special "type".
+    # Auto-route well-known URL shapes to their dedicated importers so
+    # the caller (web share-target, browser extension, third-party
+    # scripts) doesn't need to pick a type. Order matters: YouTube and
+    # GitHub URLs would otherwise fall through to the article pipeline
+    # and produce a useless "scrape the watch page" result.
+    if extract_video_id(url) is not None:
+        return create_card_from_youtube(payload, background_tasks, current_user, db)
     if parse_github_url(url):
         return _create_github_card(url, background_tasks, current_user, db)
 

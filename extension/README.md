@@ -36,12 +36,22 @@ The token is a long-lived JWT (1 year). It's stored only in
 ## Use
 
 - **Add this page** — the active tab's URL is sent to
-  `POST /api/cards/from-url` (or `/api/cards/from-youtube` if it's a
-  YouTube URL). Open Mindshift to see the card processing.
+  `POST /api/cards/from-url`. The backend auto-detects YouTube and
+  GitHub URLs and routes them to the right ingestion pipeline; the
+  extension does not branch by host. The success toast shows the
+  card's title and an **open card** link that takes you straight to
+  the new card detail page.
 - **Import all bookmarks** — reads `chrome.bookmarks` recursively,
   collects http(s) URLs, and posts them as a Netscape-format file to
   the existing `POST /api/import/bookmarks` endpoint (dedup +
   500-card cap, server-side).
+
+## When the token expires
+
+Tokens are long-lived (1 year by default) but you can rotate them in
+Mindshift any time. If the rotated token hasn't reached the extension
+yet, the popup auto-bounces to the settings pane with an explanation
+the next time you click Add — paste the new token and you're back.
 
 ## Permissions explained
 

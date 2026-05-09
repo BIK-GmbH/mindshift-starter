@@ -30,14 +30,19 @@ Implementation:
 
 See `docs/MOBILE.md` for the complete mobile contract.
 
-## ⏭ Phase 2 — Browser extension polish *(next)*
+## ✅ Phase 2 — Browser extension polish *(shipped 2026-05-09)*
 
-A real "Save to Mindshift" extension. CORS already allows
-`chrome-extension://` origins so the foundation is partial. Audit the
-current state, finish the popup UI (paste URL or auto-detect current
-tab), auth via the same JWT the web app uses, success toast, link back
-to the new card. Same auto-detect path as `/api/cards/from-url` so the
-extension immediately covers YouTube and GitHub.
+The unpacked extension at `extension/` is now coherent with the rest
+of the stack. `/api/cards/from-url` learned YouTube auto-detection
+(it already had GitHub), so the popup talks to a single endpoint and
+the backend picks the right pipeline. After saving, the toast shows
+the card's title and a clickable "open card" link that fires
+`chrome.tabs.create` and closes the popup. Token rotation is handled:
+401/403 responses bounce the popup back to the settings pane with an
+explanation. Icons regenerated to match the PWA M-glyph.
+
+Side-effect: the PWA share-target route now ingests YouTube URLs
+correctly too — previously they were treated as plain articles.
 
 ## Phase 3 — RSS feed subscriptions
 

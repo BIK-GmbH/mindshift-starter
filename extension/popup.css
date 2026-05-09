@@ -108,6 +108,13 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
 }
 .status.ok { color: #6ee7b7; }
 .status.err { color: #fca5a5; }
+.status-link {
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 500;
+  cursor: pointer;
+}
+.status-link:hover { color: #f0f4fa; }
 
 .howto {
   border: 1px solid #262d3a;
