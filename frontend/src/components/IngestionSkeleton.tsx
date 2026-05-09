@@ -20,16 +20,16 @@ interface Props {
  * still running. Replaces the empty / partial content the user
  * otherwise sees ("queued" pill + blank tabs).
  *
- * Visuals:
- *   - thumbnail (real, if available) with a subtle shimmer overlay
- *   - title line (real if known, else shimmer)
- *   - shimmering bars for the summary, takeaways, tags
- *   - phase indicator that cycles through "Reading transcript…",
- *     "Drafting summary…", etc. so the user sees something happening
- *     even though the work is server-side
+ * Layout deliberately mirrors the finished card view (hero → title →
+ * tags → tabs → content) so the page doesn't shift when ingestion
+ * completes and the real content swaps in. The "Card wird generiert…"
+ * banner sits at the bottom (not the top) for the same reason —
+ * removing it from the bottom shifts only the scroll-bottom, not
+ * what the user is currently reading.
  *
- * No backend coupling beyond the status prop — caller decides when
- * to render this vs. the real content.
+ * Both dark and light themes get strong contrast: dark uses fuchsia
+ * accent on near-black, light uses fuchsia-700 ink on a fuchsia-50
+ * tint so the message stays readable on a white side panel.
  */
 export default function IngestionSkeleton({
   status,
@@ -40,9 +40,6 @@ export default function IngestionSkeleton({
   const { t } = useTranslation();
   const [phaseIdx, setPhaseIdx] = useState(0);
 
-  // Cycle through fake "stages" every 4s so the indicator feels alive
-  // without claiming false precision. We don't actually know what the
-  // backend is doing right this second.
   const phases = [
     t("ingest.phase.fetching", { defaultValue: "Fetching source content…" }),
     t("ingest.phase.transcript", { defaultValue: "Extracting transcript…" }),
@@ -62,69 +59,25 @@ export default function IngestionSkeleton({
 
   return (
     <div className={compact ? "p-3" : "mx-auto max-w-3xl px-6 py-6"}>
-      {/* Status banner with rotating phase */}
-      <div
-        className={[
-          "mb-4 flex items-center gap-3 rounded-xl border border-fuchsia-500/30 bg-gradient-to-r from-fuchsia-500/10 via-violet-500/10 to-fuchsia-500/10 backdrop-blur",
-          compact ? "px-3 py-2" : "px-4 py-3",
-        ].join(" ")}
-      >
-        <div className="relative flex-shrink-0">
-          <Sparkles className={compact ? "h-4 w-4 text-fuchsia-300" : "h-5 w-5 text-fuchsia-300"} />
-          <Sparkles
-            className={`absolute inset-0 ${compact ? "h-4 w-4" : "h-5 w-5"} animate-ping text-fuchsia-300/60`}
-          />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p
-            className={[
-              "font-semibold text-fuchsia-100",
-              compact ? "text-[12px]" : "text-sm",
-            ].join(" ")}
-          >
-            {status === "queued"
-              ? t("ingest.queued", { defaultValue: "Queued for processing…" })
-              : t("ingest.processing", { defaultValue: "Generating your card…" })}
-          </p>
-          <p
-            className={[
-              "truncate text-fuchsia-200/70",
-              compact ? "text-[10px]" : "text-xs",
-            ].join(" ")}
-          >
-            {phases[phaseIdx]}
-          </p>
-        </div>
-        <Loader2
-          className={[
-            "flex-shrink-0 animate-spin text-fuchsia-300",
-            compact ? "h-3.5 w-3.5" : "h-4 w-4",
-          ].join(" ")}
-        />
-      </div>
-
-      {/* Thumbnail / hero block */}
+      {/* Hero — real if we have a thumbnail, else a shimmering tile.
+          Same dimensions as the finished view's hero so swap-in is
+          near-imperceptible. */}
       {thumbnailUrl ? (
-        <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-xl bg-ink-800">
-          <img src={thumbnailUrl} alt="" className="h-full w-full object-cover opacity-70" />
-          <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        <div className="relative mb-3 aspect-video w-full overflow-hidden rounded-xl bg-ink-800">
+          <img src={thumbnailUrl} alt="" className="h-full w-full object-cover opacity-80" />
+          <div className="pointer-events-none absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         </div>
       ) : (
-        <div
-          className={[
-            "mb-4 w-full overflow-hidden rounded-xl bg-ink-800",
-            compact ? "aspect-video" : "aspect-[16/8]",
-          ].join(" ")}
-        >
+        <div className="mb-3 aspect-video w-full overflow-hidden rounded-xl bg-ink-800">
           <div className="h-full w-full animate-shimmer bg-gradient-to-r from-ink-800 via-ink-700/60 to-ink-800" />
         </div>
       )}
 
-      {/* Title — real if known, otherwise shimmer */}
+      {/* Title — real if known, else two shimmer lines. */}
       {title ? (
         <h2
           className={[
-            "mb-3 font-semibold leading-snug text-ink-100",
+            "mb-2 font-semibold leading-snug text-ink-100",
             compact ? "text-base" : "text-xl",
           ].join(" ")}
         >
@@ -137,8 +90,8 @@ export default function IngestionSkeleton({
         </div>
       )}
 
-      {/* Tag pills */}
-      <div className="mb-5 flex flex-wrap gap-1.5">
+      {/* Tag pill placeholders */}
+      <div className="mb-4 flex flex-wrap gap-1.5">
         <SkeletonPill width={64} />
         <SkeletonPill width={48} />
         <SkeletonPill width={72} />
@@ -159,16 +112,75 @@ export default function IngestionSkeleton({
         <SkeletonBullet width="80%" />
         <SkeletonBullet width="86%" />
       </SkeletonBlock>
+
+      {/* Status banner — at the bottom now. Keeping it here means the
+          finished-content swap doesn't push everything around when it
+          disappears. Light-mode-friendly: solid fuchsia-50 background
+          with fuchsia-800 ink. */}
+      <div
+        className={[
+          "mt-2 flex items-center gap-3 rounded-xl border bg-fuchsia-50 ring-1 ring-fuchsia-200 dark:bg-fuchsia-500/10 dark:ring-fuchsia-500/30",
+          "border-fuchsia-200 dark:border-fuchsia-500/30",
+          compact ? "px-3 py-2" : "px-4 py-3",
+        ].join(" ")}
+      >
+        <div className="relative flex-shrink-0">
+          <Sparkles
+            className={[
+              "text-fuchsia-700 dark:text-fuchsia-300",
+              compact ? "h-4 w-4" : "h-5 w-5",
+            ].join(" ")}
+          />
+          <Sparkles
+            className={[
+              "absolute inset-0 animate-ping text-fuchsia-700/50 dark:text-fuchsia-300/60",
+              compact ? "h-4 w-4" : "h-5 w-5",
+            ].join(" ")}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p
+            className={[
+              "font-semibold text-fuchsia-900 dark:text-fuchsia-100",
+              compact ? "text-[12px]" : "text-sm",
+            ].join(" ")}
+          >
+            {status === "queued"
+              ? t("ingest.queued", { defaultValue: "Queued for processing…" })
+              : t("ingest.processing", { defaultValue: "Generating your card…" })}
+          </p>
+          <p
+            className={[
+              "truncate text-fuchsia-700 dark:text-fuchsia-200/80",
+              compact ? "text-[10px]" : "text-xs",
+            ].join(" ")}
+          >
+            {phases[phaseIdx]}
+          </p>
+        </div>
+        <Loader2
+          className={[
+            "flex-shrink-0 animate-spin text-fuchsia-700 dark:text-fuchsia-300",
+            compact ? "h-3.5 w-3.5" : "h-4 w-4",
+          ].join(" ")}
+        />
+      </div>
     </div>
   );
 }
 
 /* --------------------------- primitives --------------------------- */
 
+/**
+ * Light-mode shimmer needs a different gradient — ink-800/700 in light
+ * are nearly white and the shimmer effect disappears. We pin specific
+ * grey values for both modes so the placeholder reads as "loading"
+ * regardless of theme.
+ */
 function SkeletonLine({ width }: { width: string }) {
   return (
     <div
-      className="h-3 animate-shimmer rounded bg-gradient-to-r from-ink-800 via-ink-700 to-ink-800"
+      className="h-3 animate-shimmer rounded bg-gradient-to-r from-ink-200 via-ink-300 to-ink-200 dark:from-ink-800 dark:via-ink-700 dark:to-ink-800"
       style={{ width }}
     />
   );
@@ -177,7 +189,7 @@ function SkeletonLine({ width }: { width: string }) {
 function SkeletonPill({ width }: { width: number }) {
   return (
     <div
-      className="h-5 animate-shimmer rounded-full bg-gradient-to-r from-ink-800 via-ink-700 to-ink-800"
+      className="h-5 animate-shimmer rounded-full bg-gradient-to-r from-ink-200 via-ink-300 to-ink-200 dark:from-ink-800 dark:via-ink-700 dark:to-ink-800"
       style={{ width: `${width}px` }}
     />
   );
@@ -186,9 +198,9 @@ function SkeletonPill({ width }: { width: number }) {
 function SkeletonBullet({ width }: { width: string }) {
   return (
     <div className="flex items-start gap-2">
-      <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ink-600" />
+      <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ink-400 dark:bg-ink-600" />
       <div
-        className="h-3 animate-shimmer rounded bg-gradient-to-r from-ink-800 via-ink-700 to-ink-800"
+        className="h-3 animate-shimmer rounded bg-gradient-to-r from-ink-200 via-ink-300 to-ink-200 dark:from-ink-800 dark:via-ink-700 dark:to-ink-800"
         style={{ width }}
       />
     </div>
@@ -203,8 +215,8 @@ function SkeletonBlock({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mb-5">
-      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+    <section className="mb-4">
+      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500 dark:text-ink-500">
         {label}
       </h3>
       <div className="space-y-2">{children}</div>

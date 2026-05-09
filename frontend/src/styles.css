@@ -629,6 +629,85 @@
   }
 }
 
+/* ============================================================
+   LIGHT-MODE ACCENT COLOR FIXES
+   ============================================================
+   The component layer was authored against the dark theme: low-
+   opacity fuchsia/violet/emerald/amber tints on near-black ink-900
+   backgrounds. Those same tints disappear on the light theme's
+   near-white ink-900. Rather than rewrite every call site with
+   `dark:`-prefixed variants, we override the most-used Tailwind
+   utilities globally for the `.light` root.
+   The selectors are intentionally `:root.light .X` so they have
+   higher specificity than the bare `.X` Tailwind generates and
+   we don't need `!important`.
+   --------------------------------------------------------------- */
+
+:root.light {
+  /* fuchsia accents — used on Paths everywhere */
+  .bg-fuchsia-500\/10,
+  .bg-fuchsia-500\/15,
+  .bg-fuchsia-500\/20 { background-color: rgb(250 232 255); }
+  .bg-fuchsia-500\/25,
+  .bg-fuchsia-500\/30 { background-color: rgb(245 208 254); }
+  .text-fuchsia-100,
+  .text-fuchsia-200,
+  .text-fuchsia-300 { color: rgb(134 25 143); }
+  .ring-fuchsia-500\/20,
+  .ring-fuchsia-500\/30,
+  .ring-fuchsia-500\/40 { --tw-ring-color: rgb(232 121 249 / 0.6); }
+  .border-fuchsia-500\/20,
+  .border-fuchsia-500\/30,
+  .border-fuchsia-500\/40 { border-color: rgb(232 121 249 / 0.55); }
+  /* gradient stops in PathEditPage cover preview etc. */
+  .from-fuchsia-500\/10,
+  .from-fuchsia-500\/20 { --tw-gradient-from: rgb(250 232 255) var(--tw-gradient-from-position); }
+
+  /* violet accents — GitHub repo card, Library SOURCE_META, etc. */
+  .bg-violet-500\/10,
+  .bg-violet-500\/15,
+  .bg-violet-500\/20 { background-color: rgb(237 233 254); }
+  .text-violet-200,
+  .text-violet-300 { color: rgb(76 29 149); }
+  .ring-violet-500\/20,
+  .ring-violet-500\/30,
+  .ring-violet-500\/40 { --tw-ring-color: rgb(167 139 250 / 0.6); }
+  .border-violet-500\/20,
+  .border-violet-500\/30,
+  .border-violet-500\/40 { border-color: rgb(167 139 250 / 0.55); }
+  .from-violet-500\/10,
+  .from-violet-500\/20,
+  .from-violet-500\/25 { --tw-gradient-from: rgb(237 233 254) var(--tw-gradient-from-position); }
+
+  /* emerald (success / completed pills) */
+  .bg-emerald-500\/10,
+  .bg-emerald-500\/15,
+  .bg-emerald-500\/20 { background-color: rgb(209 250 229); }
+  .text-emerald-200,
+  .text-emerald-300 { color: rgb(6 95 70); }
+  .ring-emerald-500\/30,
+  .ring-emerald-500\/40 { --tw-ring-color: rgb(52 211 153 / 0.6); }
+
+  /* amber (queued / processing / notes block) */
+  .bg-amber-500\/5,
+  .bg-amber-500\/10,
+  .bg-amber-500\/15,
+  .bg-amber-500\/20 { background-color: rgb(254 243 199); }
+  .text-amber-200,
+  .text-amber-300 { color: rgb(146 64 14); }
+  .border-amber-500\/20,
+  .border-amber-500\/30 { border-color: rgb(251 191 36 / 0.55); }
+  .ring-amber-500\/30 { --tw-ring-color: rgb(251 191 36 / 0.55); }
+
+  /* red / destructive — keep dramatic, just less neon */
+  .bg-red-500\/10,
+  .bg-red-500\/15 { background-color: rgb(254 226 226); }
+  .text-red-200,
+  .text-red-300 { color: rgb(153 27 27); }
+  .border-red-500\/30,
+  .border-red-500\/40 { border-color: rgb(239 68 68 / 0.45); }
+}
+
 /* Skeleton shimmer used in IngestionSkeleton + future loading
    placeholders. The element should already carry a horizontal
    gradient (via Tailwind's `bg-gradient-to-r` + ink color stops);

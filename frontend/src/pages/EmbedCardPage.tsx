@@ -5,8 +5,28 @@ import { useParams } from "react-router-dom";
 
 import IngestionSkeleton from "../components/IngestionSkeleton";
 import MarkdownView from "../components/MarkdownView";
-import { useTheme } from "../lib/ThemeContext";
 import { api, tokenStorage, type Card } from "../lib/api";
+
+/**
+ * Side-panel-local theme state, independent of the main app's
+ * `mindshift.theme`. Reasons:
+ *  1. The user wants the panel to follow the browser's system theme
+ *     out of the box even if they explicitly picked dark in the
+ *     main library.
+ *  2. The iframe shares localStorage with the main tab. If we used
+ *     the same key, toggling the panel would also flip the main app
+ *     and vice-versa — a surprise either way.
+ */
+const EMBED_THEME_KEY = "mindshift.embedTheme";
+
+function readEmbedTheme(): "dark" | "light" {
+  if (typeof window === "undefined") return "dark";
+  const saved = window.localStorage.getItem(EMBED_THEME_KEY);
+  if (saved === "dark" || saved === "light") return saved;
+  return window.matchMedia?.("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark";
+}
 
 type EmbedTab = "summary" | "transcript" | "notes";
 type SummaryDepth = "concise" | "detailed";
@@ -52,7 +72,39 @@ export default function EmbedCardPage() {
   const [transcriptText, setTranscriptText] = useState<string | null>(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const { theme, toggleTheme } = useTheme();
+  const [embedTheme, setEmbedTheme] = useState<"dark" | "light">(readEmbedTheme);
+
+  // Apply the embed theme to the document root. We're effectively
+  // racing the global ThemeProvider for the same classList, but we
+  // load second on `/embed/cards/*` and the user's system or saved
+  // preference for the panel wins.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("light", embedTheme === "light");
+    root.classList.toggle("dark", embedTheme === "dark");
+  }, [embedTheme]);
+
+  // Follow OS toggle until the user makes an explicit panel choice.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-color-scheme: light)");
+    const onChange = (e: MediaQueryListEvent) => {
+      const saved = window.localStorage.getItem(EMBED_THEME_KEY);
+      if (saved !== "dark" && saved !== "light") {
+        setEmbedTheme(e.matches ? "light" : "dark");
+      }
+    };
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
+
+  const toggleEmbedTheme = () => {
+    setEmbedTheme((prev) => {
+      const next = prev === "dark" ? "light" : "dark";
+      window.localStorage.setItem(EMBED_THEME_KEY, next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const tok = tokenStorage.get();
@@ -179,11 +231,11 @@ export default function EmbedCardPage() {
         </span>
         <button
           type="button"
-          onClick={toggleTheme}
-          title={theme === "dark" ? "Light mode" : "Dark mode"}
+          onClick={toggleEmbedTheme}
+          title={embedTheme === "dark" ? "Light mode" : "Dark mode"}
           className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
         >
-          {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          {embedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
         </button>
       </div>
 

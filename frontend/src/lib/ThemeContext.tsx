@@ -57,11 +57,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return () => mq.removeEventListener?.("change", onChange);
   }, []);
 
-  const setTheme = useCallback((next: Theme) => setThemeState(next), []);
-  const toggleTheme = useCallback(
-    () => setThemeState((prev) => (prev === "dark" ? "light" : "dark")),
-    [],
-  );
+  // Explicit user choice — write through to storage so the live
+  // system listener stops auto-following the OS toggle.
+  const setTheme = useCallback((next: Theme) => {
+    window.localStorage.setItem(STORAGE_KEY, next);
+    setThemeState(next);
+  }, []);
+  const toggleTheme = useCallback(() => {
+    setThemeState((prev) => {
+      const next = prev === "dark" ? "light" : "dark";
+      window.localStorage.setItem(STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
 
   const value = useMemo(() => ({ theme, toggleTheme, setTheme }), [theme, toggleTheme, setTheme]);
 
