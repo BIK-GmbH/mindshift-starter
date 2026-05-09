@@ -34,13 +34,41 @@ async function uploadFile<T>(path: string, file: File, fieldName = "file"): Prom
   return data as T;
 }
 
+// Hard ceiling for every JSON API call. Without this, a stuck backend
+// pins UI buttons in their loading state forever (we hit this with the
+// "make private" toggle when the polling loop saturated the connection
+// pool). 30 s is generous enough for any synchronous endpoint we have.
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   const token = tokenStorage.get();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  // Compose an abort signal: caller-supplied signal still wins (cancel
+  // on unmount), and our own timeout aborts after REQUEST_TIMEOUT_MS.
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  if (options.signal) {
+    options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new ApiError(0, `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`, null);
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   const isJson = response.headers.get("content-type")?.includes("application/json");
   const data = isJson ? await response.json().catch(() => null) : null;

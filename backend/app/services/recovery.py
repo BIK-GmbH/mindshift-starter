@@ -17,8 +17,10 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import update
 
 from app.db.session import SessionLocal
+from app.models.card import Card
 from app.models.card_audio import CardAudio
 from app.models.card_translation import CardTranslation
+from app.models.job import Job
 from app.models.podcast import PodcastEpisode
 
 STUCK_THRESHOLD_MIN = 5
@@ -26,17 +28,27 @@ STUCK_MESSAGE = (
     "Generation was interrupted (likely a backend restart). "
     "Click retry to run it again."
 )
+INGEST_STUCK_MESSAGE = (
+    "Ingestion was interrupted (backend restart). "
+    "Click the regenerate button to retry."
+)
 
 
 def reap_stuck_processing() -> dict[str, int]:
-    """Mark orphaned processing rows as failed. Returns counts per table."""
+    """Mark orphaned processing rows as failed. Returns counts per table.
+
+    Covers every table whose lifecycle includes a `status='processing'`
+    state owned by an in-process BackgroundTask. Without this, the
+    frontend keeps polling forever after a restart because cards or
+    jobs stay marked inflight even though the worker is gone.
+    """
     cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=STUCK_THRESHOLD_MIN)
     counts: dict[str, int] = {}
 
     db = SessionLocal()
     try:
-        # Three identical updates over three tables. SQLAlchemy 2 lets us
-        # express each as a single bulk UPDATE.
+        # Tables with a single 'processing' status — generation pipelines
+        # for translations, podcasts, in-card audio.
         for label, model in (
             ("card_translations", CardTranslation),
             ("card_audio", CardAudio),
@@ -51,6 +63,29 @@ def reap_stuck_processing() -> dict[str, int]:
                 .values(status="failed", error_message=STUCK_MESSAGE)
             )
             counts[label] = result.rowcount or 0
+
+        # Card ingestion uses two states (queued → processing) — both can
+        # orphan after a restart and both keep the library polling.
+        result = db.execute(
+            update(Card)
+            .where(
+                Card.status.in_(("queued", "processing")),
+                Card.created_at < cutoff,
+            )
+            .values(status="failed", error_message=INGEST_STUCK_MESSAGE)
+        )
+        counts["cards"] = result.rowcount or 0
+
+        result = db.execute(
+            update(Job)
+            .where(
+                Job.status.in_(("queued", "processing")),
+                Job.created_at < cutoff,
+            )
+            .values(status="failed", error_message=INGEST_STUCK_MESSAGE)
+        )
+        counts["jobs"] = result.rowcount or 0
+
         db.commit()
     finally:
         db.close()
