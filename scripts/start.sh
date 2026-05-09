@@ -91,6 +91,15 @@ if [[ ! -d node_modules ]]; then
   echo "  • installing npm dependencies"
   npm install --silent
 fi
+# Sweep any stale Vite optimization temp dirs that survived an unclean
+# stop (kill -9, browser crash, ctrl-c without running stop.sh). Without
+# this the next `npm run dev` either rebuilds at glacial pace or wedges
+# entirely on /src/main.tsx — both look like "the app loads forever"
+# from the user's side.
+if compgen -G "node_modules/.vite/deps_temp_*" >/dev/null 2>&1; then
+  echo "  • removing stale Vite deps_temp_* dirs"
+  rm -rf node_modules/.vite/deps_temp_*
+fi
 nohup npm run dev > "$LOG_DIR/frontend.log" 2>&1 &
 echo $! > "$RUNTIME_DIR/frontend.pid"
 
