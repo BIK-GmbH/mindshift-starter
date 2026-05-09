@@ -31,6 +31,7 @@ import TagsTree, { type TagsTreeHandle } from "../components/TagsTree";
 import { playHover, playSound } from "../lib/sounds";
 import { useSearchModal } from "../lib/SearchModalContext";
 import { api, type Card, type CardListItem } from "../lib/api";
+import { on } from "../lib/events";
 
 interface SourceMeta {
   Icon: FC<{ className?: string; strokeWidth?: number | string }>;
@@ -172,6 +173,18 @@ export default function LibraryPage() {
   useEffect(() => {
     setTagsDrawerOpen(false);
   }, [tag, untaggedFilter, selectedCardId, sourceFilter]);
+
+  // Refresh the card list when something elsewhere mutates server state
+  // — currently a card-delete from the detail view; later potentially
+  // card-creation from the side panel / extension.
+  useEffect(() => {
+    const off1 = on("card-deleted", () => void fetchCards());
+    const off2 = on("card-created", () => void fetchCards());
+    return () => {
+      off1();
+      off2();
+    };
+  }, [fetchCards]);
 
   const counts = cards.reduce(
     (acc, c) => {

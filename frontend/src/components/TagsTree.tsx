@@ -35,6 +35,7 @@ import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from "react-
 
 import { api, type TagCard, type TagsTree as TagsTreeData } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
+import { on } from "../lib/events";
 import { playHover } from "../lib/sounds";
 
 const SOURCE_ICONS: Record<string, FC<{ className?: string }>> = {
@@ -206,6 +207,10 @@ function descendantTagIds(item: TreeItem): Set<string> {
  * --------------------------------------------------------------------------*/
 
 export interface TagsTreeHandle {
+  /** Re-fetch the tag tree from the server. Called by parents when an
+   *  out-of-tree mutation (e.g. deleting a card) has happened that we
+   *  can't observe locally. */
+  refresh: () => void;
   /** Open the inline "create top-level tag" input and scroll the tree to the top. */
   createTag: () => void;
 }
@@ -275,6 +280,18 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
     void refresh();
   }, [location.pathname]);
 
+  // Refresh on data-mutation events from anywhere in the app — e.g.
+  // CardDetailContent emits "card-deleted" after deleting, which
+  // shifts the per-tag counts without changing the URL.
+  useEffect(() => {
+    const off1 = on("card-deleted", () => void refresh());
+    const off2 = on("card-created", () => void refresh());
+    return () => {
+      off1();
+      off2();
+    };
+  }, []);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -328,7 +345,15 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
     setError(null);
   };
 
-  useImperativeHandle(ref, () => ({ createTag: () => startCreate(null) }), []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      createTag: () => startCreate(null),
+      refresh: () => void refresh(),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const cancelCreate = () => {
     setCreatingUnder(null);

@@ -38,6 +38,7 @@ import ShareModal from "./ShareModal";
 import StatusBadge from "./StatusBadge";
 import { useDialog } from "../lib/DialogContext";
 import { api, type Card, type CardTranslationOut, type QuizQuestion } from "../lib/api";
+import { emit } from "../lib/events";
 
 export type CardDetailTab =
   | "summary"
@@ -170,6 +171,9 @@ export default function CardDetailContent({
     });
     if (!ok) return;
     await api.deleteCard(cardId);
+    // Broadcast so unrelated panels (tag tree, library card list,
+    // graph view, …) can refresh without prop-drilling.
+    emit("card-deleted", { cardId });
     onBack();
   };
 

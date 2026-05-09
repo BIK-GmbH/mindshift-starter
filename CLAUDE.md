@@ -214,6 +214,59 @@ cd backend
   often don't trigger D3/dnd events. Visually verify in the browser; don't
   rely on synthetic `MouseEvent`s for E2E.
 
+- **The "loads forever after a few clicks" bug** — bit us at least three
+  times. **Always rule out the dev TCP path first** before touching app
+  code. Symptoms:
+  - Tags pane / library blank, spinner forever
+  - `/api/*` requests intermittently take 5-10 s, then suddenly succeed
+  - Backend logs show NO incoming request during the freeze
+  - Browser DevTools network tab shows requests stuck in "Pending"
+  
+  **Root cause**: dev-only socket exhaustion. Vite's HTTP proxy + macOS's
+  IPv6 dual-stack `localhost` resolution + React StrictMode + the old
+  `<main key={location.pathname}>` remount trick combined to flood the
+  ephemeral port range with TIME_WAIT entries (~60 s lifetime each). New
+  connections then sat in SYN_SENT until they timed out.
+  
+  **Diagnose** (in this order):
+  1. `netstat -an -p tcp | grep :8001 | awk '{print $6}' | sort | uniq -c`
+     — anything over a few hundred TIME_WAIT entries on port 8001 means
+     the socket pool is the bottleneck, not the backend.
+  2. `lsof -nP -iTCP:8001 -sTCP:LISTEN` — check uvicorn is actually
+     listening.
+  3. Hit the backend directly with `curl http://127.0.0.1:8001/api/health`
+     a few times in a row. If those are consistently fast, the backend
+     is fine; the problem is between browser and backend.
+  4. Check for stuck rows: `SELECT * FROM cards WHERE status IN ('queued',
+     'processing')` — anything older than ~5 min is an orphan from a
+     restart and triggers infinite library polling. The startup reaper
+     in `services/recovery.py` handles this on next boot.
+  
+  **Already-applied mitigations** — keep these in place:
+  - `frontend/src/lib/api.ts` BASE_URL defaults to `http://127.0.0.1:8001`
+    in dev, NOT empty (which would route through the Vite proxy). Same
+    for `lib/useAuthedImage.ts`. The `127.0.0.1` instead of `localhost`
+    matters: localhost resolves to ::1 first on macOS, fails (uvicorn
+    binds IPv4-only), falls back to 127.0.0.1 — that fallback wastes
+    a socket and adds latency per request.
+  - Backend CORS in `main.py` accepts both `http://localhost:5173` AND
+    `http://127.0.0.1:5173` in non-production.
+  - `vite.config.ts` proxy still uses keep-alive `http.Agent` for the
+    Railway-style "frontend talks via Vite to backend" deployments —
+    not used in dev anymore but stays correct for prod-like setups.
+  - `AppLayout.tsx` does NOT key `<main>` on `location.pathname`.
+    Adding that key back would force full unmount + remount on every
+    route change which combined with StrictMode = 4× the fetches.
+  - `scripts/stop.sh` sweeps stale Vite `deps_temp_*` dirs and any
+    process still bound to :8001 / :5173. `scripts/start.sh` repeats
+    the Vite sweep before `npm run dev`.
+  
+  **Quick-fix when it happens anyway**: `./scripts/stop.sh`, wait 60 s
+  for TIME_WAITs to drain, `./scripts/start.sh`. Resist the urge to
+  curl-burst the API while diagnosing — every curl invocation creates
+  a new TIME_WAIT entry without keep-alive (browsers don't have this
+  problem; they reuse connections).
+
 ## Recent design decisions
 
 - **Tags hierarchical** with `parent_id`, Recall-style. Cards appear as
