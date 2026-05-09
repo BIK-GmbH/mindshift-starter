@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 
 import { tokenStorage } from "./api";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+// Mirrors the BASE_URL logic in lib/api.ts — see that file for the why.
+const BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? "http://127.0.0.1:8001" : "");
 
 /**
  * Render a private image endpoint (e.g. `/api/paths/{id}/cover.png`)

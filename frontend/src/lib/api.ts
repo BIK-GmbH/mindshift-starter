@@ -1,7 +1,12 @@
-// Empty default → relative URLs, served through Vite dev-proxy in development
-// and same-origin in production. Set VITE_API_BASE_URL to point at a separate
-// backend host (e.g. on Railway).
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+// Production → same-origin (empty BASE_URL, served behind the same nginx).
+// Local dev → talk directly to the FastAPI host on 127.0.0.1, bypassing the
+// Vite proxy entirely. The proxy was a source of socket churn / SYN_SENT
+// build-up under fast page navigation; cutting it out of the dev loop is
+// the user-facing fix. Set VITE_API_BASE_URL to override (e.g. on Railway
+// where API + web live on different hosts).
+const BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? "http://127.0.0.1:8001" : "");
 const TOKEN_KEY = "mindshift.token";
 
 export class ApiError extends Error {

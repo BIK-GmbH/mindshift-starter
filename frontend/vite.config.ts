@@ -24,7 +24,12 @@ export default defineConfig({
     allowedHosts: ["localhost", "host.docker.internal", ".local"],
     proxy: {
       "/api": {
-        target: process.env.BACKEND_URL ?? "http://localhost:8001",
+        // 127.0.0.1, not localhost. macOS resolves "localhost" to ::1
+        // first; the backend listens on IPv4 (0.0.0.0:8001) so every
+        // connect tries IPv6, fails, and retries on IPv4 — extra
+        // latency + an abandoned socket per request. Pinning the
+        // target to 127.0.0.1 skips that round-trip entirely.
+        target: process.env.BACKEND_URL ?? "http://127.0.0.1:8001",
         changeOrigin: true,
         agent: keepAliveAgent,
       },

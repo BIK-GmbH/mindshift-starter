@@ -1,6 +1,6 @@
 import { Brain, Compass, GraduationCap, Headphones, Library, MessageSquare, Network, Rss, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 
 import GlobalSearchModal from "./GlobalSearchModal";
 import RailFooterButtons from "./RailFooterButtons";
@@ -21,7 +21,6 @@ const railItems = [
 export default function AppLayout() {
   const { t } = useTranslation();
   const { openModal: openSearch } = useSearchModal();
-  const location = useLocation();
 
   return (
     <div className="flex h-full bg-ink-900">
@@ -81,8 +80,15 @@ export default function AppLayout() {
         <RailFooterButtons />
       </aside>
 
-      {/* Main — pages render their own context sidebars (TagsTree, Graph settings, …). */}
-      <main key={location.pathname} className="flex-1 overflow-hidden page-enter">
+      {/* Main — pages render their own context sidebars (TagsTree, Graph settings, …).
+          NOTE: deliberately NO `key={location.pathname}`. The key trick was
+          forcing a full unmount + remount of every page on every route
+          change — combined with React.StrictMode that re-fires every
+          useEffect 4× per navigation, which under heavy clicking
+          saturated localhost sockets and made the UI feel stuck.
+          React-Router still mounts/unmounts the matched route via
+          <Outlet/>, so each page resets its own state cleanly. */}
+      <main className="flex-1 overflow-hidden page-enter">
         <Outlet />
       </main>
 

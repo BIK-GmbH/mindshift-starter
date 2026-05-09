@@ -57,9 +57,17 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Mindshift API", version="0.1.0", lifespan=lifespan)
 
+_allowed_origins = {settings.frontend_origin}
+# Local dev convenience: the frontend now talks directly to the backend
+# (skipping the Vite proxy) — both http://localhost:5173 and
+# http://127.0.0.1:5173 are valid origins depending on what the user
+# typed in the address bar, so accept both.
+if settings.environment != "production":
+    _allowed_origins.update({"http://localhost:5173", "http://127.0.0.1:5173"})
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_origin],
+    allow_origins=list(_allowed_origins),
     # Browser extensions surface as `chrome-extension://<id>` and
     # `moz-extension://<id>` origins — allow any extension origin so the
     # popup can call the API without bouncing every install through CORS
