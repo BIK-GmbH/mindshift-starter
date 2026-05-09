@@ -899,12 +899,19 @@ function ExtensionTab() {
         <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
           {t("settings.extension.apiHeading", { defaultValue: "API URL" })}
         </h3>
-        <div className="flex items-center gap-2 rounded-md border border-ink-700 bg-ink-800/40 px-3 py-2">
-          <code className="flex-1 truncate text-xs text-ink-200">{apiBase}</code>
+        <div className="flex w-full items-stretch overflow-hidden rounded-md border border-ink-700 bg-ink-800/40">
+          <input
+            type="text"
+            readOnly
+            value={apiBase}
+            onFocus={(e) => e.currentTarget.select()}
+            className="block min-w-0 flex-1 truncate bg-transparent px-3 py-2 text-xs text-ink-200 focus:outline-none"
+            aria-label="API URL"
+          />
           <button
             type="button"
             onClick={() => void navigator.clipboard.writeText(apiBase)}
-            className="rounded p-1 text-ink-400 transition hover:bg-ink-700/60 hover:text-ink-100"
+            className="flex flex-shrink-0 items-center justify-center border-l border-ink-700 px-3 text-ink-400 transition hover:bg-ink-700/60 hover:text-ink-100"
             aria-label="Copy API URL"
             title={t("share.copy", { defaultValue: "Copy" })}
           >
@@ -944,12 +951,22 @@ function ExtensionTab() {
         )}
 
         {token ? (
-          <div className="flex items-center gap-2 rounded-md border border-ink-700 bg-ink-800/40 px-3 py-2">
-            <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-200">{token}</code>
+          // Read-only input is more robust than a <code>: the browser
+          // already handles overflow + selection sanely, and clicking
+          // it selects the whole value for manual copy as a fallback.
+          <div className="flex w-full items-stretch gap-0 overflow-hidden rounded-md border border-ink-700 bg-ink-800/40">
+            <input
+              type="text"
+              readOnly
+              value={token}
+              onFocus={(e) => e.currentTarget.select()}
+              className="block min-w-0 flex-1 truncate bg-transparent px-3 py-2 font-mono text-[11px] text-ink-200 focus:outline-none"
+              aria-label={t("settings.extension.tokenHeading", { defaultValue: "Token" })}
+            />
             <button
               type="button"
               onClick={() => void copy()}
-              className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[11px] font-semibold text-ink-900 transition hover:bg-ink-200"
+              className="inline-flex flex-shrink-0 items-center gap-1 border-l border-ink-700 bg-ink-100 px-3 text-[11px] font-semibold text-ink-900 transition hover:bg-ink-200"
             >
               {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
               {copied

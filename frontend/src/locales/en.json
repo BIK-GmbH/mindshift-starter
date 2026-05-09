@@ -226,6 +226,8 @@
     "graph": "Graph",
     "podcast": "Podcast",
     "retry": "Retry",
+    "openSource": "Open original source",
+    "openSourceShort": "Open",
     "exportMarkdown": "Markdown",
     "tags": "Tags",
     "deleteTitle": "Delete this card?",

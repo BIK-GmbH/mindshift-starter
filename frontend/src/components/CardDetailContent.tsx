@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Copy,
   Download,
+  ExternalLink,
   Eye,
   EyeOff,
   FileText,
@@ -366,6 +367,16 @@ export default function CardDetailContent({
               }
               onShare={() => setShareOpen(true)}
               onDelete={handleDelete}
+              sourceUrl={
+                // Hide for note-only cards (the URL is just an internal
+                // note:// pseudo-URL) and for anything else without a
+                // proper http(s) source.
+                card.source_type !== "note" &&
+                card.source_url &&
+                /^https?:\/\//i.test(card.source_url)
+                  ? card.source_url
+                  : null
+              }
               t={t}
             />
           </header>
@@ -631,6 +642,7 @@ function ActionBar({
   onDownloadOriginal,
   onShare,
   onDelete,
+  sourceUrl,
   t,
 }: {
   canRegenerate: boolean;
@@ -641,6 +653,10 @@ function ActionBar({
   onDownloadOriginal?: () => Promise<void> | void;
   onShare: () => void;
   onDelete: () => void;
+  /** Original URL of the card's source (e.g. the GitHub repo, the
+   *  YouTube watch URL). When set, an "Open original" link button
+   *  appears in the action bar. Hidden for note-only cards. */
+  sourceUrl?: string | null;
   t: (key: string, opts?: { defaultValue?: string }) => string;
 }) {
   return (
@@ -655,6 +671,20 @@ function ActionBar({
           <RefreshCw className="h-3 w-3" />
           <span className="hidden sm:inline">{t("card.retry")}</span>
         </button>
+      )}
+      {sourceUrl && (
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={t("card.openSource", { defaultValue: "Open original source" })}
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-ink-200 transition hover:bg-ink-700"
+        >
+          <ExternalLink className="h-3 w-3" />
+          <span className="hidden sm:inline">
+            {t("card.openSourceShort", { defaultValue: "Open" })}
+          </span>
+        </a>
       )}
       <ExportMenu
         onDownload={onDownload}
