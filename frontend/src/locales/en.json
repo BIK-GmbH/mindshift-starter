@@ -3,6 +3,14 @@
     "name": "Mindshift",
     "tagline": "Your personal AI knowledge base"
   },
+  "cardSource": {
+    "openOriginal": "Open on YouTube",
+    "fullscreen": "Maximize",
+    "exitFullscreen": "Exit fullscreen",
+    "open": "Open",
+    "hidePlayer": "Hide video",
+    "showPlayer": "Show video"
+  },
   "nav": {
     "library": "Library",
     "graph": "Graph",

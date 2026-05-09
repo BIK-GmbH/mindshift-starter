@@ -5,6 +5,8 @@ import {
   ChevronDown,
   Copy,
   Download,
+  Eye,
+  EyeOff,
   FileText,
   Globe,
   Hash,
@@ -26,6 +28,7 @@ import { useTranslation } from "react-i18next";
 import CardGraph from "./CardGraph";
 import CardLanguagePicker from "./CardLanguagePicker";
 import CardPodcastPlayer from "./CardPodcastPlayer";
+import CardSourceMedia from "./CardSourceMedia";
 import CardTagsBar from "./CardTagsBar";
 import ChatPanel from "./ChatPanel";
 import MarkdownView, { markdownToPlainText } from "./MarkdownView";
@@ -84,6 +87,9 @@ export default function CardDetailContent({
   const [card, setCard] = useState<Card | null>(null);
   const [activeTranslation, setActiveTranslation] = useState<CardTranslationOut | null>(null);
   const [tab, setTab] = useState<CardDetailTab>(initialTab);
+  // Chat-tab side panel: keep the source player visible above the chat by
+  // default; user can collapse it for a wider chat surface.
+  const [showChatPlayer, setShowChatPlayer] = useState(true);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
   const [notes, setNotes] = useState("");
@@ -358,6 +364,16 @@ export default function CardDetailContent({
           </header>
         </div>
 
+        {/* Inline source playback (YouTube embed, article link…) — only
+            renders when card has a usable source. Sits above the tab
+            strip on every tab except chat, where it lives inside the
+            chat layout as a collapsible panel above the conversation. */}
+        {card.status === "completed" && tab !== "chat" && (
+          <div className={`mx-auto ${innerWidth} ${horizPad} pb-3`}>
+            <CardSourceMedia card={card} />
+          </div>
+        )}
+
         <div className={`mx-auto ${innerWidth} ${horizPad}`}>
           <nav className="no-scrollbar flex gap-0.5 overflow-x-auto" aria-label="card sections">
             {tabs.map((id) => {
@@ -521,15 +537,48 @@ export default function CardDetailContent({
               </div>
             )}
 
-            {tab === "chat" && (
-              <div className="h-[60vh]">
-                <ChatPanel
-                  send={(history) => api.chatCard(cardId, history)}
-                  placeholder={t("chat.placeholderCard") ?? ""}
-                  emptyHint={t("chat.cardEmpty") ?? ""}
-                />
-              </div>
-            )}
+            {tab === "chat" && (() => {
+              const hasMedia =
+                card.source_type === "youtube" && !!card.external_id;
+              const playerOpen = hasMedia && showChatPlayer;
+              return (
+                <div
+                  className="flex flex-col gap-3"
+                  style={{ height: "min(80vh, 900px)" }}
+                >
+                  {hasMedia && (
+                    <div className="flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowChatPlayer((v) => !v)}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-800/50 px-2 py-1 text-xs text-ink-300 transition hover:bg-ink-700/60 hover:text-ink-100"
+                      >
+                        {playerOpen ? (
+                          <EyeOff className="h-3 w-3" />
+                        ) : (
+                          <Eye className="h-3 w-3" />
+                        )}
+                        {playerOpen
+                          ? t("cardSource.hidePlayer", { defaultValue: "Hide video" })
+                          : t("cardSource.showPlayer", { defaultValue: "Show video" })}
+                      </button>
+                    </div>
+                  )}
+                  {playerOpen && (
+                    <div className="flex-shrink-0">
+                      <CardSourceMedia card={card} />
+                    </div>
+                  )}
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    <ChatPanel
+                      send={(history) => api.chatCard(cardId, history)}
+                      placeholder={t("chat.placeholderCard") ?? ""}
+                      emptyHint={t("chat.cardEmpty") ?? ""}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
 
             {tab === "graph" && (
               <div className="h-[65vh]">
