@@ -37,6 +37,7 @@ const tabs: { id: Tab; Icon: typeof LinkIcon; labelKey: string }[] = [
 
 const URL_EXAMPLES: { label: string; sample: string }[] = [
   { label: "YouTube videos", sample: "https://www.youtube.com/watch?v=" },
+  { label: "GitHub repos", sample: "https://github.com/" },
   { label: "Spotify Podcasts", sample: "https://open.spotify.com/episode/" },
   { label: "Apple Podcasts", sample: "https://podcasts.apple.com/" },
   { label: "Websites", sample: "https://" },

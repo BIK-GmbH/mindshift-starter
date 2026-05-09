@@ -1,6 +1,7 @@
 import {
   ChevronDown,
   FileText,
+  Github,
   Globe,
   Hash,
   LayoutGrid,
@@ -61,6 +62,12 @@ const SOURCE_META: Record<string, SourceMeta> = {
     color: "text-amber-300",
     fallback: "from-amber-500/20 via-amber-500/5 to-transparent",
     badge: "bg-amber-500/90 text-white",
+  },
+  github: {
+    Icon: Github,
+    color: "text-violet-300",
+    fallback: "from-violet-500/25 via-violet-500/5 to-transparent",
+    badge: "bg-violet-500/90 text-white",
   },
 };
 
@@ -315,6 +322,7 @@ export default function LibraryPage() {
                 { value: "", label: t("library.toolbar.allSources", { defaultValue: "All sources" }) },
                 { value: "youtube", label: "YouTube" },
                 { value: "article", label: t("addContent.article") },
+                { value: "github", label: "GitHub" },
                 { value: "pdf", label: "PDF" },
                 { value: "note", label: t("addContent.tab.note") },
               ]}

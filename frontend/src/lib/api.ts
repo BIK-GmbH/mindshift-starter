@@ -89,8 +89,31 @@ export interface Card extends CardListItem {
   notes_md: string | null;
   error_message: string | null;
   tags?: string[];
+  source_url?: string | null;
+  external_id?: string | null;
+  source_metadata?: Record<string, unknown> | null;
   is_public?: boolean;
   public_via_tags?: string[];
+}
+
+/**
+ * Shape of `Card.source_metadata` for GitHub repo cards. Persisted by
+ * `process_github_card` from the GitHub REST response. All fields may be
+ * absent on older cards or on partial fetches.
+ */
+export interface GithubSourceMetadata {
+  owner?: string;
+  repo?: string;
+  full_name?: string;
+  description?: string | null;
+  homepage?: string | null;
+  default_branch?: string;
+  language?: string | null;
+  languages?: Record<string, number>;
+  topics?: string[];
+  stars?: number;
+  forks?: number;
+  license?: string | null;
 }
 
 export interface JobOut {

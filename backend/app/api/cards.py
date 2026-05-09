@@ -27,8 +27,10 @@ from app.schemas.card import (
 from app.schemas.graph import ConnectionOut, ReasonOut
 from app.services.connections import get_connections
 from app.services.export import card_to_markdown
+from app.services.github import parse_repo_url as parse_github_url
 from app.services.ingestion import (
     process_article_card,
+    process_github_card,
     process_note_card,
     process_pdf_card,
     process_youtube_card,
@@ -91,6 +93,12 @@ def create_card_from_url(
     db: Session = Depends(get_db),
 ) -> IngestionResponse:
     url = str(payload.url)
+
+    # Auto-route GitHub URLs through the dedicated repo importer so users
+    # can paste any github.com link without picking a special "type".
+    if parse_github_url(url):
+        return _create_github_card(url, background_tasks, current_user, db)
+
     source = Source(source_type="article", url=url, canonical_url=url)
     db.add(source)
     db.flush()
@@ -112,6 +120,62 @@ def create_card_from_url(
     db.refresh(job)
 
     background_tasks.add_task(process_article_card, card.id, job.id, url)
+    return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
+
+
+@router.post("/from-github", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
+def create_card_from_github(
+    payload: FromUrlRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> IngestionResponse:
+    url = str(payload.url)
+    if not parse_github_url(url):
+        raise HTTPException(status_code=400, detail="Not a valid GitHub repository URL.")
+    return _create_github_card(url, background_tasks, current_user, db)
+
+
+def _create_github_card(
+    url: str,
+    background_tasks: BackgroundTasks,
+    current_user: User,
+    db: Session,
+) -> IngestionResponse:
+    parsed = parse_github_url(url)
+    assert parsed is not None  # caller guarantees this
+    owner, repo = parsed
+    full = f"{owner}/{repo}"
+    canonical = f"https://github.com/{full}"
+
+    source = Source(
+        source_type="github",
+        url=url,
+        canonical_url=canonical,
+        external_id=full,
+    )
+    db.add(source)
+    db.flush()
+
+    card = Card(
+        user_id=current_user.id,
+        source_id=source.id,
+        # Placeholder until ingestion sets a proper title; using the
+        # full_name keeps the queued card identifiable in the library.
+        title=full,
+        source_type="github",
+        status="queued",
+    )
+    db.add(card)
+    db.flush()
+
+    job = Job(card_id=card.id, job_type="github_ingest", status="queued")
+    db.add(job)
+    db.commit()
+    db.refresh(card)
+    db.refresh(job)
+
+    background_tasks.add_task(process_github_card, card.id, job.id, url)
     return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
 
 
@@ -306,6 +370,15 @@ def _card_response(db: Session, card: Card) -> CardOut:
         .all()
     )
     out.tags = list(tag_rows)
+    # Source — needed by the front-end to embed YouTube / link out.
+    if card.source_id:
+        from app.models.source import Source
+
+        s = db.get(Source, card.source_id)
+        if s is not None:
+            out.source_url = s.canonical_url or s.url
+            out.external_id = s.external_id
+            out.source_metadata = s.metadata_json
     return out
 
 
@@ -426,6 +499,8 @@ def regenerate_card(
         background_tasks.add_task(process_youtube_card, card.id, job.id, external_id)
     elif card.source_type == "article":
         background_tasks.add_task(process_article_card, card.id, job.id, source.url)
+    elif card.source_type == "github":
+        background_tasks.add_task(process_github_card, card.id, job.id, source.url)
     else:
         raise HTTPException(status_code=400, detail=f"Unknown source type: {card.source_type}")
 

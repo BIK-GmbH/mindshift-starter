@@ -25,6 +25,16 @@ class CardOut(CardBase):
     updated_at: datetime
     # Tag names attached to this card.
     tags: list[str] = Field(default_factory=list)
+    # Original source URL (YouTube watch link, article URL, …) — used by
+    # the card detail to embed playback / link out.
+    source_url: str | None = None
+    # YouTube video id when source_type == "youtube" (kept generic so
+    # other source types can use it later).
+    external_id: str | None = None
+    # Free-form metadata captured during ingestion. Shape depends on
+    # source_type — e.g. github carries stars/forks/topics/license. The
+    # frontend type-narrows on source_type before reading.
+    source_metadata: dict | None = None
     # Reachable via at least one public tag — surfaces a "this is public"
     # warning in the notes editor so accidental edits don't leak.
     is_public: bool = False

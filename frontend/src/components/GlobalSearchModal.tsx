@@ -1,6 +1,7 @@
 import {
   Bot,
   FileText,
+  Github,
   Globe,
   Loader2,
   Search as SearchIcon,
@@ -21,6 +22,7 @@ const SOURCE_ICONS: Record<string, FC<{ className?: string }>> = {
   youtube: Youtube,
   article: Globe,
   pdf: FileText,
+  github: Github,
 };
 
 export default function GlobalSearchModal() {

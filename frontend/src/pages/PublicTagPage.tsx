@@ -1,4 +1,4 @@
-import { ArrowLeft, Brain, FileText, Globe, Hash, Loader2, Rss, Youtube, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Brain, FileText, Github, Globe, Hash, Loader2, Rss, Youtube, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -14,6 +14,7 @@ const SOURCE_ICONS: Record<string, LucideIcon> = {
   article: Globe,
   pdf: FileText,
   note: FileText,
+  github: Github,
 };
 
 export default function PublicTagPage() {

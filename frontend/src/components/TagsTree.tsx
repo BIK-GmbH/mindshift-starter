@@ -7,6 +7,7 @@ import {
   ExternalLink,
   EyeOff,
   FileText,
+  Github,
   Globe,
   Hash,
   Inbox,
@@ -39,6 +40,7 @@ const SOURCE_ICONS: Record<string, FC<{ className?: string }>> = {
   youtube: Youtube,
   article: Globe,
   pdf: FileText,
+  github: Github,
 };
 
 const EXPANDED_KEY = "mindshift.tagsExpanded";

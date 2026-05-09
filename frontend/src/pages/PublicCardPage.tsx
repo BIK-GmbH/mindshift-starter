@@ -1,4 +1,4 @@
-import { Brain, Check, Copy, FileText, Globe, Loader2, Share2, Youtube, type LucideIcon } from "lucide-react";
+import { Brain, Check, Copy, FileText, Github, Globe, Loader2, Share2, Youtube, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
@@ -12,6 +12,7 @@ const SOURCE_ICONS: Record<string, LucideIcon> = {
   article: Globe,
   pdf: FileText,
   note: FileText,
+  github: Github,
 };
 
 /**
