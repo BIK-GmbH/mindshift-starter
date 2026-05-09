@@ -1,5 +1,7 @@
 import {
   ChevronDown,
+  Eye,
+  EyeOff,
   FileText,
   Github,
   Globe,
@@ -21,12 +23,13 @@ import { useSearchParams } from "react-router-dom";
 
 import AddContentModal from "../components/AddYouTubeModal";
 import CardDetailContent from "../components/CardDetailContent";
+import CardSourceMedia from "../components/CardSourceMedia";
 import ChatPanel from "../components/ChatPanel";
 import StatusBadge from "../components/StatusBadge";
 import TagsTree, { type TagsTreeHandle } from "../components/TagsTree";
 import { playHover, playSound } from "../lib/sounds";
 import { useSearchModal } from "../lib/SearchModalContext";
-import { api, type CardListItem } from "../lib/api";
+import { api, type Card, type CardListItem } from "../lib/api";
 
 interface SourceMeta {
   Icon: FC<{ className?: string; strokeWidth?: number | string }>;
@@ -102,6 +105,12 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  // Selected card object — populated by CardDetailContent via onCardLoaded.
+  // Used for the source-media panel in the right chat pane (we already
+  // have the selectedCardId from the URL, but the panel needs the source
+  // type and external_id too).
+  const [selectedCard, setSelectedCard] = useState<Card | null>(null);
+  const [chatPlayerOpen, setChatPlayerOpen] = useState(false);
 
   const fetchCards = useCallback(async () => {
     try {
@@ -197,6 +206,7 @@ export default function LibraryPage() {
               backStyle="link"
               compact
               hideChatTab={rightPaneOpen}
+              onCardLoaded={setSelectedCard}
             />
           </div>
           {rightPaneOpen ? (
@@ -206,22 +216,51 @@ export default function LibraryPage() {
                   <MessageSquare className="h-3 w-3" />
                   {t("nav.chat")}
                 </div>
-                <button
-                  type="button"
-                  onClick={toggleRightPane}
-                  title={t("library.rightPane.hide") ?? ""}
-                  className="rounded p-1 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
-                >
-                  <PanelRightClose className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  {selectedCard?.source_type === "youtube" && selectedCard.external_id && (
+                    <button
+                      type="button"
+                      onClick={() => setChatPlayerOpen((v) => !v)}
+                      title={
+                        chatPlayerOpen
+                          ? t("cardSource.hidePlayer", { defaultValue: "Hide video" }) ?? ""
+                          : t("cardSource.showPlayer", { defaultValue: "Show video" }) ?? ""
+                      }
+                      className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+                    >
+                      {chatPlayerOpen ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      {t(chatPlayerOpen ? "cardSource.hidePlayer" : "cardSource.showPlayer")}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={toggleRightPane}
+                    title={t("library.rightPane.hide") ?? ""}
+                    className="rounded p-1 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+                  >
+                    <PanelRightClose className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
-              <div className="flex flex-1 min-h-0 flex-col px-4 pb-4 pt-3">
-                <ChatPanel
-                  key={selectedCardId}
-                  send={(history) => api.chatCard(selectedCardId, history)}
-                  placeholder={t("chat.placeholderCard") ?? ""}
-                  emptyHint={t("chat.cardEmpty") ?? ""}
-                />
+              <div className="flex flex-1 min-h-0 flex-col gap-3 px-4 pb-4 pt-3">
+                {/* Source-media panel sits above the chat when toggled —
+                    splits the available height 50/50 with the conversation
+                    so the user can watch and ask side-by-side. */}
+                {chatPlayerOpen &&
+                  selectedCard?.source_type === "youtube" &&
+                  selectedCard.external_id && (
+                    <div className="min-h-0 flex-1">
+                      <CardSourceMedia card={selectedCard} fitHeight />
+                    </div>
+                  )}
+                <div className="min-h-0 flex-1">
+                  <ChatPanel
+                    key={selectedCardId}
+                    send={(history) => api.chatCard(selectedCardId, history)}
+                    placeholder={t("chat.placeholderCard") ?? ""}
+                    emptyHint={t("chat.cardEmpty") ?? ""}
+                  />
+                </div>
               </div>
             </aside>
           ) : (

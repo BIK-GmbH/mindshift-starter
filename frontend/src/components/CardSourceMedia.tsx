@@ -17,6 +17,12 @@ import type { Card, GithubSourceMetadata } from "../lib/api";
 
 interface Props {
   card: Card;
+  /**
+   * Make the YouTube embed fill its parent's height instead of using
+   * a 16:9 aspect ratio. Used in the Chat tab's split layout where we
+   * want the player to share the available height with the chat panel.
+   */
+  fitHeight?: boolean;
 }
 
 /**
@@ -29,7 +35,7 @@ interface Props {
  *   the source URL in a new tab.
  * - Notes / no source: nothing rendered.
  */
-export default function CardSourceMedia({ card }: Props) {
+export default function CardSourceMedia({ card, fitHeight = false }: Props) {
   const { t } = useTranslation();
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -60,7 +66,7 @@ export default function CardSourceMedia({ card }: Props) {
       <div
         className={[
           "relative overflow-hidden rounded-xl ring-1 ring-ink-700",
-          fullscreen ? "h-full w-full" : "aspect-video w-full",
+          fullscreen || fitHeight ? "h-full w-full" : "aspect-video w-full",
         ].join(" ")}
         style={{ viewTransitionName: "card-player" }}
       >

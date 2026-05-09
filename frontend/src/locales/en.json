@@ -3,6 +3,12 @@
     "name": "Mindshift",
     "tagline": "Your personal AI knowledge base"
   },
+  "shareTarget": {
+    "saving": "Saving to Mindshift…",
+    "savingHint": "We're queuing the page for ingestion. You'll be redirected in a second.",
+    "noUrl": "No URL detected in the share. Open Mindshift and paste it manually.",
+    "failed": "Couldn't save"
+  },
   "cardSource": {
     "openOriginal": "Open on YouTube",
     "fullscreen": "Maximize",
@@ -29,7 +35,18 @@
     "new": "New",
     "search": "Search tags…",
     "expandAll": "Expand all",
-    "collapseAll": "Collapse all"
+    "collapseAll": "Collapse all",
+    "share": {
+      "needsProfile": "Set a username and enable your public profile under Settings → Account first.",
+      "publishHint": "Publish this tag and every card it contains under your public profile. You can revoke at any time.",
+      "makePublic": "Make public",
+      "makePrivate": "Make private",
+      "copy": "Copy",
+      "open": "Open",
+      "tooltipPublic": "Public — share menu",
+      "tooltipPrivate": "Sharing options",
+      "failed": "Failed"
+    }
   },
   "library": {
     "empty": {
@@ -380,13 +397,14 @@
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
+    "back": "Back to library",
     "loading": "Loading…",
     "error": "Something went wrong.",
     "retry": "Retry"
   },
   "podcast": {
     "heading": "Podcast",
-    "idleHint": "Listen to a narrated version of this card. Generation runs once and takes ~30 seconds — uses your Gemini quota.",
+    "idleHint": "Listen to a narrated version of this card. Generation runs once and takes ~30 seconds — uses your AI token quota.",
     "generate": "Generate podcast",
     "generating": "Writing narration and synthesizing voice…",
     "regenerate": "Regenerate",

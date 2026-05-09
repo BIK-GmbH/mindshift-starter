@@ -5,6 +5,7 @@ import {
   ChevronsUpDown,
   Copy,
   ExternalLink,
+  Eye,
   EyeOff,
   FileText,
   Github,
@@ -454,10 +455,11 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
   };
 
   const togglePublic = async (rawId: string, next: boolean) => {
+    // Let callers (popover) handle the error UI locally — they have a
+    // busy state and inline error chip we want to drive. We still keep
+    // the outer error visible as a safety net.
     try {
       await api.updateTag(rawId, { is_public: next });
-      // Optimistic local update — patch the matching tag in `data.tags`
-      // so we don't need to refetch the whole tree.
       setData((prev) =>
         prev
           ? {
@@ -470,6 +472,7 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
       );
     } catch (err) {
       setError((err as Error).message);
+      throw err;
     }
   };
 
@@ -624,7 +627,16 @@ const TagsTree = forwardRef<TagsTreeHandle>(function TagsTree(_props, ref) {
           onClose={() => setSharePopover(null)}
           onTogglePublic={async (rawId, next) => {
             await togglePublic(rawId, next);
-            if (!next) setSharePopover(null);
+            // make-private: close immediately. make-public: keep the
+            // popover open and switch it into URL-share mode so the
+            // user can copy the link they just created.
+            if (!next) {
+              setSharePopover(null);
+            } else {
+              setSharePopover((prev) =>
+                prev && prev.rawId === rawId ? { ...prev, isPublic: true } : prev,
+              );
+            }
           }}
         />
       )}
@@ -645,6 +657,7 @@ function TagSharePopover({
   onClose: () => void;
   onTogglePublic: (rawId: string, next: boolean) => Promise<void> | void;
 }) {
+  const { t } = useTranslation();
   const popoverRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -679,8 +692,40 @@ function TagSharePopover({
     >
       {!url ? (
         <p className="px-1 py-1 text-[10px] text-ink-400">
-          Set a username + enable public profile in Settings → Account first.
+          {t("tags.share.needsProfile")}
         </p>
+      ) : !state.isPublic ? (
+        // Private tag — show only the explicit "Make public" affordance.
+        // No URL preview: there's nothing to share until the user opts in.
+        <div className="space-y-1.5">
+          {error && (
+            <p className="rounded-md bg-red-500/10 px-2 py-1 text-[10px] text-red-300">
+              {error}
+            </p>
+          )}
+          <p className="px-1 pt-1 text-[10px] leading-relaxed text-ink-400">
+            {t("tags.share.publishHint")}
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                await onTogglePublic(state.rawId, true);
+              } catch (err) {
+                setError((err as Error).message ?? t("tags.share.failed"));
+              } finally {
+                setBusy(false);
+              }
+            }}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-[11px] font-medium text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />}
+            {t("tags.share.makePublic")}
+          </button>
+        </div>
       ) : (
         <div className="space-y-1.5">
           {error && (
@@ -708,7 +753,7 @@ function TagSharePopover({
                   /* ignore */
                 }
               }}
-              title="Copy"
+              title={t("tags.share.copy")}
               className={[
                 "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border transition",
                 copied
@@ -727,7 +772,7 @@ function TagSharePopover({
               className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] text-ink-200 transition hover:bg-ink-800"
             >
               <ExternalLink className="h-3 w-3" />
-              Open
+              {t("tags.share.open")}
             </a>
             <button
               type="button"
@@ -738,7 +783,7 @@ function TagSharePopover({
                 try {
                   await onTogglePublic(state.rawId, false);
                 } catch (err) {
-                  setError((err as Error).message ?? "Failed");
+                  setError((err as Error).message ?? t("tags.share.failed"));
                 } finally {
                   setBusy(false);
                 }
@@ -746,7 +791,7 @@ function TagSharePopover({
               className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] text-ink-300 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <EyeOff className="h-3 w-3" />}
-              Make private
+              {t("tags.share.makePrivate")}
             </button>
           </div>
         </div>
@@ -799,10 +844,11 @@ function TreeNode({
   onPickTag,
   onPickCard,
   onPickUntagged,
-  onTogglePublic,
+  onTogglePublic: _onTogglePublic, // popover handles toggle now; click on globe just opens the popover
   publicUrlFor: _publicUrlFor, // unused now — popover lives in parent
   onShareClick,
 }: NodeRendererProps<TreeItem> & NodeExtras) {
+  const { t } = useTranslation();
   const item = node.data;
   const isInternal = node.isInternal;
   const isOpen = node.isOpen;
@@ -928,10 +974,16 @@ function TreeNode({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            if (!item.isPublic) onTogglePublic(item.rawId, true);
+            // Open the popover only — never auto-publish. The popover
+            // carries an explicit "Make public" button for that step,
+            // so a stray click on the globe icon is harmless.
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            onShareClick(item.rawId, item.slugPath, !item.isPublic ? true : item.isPublic, {
-              left: rect.right - 256, // align right edge of popover to right of button
+            onShareClick(item.rawId, item.slugPath, item.isPublic, {
+              // Open the popover to the right of the globe (its left
+              // edge sits at the button's left edge). The library pane
+              // gives plenty of horizontal room; the viewport-clamp
+              // below handles narrow windows.
+              left: rect.left,
               top: rect.bottom + 4,
             });
           }}
@@ -944,8 +996,8 @@ function TreeNode({
           ].join(" ")}
           title={
             item.isPublic
-              ? "Public — share menu"
-              : "Click to make this tag (and its sub-tree) public"
+              ? t("tags.share.tooltipPublic")
+              : t("tags.share.tooltipPrivate")
           }
         >
           <Globe className="h-3 w-3" />

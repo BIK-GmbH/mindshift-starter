@@ -8,7 +8,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { api, tokenStorage, type CardAudioOut } from "../lib/api";
+import { ApiError, api, tokenStorage, type CardAudioOut } from "../lib/api";
 
 interface Props {
   cardId: string;
@@ -57,7 +57,11 @@ export default function CardPodcastPlayer({ cardId }: Props) {
         }
       } catch (err) {
         if (cancelled) return;
-        if ((err as Error).message?.includes("404")) {
+        // 404 = no audio row yet → show the friendly "not generated"
+        // idle state, not the red error banner. Match by status, not by
+        // the message string (which is the backend detail like
+        // "Audio not found", never literally "404").
+        if (err instanceof ApiError && err.status === 404) {
           setPhase("idle");
         } else {
           setError((err as Error).message);

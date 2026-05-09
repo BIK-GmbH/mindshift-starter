@@ -3,6 +3,12 @@
     "name": "Mindshift",
     "tagline": "Deine persönliche AI Knowledge Base"
   },
+  "shareTarget": {
+    "saving": "Wird zu Mindshift gespeichert…",
+    "savingHint": "Wir stellen die Seite in die Verarbeitung. Du wirst gleich weitergeleitet.",
+    "noUrl": "Keine URL erkannt. Öffne Mindshift und füge sie manuell ein.",
+    "failed": "Konnte nicht gespeichert werden"
+  },
   "cardSource": {
     "openOriginal": "Auf YouTube öffnen",
     "fullscreen": "Vergrößern",
@@ -29,7 +35,18 @@
     "new": "Neu",
     "search": "Tags durchsuchen…",
     "expandAll": "Alle aufklappen",
-    "collapseAll": "Alle zusammenklappen"
+    "collapseAll": "Alle zusammenklappen",
+    "share": {
+      "needsProfile": "Lege zuerst einen Benutzernamen an und aktiviere dein öffentliches Profil unter Einstellungen → Account.",
+      "publishHint": "Veröffentliche diesen Tag und alle enthaltenen Cards unter deinem öffentlichen Profil. Du kannst die Freigabe jederzeit zurücknehmen.",
+      "makePublic": "Veröffentlichen",
+      "makePrivate": "Privat machen",
+      "copy": "Kopieren",
+      "open": "Öffnen",
+      "tooltipPublic": "Öffentlich — Freigabe-Menü",
+      "tooltipPrivate": "Freigabe-Optionen",
+      "failed": "Fehlgeschlagen"
+    }
   },
   "library": {
     "empty": {
@@ -380,13 +397,14 @@
     "save": "Speichern",
     "cancel": "Abbrechen",
     "delete": "Löschen",
+    "back": "Zurück zur Bibliothek",
     "loading": "Wird geladen…",
     "error": "Etwas ist schiefgelaufen.",
     "retry": "Erneut versuchen"
   },
   "podcast": {
     "heading": "Podcast",
-    "idleHint": "Höre dir eine erzählte Version dieser Card an. Die Generierung dauert etwa 30 Sekunden — verbraucht dein Gemini-Kontingent.",
+    "idleHint": "Höre dir eine erzählte Version dieser Card an. Die Generierung dauert etwa 30 Sekunden — verbraucht dein AI-Token-Kontingent.",
     "generate": "Podcast generieren",
     "generating": "Erstelle Erzähltext und synthetisiere die Stimme…",
     "regenerate": "Neu generieren",

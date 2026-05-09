@@ -71,6 +71,10 @@ interface Props {
   /** When set, hide the chat tab from the strip — used when chat lives in a
    *  separate side pane rendered by the parent. */
   hideChatTab?: boolean;
+  /** Notify the parent whenever the card object refreshes — used by
+   *  the library so it can render its right-side chat pane (with an
+   *  optional source-media panel above) without re-fetching. */
+  onCardLoaded?: (card: Card) => void;
 }
 
 export default function CardDetailContent({
@@ -80,6 +84,7 @@ export default function CardDetailContent({
   compact = false,
   initialTab = "summary",
   hideChatTab = false,
+  onCardLoaded,
 }: Props) {
   const { t } = useTranslation();
   const { confirm } = useDialog();
@@ -87,9 +92,10 @@ export default function CardDetailContent({
   const [card, setCard] = useState<Card | null>(null);
   const [activeTranslation, setActiveTranslation] = useState<CardTranslationOut | null>(null);
   const [tab, setTab] = useState<CardDetailTab>(initialTab);
-  // Chat-tab side panel: keep the source player visible above the chat by
-  // default; user can collapse it for a wider chat surface.
-  const [showChatPlayer, setShowChatPlayer] = useState(true);
+  // Source-media panel toggle. Off by default so the tab strip and
+  // content stay uncluttered; user enables it via the eye button next
+  // to the tabs whenever they want the video / repo card visible.
+  const [showPlayer, setShowPlayer] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
   const [notes, setNotes] = useState("");
@@ -102,10 +108,11 @@ export default function CardDetailContent({
       setCard(data);
       setNotes(data.notes_md ?? "");
       setError(null);
+      onCardLoaded?.(data);
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [cardId]);
+  }, [cardId, onCardLoaded]);
 
   useEffect(() => {
     void fetchCard();
@@ -364,16 +371,6 @@ export default function CardDetailContent({
           </header>
         </div>
 
-        {/* Inline source playback (YouTube embed, article link…) — only
-            renders when card has a usable source. Sits above the tab
-            strip on every tab except chat, where it lives inside the
-            chat layout as a collapsible panel above the conversation. */}
-        {card.status === "completed" && tab !== "chat" && (
-          <div className={`mx-auto ${innerWidth} ${horizPad} pb-3`}>
-            <CardSourceMedia card={card} />
-          </div>
-        )}
-
         <div className={`mx-auto ${innerWidth} ${horizPad}`}>
           <nav className="no-scrollbar flex gap-0.5 overflow-x-auto" aria-label="card sections">
             {tabs.map((id) => {
@@ -540,7 +537,7 @@ export default function CardDetailContent({
             {tab === "chat" && (() => {
               const hasMedia =
                 card.source_type === "youtube" && !!card.external_id;
-              const playerOpen = hasMedia && showChatPlayer;
+              const playerOpen = hasMedia && showPlayer;
               return (
                 <div
                   className="flex flex-col gap-3"
@@ -550,7 +547,7 @@ export default function CardDetailContent({
                     <div className="flex items-center justify-end">
                       <button
                         type="button"
-                        onClick={() => setShowChatPlayer((v) => !v)}
+                        onClick={() => setShowPlayer((v) => !v)}
                         className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-800/50 px-2 py-1 text-xs text-ink-300 transition hover:bg-ink-700/60 hover:text-ink-100"
                       >
                         {playerOpen ? (
@@ -564,9 +561,13 @@ export default function CardDetailContent({
                       </button>
                     </div>
                   )}
+                  {/* Player and chat split the remaining height 50/50
+                      via flex-1 + min-h-0; the player overrides its
+                      default 16:9 ratio with fitHeight so it grows to
+                      match the chat. */}
                   {playerOpen && (
-                    <div className="flex-shrink-0">
-                      <CardSourceMedia card={card} />
+                    <div className="min-h-0 flex-1">
+                      <CardSourceMedia card={card} fitHeight />
                     </div>
                   )}
                   <div className="min-h-0 flex-1 overflow-hidden">
