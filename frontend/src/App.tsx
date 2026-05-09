@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./lib/AuthContext";
 import AuthPage from "./pages/AuthPage";
 import CardDetailPage from "./pages/CardDetailPage";
 import ChatPage from "./pages/ChatPage";
+import FeedsPage from "./pages/FeedsPage";
 import GraphPage from "./pages/GraphPage";
 import LibraryPage from "./pages/LibraryPage";
 import PodcastsPage from "./pages/PodcastsPage";
@@ -66,6 +67,7 @@ function RootRoutes() {
         <Route path="graph" element={<GraphPage />} />
         <Route path="review" element={<ReviewPage />} />
         <Route path="podcasts" element={<PodcastsPage />} />
+        <Route path="feeds" element={<FeedsPage />} />
         <Route path="share-target" element={<ShareTargetPage />} />
       </Route>
     </Routes>

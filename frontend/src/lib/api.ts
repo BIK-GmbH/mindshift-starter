@@ -583,7 +583,42 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ from_id: fromId, to_id: toId, max_hops: maxHops }),
     }),
+
+  // RSS / Atom feed subscriptions
+  listFeeds: () => request<FeedOut[]>("/api/feeds"),
+  createFeed: (feedUrl: string, title?: string) =>
+    request<FeedOut>("/api/feeds", {
+      method: "POST",
+      body: JSON.stringify({ feed_url: feedUrl, title }),
+    }),
+  updateFeed: (id: string, body: { title?: string; is_active?: boolean }) =>
+    request<FeedOut>(`/api/feeds/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteFeed: (id: string) => request<void>(`/api/feeds/${id}`, { method: "DELETE" }),
+  refreshFeed: (id: string) =>
+    request<FeedRefreshResult>(`/api/feeds/${id}/refresh`, { method: "POST" }),
 };
+
+export interface FeedOut {
+  id: string;
+  feed_url: string;
+  title: string;
+  site_url: string | null;
+  is_active: boolean;
+  last_polled_at: string | null;
+  last_success_at: string | null;
+  last_error: string | null;
+  items_ingested: number;
+  created_at: string;
+}
+
+export interface FeedRefreshResult {
+  queued: number;
+  skipped_seen: number;
+  error: string | null;
+}
 
 export interface GraphNode {
   id: string;

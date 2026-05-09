@@ -8,7 +8,27 @@
     "graph": "Die interaktive Graph-Visualisierung braucht eine größere Fläche und Maus/Trackpad zum Navigieren.",
     "chat": "Der volle Chat-Workspace funktioniert auf einem breiteren Bildschirm besser. Du kannst stattdessen die Karte öffnen und im Karten-Chat fragen.",
     "review": "Das Lern-Dashboard ist auf nebeneinander liegende Panels ausgelegt.",
-    "podcasts": "Das Podcast-Studio braucht mehr Platz für Voice-Auswahl und Skript-Editor."
+    "podcasts": "Das Podcast-Studio braucht mehr Platz für Voice-Auswahl und Skript-Editor.",
+    "feeds": "Die Feed-Verwaltung lässt sich am Desktop bequemer überblicken."
+  },
+  "feeds": {
+    "title": "Feeds",
+    "subtitle": "Abonniere RSS- und Atom-Feeds — neue Beiträge werden automatisch zu Cards.",
+    "add": {
+      "heading": "Feed hinzufügen",
+      "placeholder": "https://example.com/feed.xml",
+      "button": "Abonnieren"
+    },
+    "empty": "Noch keine Abonnements — füge oben eine RSS- oder Atom-URL ein.",
+    "ingested": "Beiträge",
+    "neverSynced": "noch nicht synchronisiert",
+    "refresh": "Jetzt aktualisieren",
+    "pause": "Pollen pausieren",
+    "resume": "Pollen fortsetzen",
+    "active": "Aktiv",
+    "paused": "Pausiert",
+    "editTitle": "Klicken zum Umbenennen",
+    "confirmDelete": "Dieses Abonnement entfernen?"
   },
   "shareTarget": {
     "saving": "Wird zu Mindshift gespeichert…",
@@ -30,6 +50,7 @@
     "chat": "Chat",
     "review": "Learning",
     "podcasts": "Podcasts",
+    "feeds": "Feeds",
     "search": "Suche",
     "settings": "Einstellungen",
     "tags": "Tags",

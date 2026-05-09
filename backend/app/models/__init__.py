@@ -6,6 +6,7 @@ from app.models.card_translation import CardTranslation  # noqa: F401
 from app.models.chat import ChatMessage, ChatSession  # noqa: F401
 from app.models.embedding import Embedding  # noqa: F401
 from app.models.entity import CardEntity, Entity  # noqa: F401
+from app.models.feed import Feed  # noqa: F401
 from app.models.file import File  # noqa: F401
 from app.models.graph_preset import GraphPreset  # noqa: F401
 from app.models.job import Job  # noqa: F401

@@ -128,6 +128,18 @@ docs/
   `/share/episode/:token` (full standalone player + OG meta tags) and
   `/embed/episode/:token` (iframe-friendly mini-player).
 
+- **RSS feed subscriptions**: `feeds` table per user (feed_url, title,
+  etag/last-modified for conditional GET, last_error, items_ingested).
+  The in-process APScheduler in `services/feed_scheduler.py` walks
+  every active feed every `FEED_POLL_INTERVAL_MIN` minutes (default 30).
+  New entries are deduped against existing `Source.url`/`canonical_url`
+  for the same user, then queued through the same article ingestion
+  pipeline as `/api/cards/from-url`. Hard cap of 25 brand-new items
+  per poll to protect against republished feeds. `POST /api/feeds/
+  {id}/refresh` is the manual on-demand pull; new subscriptions get
+  an immediate first poll via BackgroundTasks. Polling is fail-soft —
+  one feed's HTTP / parse error doesn't block the others.
+
 ## Conventions
 
 - **Commits**: English, conventional-commits (`feat:`, `fix:`, `chore:`,

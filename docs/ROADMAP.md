@@ -44,12 +44,17 @@ explanation. Icons regenerated to match the PWA M-glyph.
 Side-effect: the PWA share-target route now ingests YouTube URLs
 correctly too — previously they were treated as plain articles.
 
-## Phase 3 — RSS feed subscriptions
+## ✅ Phase 3 — RSS feed subscriptions *(shipped 2026-05-09)*
 
-Subscribe to RSS/Atom feeds. Cron pulls new entries through the
-existing article pipeline. Feeds become first-class entities (rename,
-disable, delete). New "Feeds" sidebar entry. Turns Mindshift into an
-AI-augmented reader.
+`feeds` table + `services/feed_scheduler.py` (APScheduler, 30 min
+default interval) + `services/feeds.py` (feedparser, conditional GET,
+dedup, fail-soft). REST CRUD + `POST /feeds/{id}/refresh`. New
+`/feeds` page in the rail with add / rename / pause / refresh / delete.
+Per-feed counter + last-sync timestamp + last-error chip.
+
+Caps: 25 new items per poll per feed. Errors are persisted on the row
+so the user can diagnose without server logs. New subscriptions are
+polled immediately via BackgroundTasks so cards appear in seconds.
 
 ## Phase 4 — Learning paths / mini-courses
 

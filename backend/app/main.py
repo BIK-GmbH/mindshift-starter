@@ -9,6 +9,7 @@ from app.api.auth import router as auth_router
 from app.api.cards import router as cards_router
 from app.api.chat import router as chat_router
 from app.api.export import router as export_router
+from app.api.feeds import router as feeds_router
 from app.api.files import router as files_router
 from app.api.graph import router as graph_router
 from app.api.graph_presets import router as graph_presets_router
@@ -26,6 +27,7 @@ from app.api.tags import router as tags_router
 from app.api.translations import router as translations_router
 from app.api.wiki import router as wiki_router
 from app.core.config import get_settings
+from app.services.feed_scheduler import start_scheduler, stop_scheduler
 from app.services.recovery import reap_stuck_processing
 
 settings = get_settings()
@@ -43,7 +45,12 @@ async def lifespan(_app: FastAPI):
             f"[startup] reaped stuck processing rows: {counts} "
             f"(total {total})"
         )
-    yield
+    # Start the periodic RSS feed poller.
+    start_scheduler()
+    try:
+        yield
+    finally:
+        stop_scheduler()
 
 
 app = FastAPI(title="Mindshift API", version="0.1.0", lifespan=lifespan)
@@ -77,6 +84,7 @@ app.include_router(audio_router, prefix="/api")
 app.include_router(podcasts_router, prefix="/api")
 app.include_router(podcasts_public_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
+app.include_router(feeds_router, prefix="/api")
 app.include_router(wiki_router, prefix="/api")
 app.include_router(import_router, prefix="/api")
 app.include_router(share_router, prefix="/api")
