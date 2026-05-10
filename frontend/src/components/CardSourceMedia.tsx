@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import type { Card, GithubSourceMetadata } from "../lib/api";
+import PdfReader, { type PdfReaderMode } from "./PdfReader";
 
 interface Props {
   card: Card;
@@ -23,6 +24,10 @@ interface Props {
    * want the player to share the available height with the chat panel.
    */
   fitHeight?: boolean;
+  /** Forwarded to PdfReader (PDF cards only). Defaults to owner mode. */
+  pdfMode?: PdfReaderMode;
+  /** Forwarded to PdfReader as compact mini-on-scroll mode. */
+  compact?: boolean;
 }
 
 /**
@@ -35,7 +40,7 @@ interface Props {
  *   the source URL in a new tab.
  * - Notes / no source: nothing rendered.
  */
-export default function CardSourceMedia({ card, fitHeight = false }: Props) {
+export default function CardSourceMedia({ card, fitHeight = false, pdfMode, compact = false }: Props) {
   const { t } = useTranslation();
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -126,6 +131,13 @@ export default function CardSourceMedia({ card, fitHeight = false }: Props) {
   // GitHub repo: rich repo card with stars / forks / topics / license
   if (card.source_type === "github" && card.source_url) {
     return <GithubRepoCard card={card} t={t} />;
+  }
+
+  // PDF: render the inline reader. PdfReader handles its own load
+  // failures and falls back to an "Open original" link inline.
+  if (card.source_type === "pdf") {
+    const resolvedMode: PdfReaderMode = pdfMode ?? { kind: "owner" };
+    return <PdfReader card={card} mode={resolvedMode} compact={compact} />;
   }
 
   // Article / wiki / pdf / other URL → "open original" link
