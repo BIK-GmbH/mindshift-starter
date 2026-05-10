@@ -425,6 +425,21 @@ export default function LibraryPage() {
               )}
             </button>
 
+            {/* Quick-clear ×, only when a tag-filter is active.
+                Sibling button (not nested inside the trigger) so the
+                two hit-zones don't fight for the same tap. */}
+            {(tag || untaggedFilter) && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                aria-label={t("library.clearFilter") ?? "Clear filter"}
+                title={t("library.clearFilter") ?? "Clear filter"}
+                className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+
             <SelectPill
               value={sourceFilter}
               onChange={(v) => setSearchParam("src", v)}
@@ -496,31 +511,10 @@ export default function LibraryPage() {
             )}
 
 
-            {(tag || untaggedFilter) && (
-              <div className="flex items-center gap-1.5 text-[11px]">
-                {tag && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2.5 py-0.5 font-medium text-ink-100 ring-1 ring-ink-600">
-                    <Hash className="h-3 w-3 text-ink-300" />
-                    {tag}
-                  </span>
-                )}
-                {untaggedFilter && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2.5 py-0.5 font-medium italic text-ink-100 ring-1 ring-ink-600">
-                    {t("tags.untagged")}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
-                  title={t("library.clearAll") ?? ""}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-
-            {/* View toggle — pinned right */}
+            {/* View toggle — pinned right. The active-tag chip used to
+                live here as a duplicate of what the # trigger now
+                surfaces; removed in favour of the single source of
+                truth in the trigger button + adjacent X. */}
             <div className="ml-auto flex gap-0.5 rounded-md bg-ink-800/60 p-0.5 ring-1 ring-ink-700">
               <ViewToggleButton
                 Icon={LayoutGrid}
