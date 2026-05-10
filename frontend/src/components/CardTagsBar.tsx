@@ -119,12 +119,12 @@ export default function CardTagsBar({ cardId, initialTags, onTagsChanged }: Prop
   return (
     <div
       ref={wrapperRef}
-      className="relative flex min-h-[3.5rem] flex-wrap content-start items-start gap-1.5"
+      className="relative -mx-3 flex min-h-[2.5rem] flex-nowrap content-start items-start gap-1.5 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
     >
       {tags.map((name) => (
         <span
           key={name}
-          className="inline-flex items-center gap-1 rounded-full bg-ink-700/70 px-2.5 py-0.5 text-[11px] font-medium text-ink-100 ring-1 ring-ink-600"
+          className="inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-ink-700/70 px-2.5 py-0.5 text-[11px] font-medium text-ink-100 ring-1 ring-ink-600"
         >
           <Hash className="h-2.5 w-2.5 text-ink-300" />
           {name}
@@ -142,7 +142,7 @@ export default function CardTagsBar({ cardId, initialTags, onTagsChanged }: Prop
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 rounded-full border border-dashed border-ink-700 px-2 py-0.5 text-[11px] text-ink-400 transition hover:border-ink-500 hover:bg-ink-800/40 hover:text-ink-100"
+        className="inline-flex flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-ink-700 px-2 py-0.5 text-[11px] text-ink-400 transition hover:border-ink-500 hover:bg-ink-800/40 hover:text-ink-100"
       >
         <Plus className="h-2.5 w-2.5" />
         {t("card.tagsBar.add", { defaultValue: "Tag" })}

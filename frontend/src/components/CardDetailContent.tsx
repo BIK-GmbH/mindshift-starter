@@ -297,7 +297,9 @@ export default function CardDetailContent({
     "podcast",
   ];
   const tabs = hideChatTab ? allTabs.filter((id) => id !== "chat") : allTabs;
-  const horizPad = compact ? "px-5" : "px-8";
+  // Mobile (<sm) gets 12 px lateral padding so a 390 px iPhone has
+  // 366 px usable content width — desktop keeps 32 px.
+  const horizPad = compact ? "px-3 sm:px-5" : "px-3 sm:px-8";
   const innerWidth = compact ? "max-w-none" : "max-w-4xl";
 
   return (
@@ -327,16 +329,28 @@ export default function CardDetailContent({
             </div>
           )}
 
-          <header className="mt-3 flex items-start justify-between gap-5">
-            <div className="flex min-w-0 flex-1 items-start gap-4">
+          {/* Header — desktop side-by-side (thumbnail + content + ActionBar)
+              vs mobile stacked (thumbnail full-width hero, then content,
+              then ActionBar as its own row at the bottom of the
+              header). The mobile path was previously one column with
+              a 128 × 80 thumbnail next to a 178 px text column,
+              which forced the title to break word-by-word — fixed by
+              going full-width thumbnail at <sm. */}
+          {/* Header — desktop side-by-side (thumbnail + content + ActionBar)
+              vs mobile stacked. Important: no `items-start` on the
+              mobile path; otherwise the inner content div doesn't
+              stretch to the parent's width and the h1 can blow past
+              the viewport on long unbroken titles. */}
+          <header className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
+            <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
               {card.thumbnail_url ? (
                 <img
                   src={card.thumbnail_url}
                   alt=""
-                  className="h-20 w-32 flex-shrink-0 rounded-md object-cover ring-1 ring-ink-700"
+                  className="aspect-video w-full flex-shrink-0 rounded-md object-cover ring-1 ring-ink-700 sm:h-20 sm:w-32 sm:aspect-auto"
                 />
               ) : (
-                <div className="flex h-20 w-32 flex-shrink-0 items-center justify-center rounded-md bg-ink-800 ring-1 ring-ink-700">
+                <div className="flex aspect-video w-full flex-shrink-0 items-center justify-center rounded-md bg-ink-800 ring-1 ring-ink-700 sm:h-20 sm:w-32 sm:aspect-auto">
                   <Type className="h-5 w-5 text-ink-500" />
                 </div>
               )}
@@ -353,7 +367,7 @@ export default function CardDetailContent({
                     />
                   )}
                 </div>
-                <h1 className="text-lg font-semibold leading-tight tracking-tight text-ink-100">
+                <h1 className="break-words text-lg font-semibold leading-tight tracking-tight text-ink-100">
                   {activeTranslation?.title ?? card.title}
                 </h1>
                 {card.status === "completed" && (
