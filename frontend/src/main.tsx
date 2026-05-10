@@ -10,6 +10,7 @@ import { SearchModalProvider } from "./lib/SearchModalContext";
 import { SettingsModalProvider } from "./lib/SettingsModalContext";
 import { ThemeProvider } from "./lib/ThemeContext";
 import "./i18n";
+import "./lib/pdfjsWorker";
 import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
