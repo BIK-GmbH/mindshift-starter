@@ -102,7 +102,8 @@ function PodcastListScreen() {
         tone="sky"
         title={t("nav.podcasts")}
         subtitle={t("podcastPage.subtitle", {
-          defaultValue: "Build playlists, generate narrated episodes with cover art.",
+          defaultValue:
+            "Stelle dir Playlists aus deinen Cards zusammen und lass daraus erzählte Podcast-Episoden mit Cover-Art generieren.",
         })}
         action={
           <div className="flex items-center gap-1.5">
