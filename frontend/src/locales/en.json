@@ -212,6 +212,9 @@
       "completed": "completed",
       "processing": "processing",
       "failed": "failed"
+    },
+    "swipeDelete": {
+      "toast": "Card deleted"
     }
   },
   "addContent": {
@@ -590,7 +593,8 @@
     "back": "Back to library",
     "loading": "Loading…",
     "error": "Something went wrong.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "undo": "Undo"
   },
   "podcast": {
     "heading": "Podcast",

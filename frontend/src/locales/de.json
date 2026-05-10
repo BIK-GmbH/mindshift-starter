@@ -212,6 +212,9 @@
       "completed": "fertig",
       "processing": "in Arbeit",
       "failed": "fehlgeschlagen"
+    },
+    "swipeDelete": {
+      "toast": "Karte gelöscht"
     }
   },
   "addContent": {
@@ -590,7 +593,8 @@
     "back": "Zurück zur Bibliothek",
     "loading": "Wird geladen…",
     "error": "Etwas ist schiefgelaufen.",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "undo": "Rückgängig"
   },
   "podcast": {
     "heading": "Podcast",

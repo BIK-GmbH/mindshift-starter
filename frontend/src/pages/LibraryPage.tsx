@@ -23,11 +23,13 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
 import AddContentModal from "../components/AddYouTubeModal";
+import CardAssignTagsModal from "../components/CardAssignTagsModal";
 import CardDetailContent from "../components/CardDetailContent";
 import CardSourceMedia from "../components/CardSourceMedia";
 import ChatPanel from "../components/ChatPanel";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
+import SwipeableCardRow from "../components/SwipeableCardRow";
 import TagsPickerModal from "../components/TagsPickerModal";
 import TagsTree, { type TagsTreeHandle } from "../components/TagsTree";
 import { playHover, playSound } from "../lib/sounds";
@@ -123,6 +125,15 @@ export default function LibraryPage() {
   // closes again whenever the URL changes so picking a tag dismisses it.
   const [tagsModalOpen, setTagsModalOpen] = useState(false);
 
+  // Swipe-to-delete with 5 s Undo. Card removed from the visible list
+  // immediately, server delete fires only after the Undo window expires.
+  const pendingDeletes = useRef(new Map<string, { card: CardListItem; timer: number }>());
+  const [deleteToast, setDeleteToast] = useState<{ cardId: string; title: string } | null>(null);
+  const toastDismissTimer = useRef<number | null>(null);
+
+  // Tag-assign modal for the row that triggered swipe-right.
+  const [assignModal, setAssignModal] = useState<{ cardId: string; tags: string[] } | null>(null);
+
   const fetchCards = useCallback(async () => {
     try {
       const list = await api.listCards({
@@ -190,6 +201,18 @@ export default function LibraryPage() {
     };
   }, [fetchCards]);
 
+  // Clear the auto-dismiss timer on unmount so we don't setState on a
+  // gone component if the user navigates away during the undo window.
+  // Pending deletes themselves keep firing — that's intentional, the
+  // server commit should still go through.
+  useEffect(() => {
+    return () => {
+      if (toastDismissTimer.current !== null) {
+        window.clearTimeout(toastDismissTimer.current);
+      }
+    };
+  }, []);
+
   const counts = cards.reduce(
     (acc, c) => {
       acc.total += 1;
@@ -206,6 +229,63 @@ export default function LibraryPage() {
     const next = new URLSearchParams(params);
     next.set("card", id);
     setParams(next, { replace: false });
+  };
+
+  const UNDO_WINDOW_MS = 5000;
+
+  const requestSwipeDelete = (card: CardListItem) => {
+    // Already pending — second swipe should be a no-op; the toast is
+    // the source of truth until it auto-commits or the user undoes.
+    if (pendingDeletes.current.has(card.id)) return;
+    setCards((prev) => prev.filter((c) => c.id !== card.id));
+    const timer = window.setTimeout(() => {
+      void api
+        .deleteCard(card.id)
+        .catch((err) => {
+          setError((err as Error).message);
+          setCards((prev) => [card, ...prev]);
+        })
+        .finally(() => {
+          pendingDeletes.current.delete(card.id);
+          setDeleteToast((cur) => (cur?.cardId === card.id ? null : cur));
+        });
+    }, UNDO_WINDOW_MS);
+    pendingDeletes.current.set(card.id, { card, timer });
+    if (toastDismissTimer.current !== null) {
+      window.clearTimeout(toastDismissTimer.current);
+    }
+    setDeleteToast({ cardId: card.id, title: card.title });
+    toastDismissTimer.current = window.setTimeout(() => {
+      setDeleteToast((cur) => (cur?.cardId === card.id ? null : cur));
+    }, UNDO_WINDOW_MS);
+  };
+
+  const undoSwipeDelete = (cardId: string) => {
+    const entry = pendingDeletes.current.get(cardId);
+    if (!entry) return;
+    window.clearTimeout(entry.timer);
+    pendingDeletes.current.delete(cardId);
+    setCards((prev) => {
+      if (prev.some((c) => c.id === cardId)) return prev;
+      return [entry.card, ...prev];
+    });
+    setDeleteToast(null);
+    if (toastDismissTimer.current !== null) {
+      window.clearTimeout(toastDismissTimer.current);
+      toastDismissTimer.current = null;
+    }
+  };
+
+  const openTagPicker = async (cardId: string) => {
+    // Fetch tags so the modal opens with the correct checkmarks. The
+    // list endpoint omits tags from the payload by design (graph mode
+    // would otherwise be expensive), so a per-card request is cheapest.
+    try {
+      const card = await api.getCard(cardId);
+      setAssignModal({ cardId, tags: card.tags ?? [] });
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
 
   const closeCard = () => {
@@ -549,11 +629,14 @@ export default function LibraryPage() {
           ) : view === "list" ? (
             <ul className="cards-stagger divide-y divide-ink-800 rounded-xl border border-ink-800 bg-ink-800/30">
               {cards.map((card) => (
-                <CardRow
+                <SwipeableCardRow
                   key={card.id}
-                  card={card}
-                  onClick={() => openCard(card.id)}
-                />
+                  onDelete={() => requestSwipeDelete(card)}
+                  onTagPick={() => void openTagPicker(card.id)}
+                  onTap={() => openCard(card.id)}
+                >
+                  <CardRow card={card} onClick={() => openCard(card.id)} />
+                </SwipeableCardRow>
               ))}
             </ul>
           ) : (
@@ -575,6 +658,40 @@ export default function LibraryPage() {
           onClose={() => setModalOpen(false)}
           onCreated={() => void fetchCards()}
         />
+
+        <CardAssignTagsModal
+          open={assignModal !== null}
+          cardId={assignModal?.cardId ?? null}
+          initialTags={assignModal?.tags ?? []}
+          onClose={() => setAssignModal(null)}
+          onTagsChanged={(cardId, tags) => {
+            // Keep the visible card row in sync (note: CardListItem
+            // doesn't carry tags, but downstream filters re-fetch on
+            // tag changes anyway).
+            setAssignModal((cur) => (cur?.cardId === cardId ? { cardId, tags } : cur));
+          }}
+        />
+
+        {deleteToast && (
+          <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 sm:bottom-6">
+            <div className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-ink-700 bg-ink-900/95 px-4 py-3 shadow-2xl backdrop-blur">
+              <span className="flex-1 truncate text-sm text-ink-100">
+                {t("library.swipeDelete.toast", {
+                  defaultValue: "Karte gelöscht",
+                })}
+                <span className="ml-1 text-ink-400">·</span>
+                <span className="ml-1 truncate text-xs text-ink-400">{deleteToast.title}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => undoSwipeDelete(deleteToast.cardId)}
+                className="rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition active:bg-ink-200 hover:bg-ink-200"
+              >
+                {t("common.undo", { defaultValue: "Rückgängig" })}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
