@@ -1,7 +1,7 @@
-import { Brain, Check, Compass, FileText, Github, Globe, Loader2, RotateCw, Youtube, type LucideIcon } from "lucide-react";
+import { Brain, Check, Compass, FileText, Github, Globe, Loader2, Play, RotateCw, Youtube, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import MarkdownView from "../components/MarkdownView";
 import RailFooterButtons from "../components/RailFooterButtons";
@@ -26,6 +26,7 @@ const SOURCE_ICONS: Record<string, LucideIcon> = {
  */
 export default function PublicPathPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { username = "", slug = "" } = useParams<{ username: string; slug: string }>();
   const [path, setPath] = useState<PublicPathOut | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -159,6 +160,18 @@ export default function PublicPathPage() {
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
+            </div>
+          )}
+          {path && path.cards.length > 0 && (
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => navigate(`/u/${username}/path/${slug}/play`)}
+                className="inline-flex items-center gap-2 rounded-md bg-fuchsia-500/20 px-4 py-2 text-sm font-semibold text-fuchsia-100 ring-1 ring-fuchsia-500/40 transition hover:bg-fuchsia-500/30"
+              >
+                <Play className="h-4 w-4" />
+                {t("paths.startPath", { defaultValue: "Start path" })}
+              </button>
             </div>
           )}
         </div>

@@ -50,6 +50,18 @@ function RootRoutes() {
         <Route path="share/:token" element={<PublicCardPage />} />
         <Route path="u/:username" element={<PublicProfilePage />} />
         <Route path="u/:username/path/:slug" element={<PublicPathPage />} />
+        <Route
+          path="u/:username/path/:slug/play"
+          element={<PathPlayerPage mode="public" />}
+        />
+        <Route
+          path="u/:username/path/:slug/play/:step"
+          element={<PathPlayerPage mode="public" />}
+        />
+        <Route
+          path="u/:username/path/:slug/quiz"
+          element={<PathQuizPage mode="public" />}
+        />
         <Route path="u/:username/*" element={<PublicTagPage />} />
       </Routes>
     );
