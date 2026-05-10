@@ -85,9 +85,13 @@ export default function PageHeader({ icon: Icon, tone, title, subtitle, action }
     <div className="page-header">
       <div className="page-header-inner flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+          {/* Coloured icon square — desktop / tablet only. On mobile
+              the title already carries enough context, and dropping
+              the square gives the title noticeably more horizontal
+              room (helpful for long names like "Knowledge Base"). */}
           <div
             className={[
-              "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ring-1",
+              "hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ring-1 sm:flex",
               t.bg,
               t.ring,
             ].join(" ")}
