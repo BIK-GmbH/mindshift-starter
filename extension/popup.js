@@ -5,9 +5,12 @@
  *   token   – long-lived JWT minted via /api/auth/extension-token
  */
 
+import { canonicalizeUrl } from "./lib/url.js";
+
 const els = {
   connected: document.getElementById("connectedPane"),
   settings: document.getElementById("settingsPane"),
+  tokenHealth: document.getElementById("tokenHealth"),
   pageTitle: document.getElementById("pageTitle"),
   pageUrl: document.getElementById("pageUrl"),
   addBtn: document.getElementById("addPageBtn"),
@@ -41,6 +44,55 @@ async function loadState() {
   state.apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
   state.token = stored.token || "";
   state.webUrl = (stored.webUrl || "").replace(/\/$/, "");
+}
+
+/** Decode the JWT payload without verifying — we never trust it for
+ *  authorization, only to read `exp` for a UX hint. The backend remains
+ *  the source of truth on auth and 401s if the token actually fails. */
+function decodeJwtExp(token) {
+  if (!token || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const padded = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = JSON.parse(atob(padded));
+    return typeof json.exp === "number" ? json.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+const TOKEN_WARN_DAYS = 7;
+
+/** Show an amber pill if the token expires within TOKEN_WARN_DAYS, a
+ *  red pill if it already expired, hide otherwise. Idempotent — safe
+ *  to call after every refresh. */
+function renderTokenHealth() {
+  const node = els.tokenHealth;
+  if (!node) return;
+  node.classList.add("hidden");
+  node.classList.remove("warn", "expired");
+  node.textContent = "";
+  const exp = decodeJwtExp(state.token);
+  if (!exp) return; // tokens without exp (legacy, opaque) — skip the UX
+  const nowSec = Math.floor(Date.now() / 1000);
+  const remaining = exp - nowSec;
+  if (remaining <= 0) {
+    node.classList.remove("hidden");
+    node.classList.add("expired");
+    node.innerHTML =
+      '<span class="token-health-dot"></span>' +
+      '<span>Token expired — click <strong>Settings</strong> to reconnect.</span>';
+    return;
+  }
+  const days = Math.ceil(remaining / 86_400);
+  if (days > TOKEN_WARN_DAYS) return;
+  node.classList.remove("hidden");
+  node.classList.add("warn");
+  const dayLabel = days === 1 ? "day" : "days";
+  node.innerHTML =
+    '<span class="token-health-dot"></span>' +
+    `<span>Token expires in ${days} ${dayLabel} — open <strong>Settings</strong> to refresh.</span>`;
 }
 
 async function saveState() {
@@ -146,7 +198,7 @@ async function addCurrentPage() {
     // need to branch by host here.
     const data = await call("/api/cards/from-url", {
       method: "POST",
-      body: JSON.stringify({ url: activeTab.url }),
+      body: JSON.stringify({ url: canonicalizeUrl(activeTab.url) }),
     });
     const cardId = data?.card?.id;
     const title = (data?.card?.title || activeTab.url).slice(0, 60);
@@ -278,6 +330,7 @@ async function trySave() {
     await saveState();
     setStatus(els.settingsStatus, "Connected.", "ok");
     showPane("connected");
+    renderTokenHealth();
     await refreshActiveTab();
     await refreshBookmarkCount();
   } catch (err) {
@@ -295,6 +348,7 @@ async function trySave() {
   els.apiUrl.value = state.apiUrl;
   els.apiToken.value = state.token;
   showPane("connected");
+  renderTokenHealth();
   await refreshActiveTab();
   await refreshBookmarkCount();
   // Backfill webUrl for installations from before /api/info existed.
@@ -313,6 +367,21 @@ els.sidePanelBtn?.addEventListener("click", async () => {
   // need to import it directly.
   const tabId = activeTab?.id;
   if (tabId == null) return;
+  // Mark this open as an explicit "save this page" intent so the side
+  // panel auto-adds the card on first paint instead of showing the
+  // "Save to Mindshift" CTA. Tab-switches with the panel pinned open
+  // remain passive (lookup-only) — only this transient flag triggers
+  // the auto-add path. Backend dedup makes a re-submission idempotent.
+  if (activeTab?.url && /^https?:\/\//i.test(activeTab.url)) {
+    try {
+      await chrome.storage.session.set({
+        autoAddOnOpen: { url: canonicalizeUrl(activeTab.url), ts: Date.now() },
+      });
+    } catch {
+      /* session storage unavailable in old Chrome — fall back to
+         normal lookup flow */
+    }
+  }
   const res = await chrome.runtime.sendMessage({ type: "openSidePanel", tabId });
   if (res?.ok) {
     window.close();

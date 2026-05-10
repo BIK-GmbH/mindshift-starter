@@ -10,6 +10,8 @@
  *   4. Re-detect when the user navigates the active tab.
  */
 
+import { canonicalizeUrl } from "./lib/url.js";
+
 const els = {
   loading: document.getElementById("loadingPane"),
   notConnected: document.getElementById("notConnectedPane"),
@@ -72,8 +74,12 @@ async function detectActiveTab() {
 }
 
 async function findCardForUrl(url) {
+  // Canonicalise so a tab on `?utm_source=…` resolves to the same card
+  // a clean share-link does. Backend also canonicalises on read, but
+  // doing it here saves a round-trip on URLs that are obviously equal.
+  const needle = canonicalizeUrl(url);
   try {
-    return await call(`/api/cards/by-source-url?url=${encodeURIComponent(url)}`);
+    return await call(`/api/cards/by-source-url?url=${encodeURIComponent(needle)}`);
   } catch (err) {
     if (err.status === 404) return null;
     throw err;
@@ -93,6 +99,56 @@ function showSaveCta(tab) {
   show("save");
 }
 
+/** Read & clear the transient "auto-add this URL on next open" flag the
+ *  popup sets when the user clicks "Open side panel". Returns the URL
+ *  if the flag is fresh and matches the active tab, else null. */
+async function consumeAutoAddIntent(url) {
+  try {
+    const stored = await chrome.storage.session.get("autoAddOnOpen");
+    const intent = stored?.autoAddOnOpen;
+    if (!intent) return null;
+    // The popup stored a canonicalised URL — compare canon vs canon so
+    // tracking-param differences between the popup snapshot and the
+    // panel's read of the same tab don't cause a false miss.
+    if (intent.url !== canonicalizeUrl(url)) return null;
+    // Stale guard — protects against a flag that was set but never
+    // consumed because the user closed the popup without confirming.
+    if (Date.now() - (intent.ts || 0) > 30_000) {
+      await chrome.storage.session.remove("autoAddOnOpen");
+      return null;
+    }
+    await chrome.storage.session.remove("autoAddOnOpen");
+    return intent.url;
+  } catch {
+    return null;
+  }
+}
+
+async function autoAddAndEmbed(url) {
+  // Show the save pane in "saving…" state while the POST is in flight
+  // so the user gets immediate feedback. Backend dedup means a repeat
+  // submission of an already-saved URL just returns the existing card.
+  showSaveCta({ title: activeTab?.title || "", url });
+  els.saveBtn.disabled = true;
+  setStatus(els.saveStatus, "Saving…");
+  try {
+    const data = await call("/api/cards/from-url", {
+      method: "POST",
+      body: JSON.stringify({ url: canonicalizeUrl(url) }),
+    });
+    const cardId = data?.card?.id;
+    if (cardId) {
+      embedCard(cardId);
+    } else {
+      setStatus(els.saveStatus, "Saved.", "ok");
+    }
+  } catch (err) {
+    setStatus(els.saveStatus, `Failed: ${err.message}`, "err");
+  } finally {
+    els.saveBtn.disabled = false;
+  }
+}
+
 async function refresh() {
   show("loading");
   await loadState();
@@ -103,6 +159,11 @@ async function refresh() {
   await detectActiveTab();
   if (!activeTab?.url || !/^https?:\/\//i.test(activeTab.url)) {
     showSaveCta(activeTab ?? { title: "", url: "" });
+    return;
+  }
+  const autoAddUrl = await consumeAutoAddIntent(activeTab.url);
+  if (autoAddUrl) {
+    void autoAddAndEmbed(autoAddUrl);
     return;
   }
   try {
@@ -127,7 +188,7 @@ async function saveActivePage() {
   try {
     const data = await call("/api/cards/from-url", {
       method: "POST",
-      body: JSON.stringify({ url: activeTab.url }),
+      body: JSON.stringify({ url: canonicalizeUrl(activeTab.url) }),
     });
     const cardId = data?.card?.id;
     if (cardId) {
