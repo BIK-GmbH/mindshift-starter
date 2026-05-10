@@ -21,11 +21,15 @@ const TAB_ICONS: Record<PlayerTab, FC<{ className?: string }>> = {
   chat: MessageSquare,
 };
 
+type PathPlayerMode = { kind: "owner" } | { kind: "public"; username: string; slug: string };
+
 interface PathPlayerCardViewProps {
   cardId: string;
+  mode?: PathPlayerMode; // defaults to { kind: "owner" }
 }
 
-export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) {
+export default function PathPlayerCardView({ cardId, mode }: PathPlayerCardViewProps) {
+  const playerMode: PathPlayerMode = mode ?? { kind: "owner" };
   const { t } = useTranslation();
   const [card, setCard] = useState<Card | null>(null);
   const [tab, setTab] = useState<PlayerTab>("summary");
@@ -44,14 +48,32 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
 
   const fetchCard = useCallback(async () => {
     try {
-      const data = await api.getCard(cardId);
-      setCard(data);
-      setNotes(data.notes_md ?? "");
+      if (playerMode.kind === "owner") {
+        const data = await api.getCard(cardId);
+        setCard(data);
+        setNotes(data.notes_md ?? "");
+      } else {
+        const data = await api.getPublicPathCard(playerMode.username, playerMode.slug, cardId);
+        // Adapt the PublicCardOut to the Card shape the tabs expect.
+        setCard({
+          ...data,
+          user_id: "",
+          source_id: null,
+          original_file_id: null,
+          notes_md: null,
+          error_message: null,
+          is_public: true,
+          public_via_tags: [],
+          tags: [],
+          updated_at: data.created_at,
+        } as unknown as Card);
+        setNotes("");
+      }
       setError(null);
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [cardId]);
+  }, [cardId, playerMode]);
 
   useEffect(() => {
     void fetchCard();
@@ -74,8 +96,11 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
   useEffect(() => {
     if (!card || card.status !== "completed") return;
     if (tab === "transcript" && transcript === null) {
-      void api
-        .getTranscript(cardId)
+      const fetcher =
+        playerMode.kind === "owner"
+          ? api.getTranscript(cardId)
+          : api.getPublicPathCardTranscript(playerMode.username, playerMode.slug, cardId);
+      void fetcher
         .then(setTranscript)
         .catch((err) =>
           setTranscript({
@@ -88,11 +113,16 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
         );
     }
     if (tab === "quiz" && quiz.length === 0) {
-      void api.getQuiz(cardId).then(setQuiz).catch(() => undefined);
+      const fetcher =
+        playerMode.kind === "owner"
+          ? api.getQuiz(cardId)
+          : api.getPublicPathCardQuiz(playerMode.username, playerMode.slug, cardId);
+      void fetcher.then(setQuiz).catch(() => undefined);
     }
-  }, [tab, cardId, transcript, quiz.length, card]);
+  }, [tab, cardId, transcript, quiz.length, card, playerMode]);
 
   const saveNotes = useCallback(async () => {
+    if (playerMode.kind !== "owner") return;
     setSavingNotes(true);
     try {
       const updated = await api.updateNotes(cardId, notes);
@@ -102,11 +132,14 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
     } finally {
       setSavingNotes(false);
     }
-  }, [cardId, notes]);
+  }, [cardId, notes, playerMode]);
 
   const tabs = useMemo<PlayerTab[]>(
-    () => ["summary", "transcript", "quiz", "notes", "chat"],
-    [],
+    () =>
+      playerMode.kind === "public"
+        ? ["summary", "transcript", "quiz"]
+        : ["summary", "transcript", "quiz", "notes", "chat"],
+    [playerMode.kind],
   );
 
   // PDF readers, URL previews and repo cards aren't useful as floating
@@ -273,7 +306,7 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
                 />
               )}
               {tab === "quiz" && <QuizTab quiz={quiz} cardStatus={card.status} />}
-              {tab === "notes" && (
+              {playerMode.kind === "owner" && tab === "notes" && (
                 <NotesTab
                   value={notes}
                   onChange={setNotes}
@@ -282,7 +315,9 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
                   showPublicHint={card.is_public}
                 />
               )}
-              {tab === "chat" && <ChatTab card={card} showSourceMedia={false} />}
+              {playerMode.kind === "owner" && tab === "chat" && (
+                <ChatTab card={card} showSourceMedia={false} />
+              )}
             </div>
           )}
         </div>
