@@ -8,14 +8,21 @@ import MobileDesktopHint from "../components/MobileDesktopHint";
 import PathPlayerCardView from "../components/PathPlayerCardView";
 import { api, type PathDetail } from "../lib/api";
 
+interface PathPlayerPageProps {
+  mode?: "owner" | "public"; // defaults to "owner"
+}
+
 /**
  * Linear path player. The page owns navigation, lesson note and progress;
  * `<PathPlayerCardView />` owns the card-level rendering (source media + tabs).
  */
-export default function PathPlayerPage() {
+export default function PathPlayerPage({ mode = "owner" }: PathPlayerPageProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { pathId = "" } = useParams<{ pathId: string }>();
+  const routeParams = useParams<{ pathId?: string; username?: string; slug?: string; step?: string }>();
+  const pathId = routeParams.pathId ?? "";
+  const username = routeParams.username ?? "";
+  const slug = routeParams.slug ?? "";
   const [params, setParams] = useSearchParams();
   const [path, setPath] = useState<PathDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,11 +31,23 @@ export default function PathPlayerPage() {
 
   const fetchPath = useCallback(async () => {
     try {
-      const detail = await api.getPath(pathId);
+      let detail: PathDetail;
+      let resolvedId: string;
+      if (mode === "owner") {
+        detail = await api.getPath(pathId);
+        resolvedId = pathId;
+      } else {
+        const publicDetail = await api.publicPath(username, slug);
+        detail = publicDetail as unknown as PathDetail;
+        resolvedId = publicDetail.id;
+      }
       setPath(detail);
-      if (!params.get("step")) {
+
+      // Resume from saved progress (logged-in users only).
+      const hasToken = !!localStorage.getItem("mindshift.token");
+      if (!params.get("step") && !routeParams.step && hasToken) {
         try {
-          const prog = await api.getPathProgress(pathId);
+          const prog = await api.getPathProgress(resolvedId);
           if (prog && prog.current_position > 0) {
             const next = new URLSearchParams(params);
             next.set("step", String(prog.current_position + 1));
@@ -45,13 +64,13 @@ export default function PathPlayerPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathId]);
+  }, [mode, pathId, username, slug]);
 
   useEffect(() => {
     void fetchPath();
   }, [fetchPath]);
 
-  const stepRaw = parseInt(params.get("step") ?? "1", 10);
+  const stepRaw = parseInt(routeParams.step ?? params.get("step") ?? "1", 10);
   const total = path?.cards.length ?? 0;
   const step = Number.isFinite(stepRaw) ? Math.min(Math.max(1, stepRaw), Math.max(1, total)) : 1;
   const current = path?.cards[step - 1] ?? null;
@@ -61,8 +80,11 @@ export default function PathPlayerPage() {
   // Persist progress on step change (server takes max → revisits don't roll back).
   useEffect(() => {
     if (!path || total === 0) return;
-    void api.updatePathProgress(pathId, step - 1).catch(() => undefined);
-  }, [pathId, step, total, path]);
+    const hasToken = !!localStorage.getItem("mindshift.token");
+    if (!hasToken) return; // anonymous: no progress save
+    const id = mode === "owner" ? pathId : path.id;
+    void api.updatePathProgress(id, step - 1).catch(() => undefined);
+  }, [pathId, step, total, path, mode]);
 
   // Reset lesson-expand when the step changes — short notes don't need it,
   // long notes get a fresh truncation.
@@ -75,6 +97,17 @@ export default function PathPlayerPage() {
     next.set("step", String(Math.min(Math.max(1, s), total)));
     setParams(next, { replace: true });
   };
+
+  const onBack = () => {
+    if (mode === "owner") {
+      navigate(`/paths/${pathId}`);
+    } else {
+      navigate(`/u/${username}/path/${slug}`);
+    }
+  };
+
+  const quizHref =
+    mode === "owner" ? `/paths/${pathId}/quiz` : `/u/${username}/path/${slug}/quiz`;
 
   // Arrow-key navigation; skip when typing in inputs / contenteditable.
   useEffect(() => {
@@ -113,11 +146,20 @@ export default function PathPlayerPage() {
           </p>
           <button
             type="button"
-            onClick={() => navigate(`/paths/${pathId}`)}
+            onClick={onBack}
             className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-ink-200"
           >
-            <Pencil className="h-3 w-3" />
-            {t("paths.openEditor", { defaultValue: "Open editor" })}
+            {mode === "owner" ? (
+              <>
+                <Pencil className="h-3 w-3" />
+                {t("paths.openEditor", { defaultValue: "Open editor" })}
+              </>
+            ) : (
+              <>
+                <ArrowLeft className="h-3 w-3" />
+                {t("paths.backToPath", { defaultValue: "Back to path" })}
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -136,7 +178,7 @@ export default function PathPlayerPage() {
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
           <button
             type="button"
-            onClick={() => navigate(`/paths/${pathId}`)}
+            onClick={onBack}
             className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
             title={t("paths.openEditor", { defaultValue: "Open editor" }) ?? ""}
           >
@@ -164,7 +206,7 @@ export default function PathPlayerPage() {
             {step >= total ? (
               <button
                 type="button"
-                onClick={() => navigate(`/paths/${pathId}/quiz`)}
+                onClick={() => navigate(quizHref)}
                 className="flex h-9 items-center gap-1 rounded-md bg-fuchsia-500/20 px-3 text-xs font-semibold text-fuchsia-100 ring-1 ring-fuchsia-500/40 transition hover:bg-fuchsia-500/30"
               >
                 <Sparkles className="h-3.5 w-3.5" />
@@ -223,7 +265,13 @@ export default function PathPlayerPage() {
 
       {/* === Card content (source media + tabs) === */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {current && <PathPlayerCardView key={current.card_id} cardId={current.card_id} />}
+        {current && (
+          <PathPlayerCardView
+            key={current.card_id}
+            cardId={current.card_id}
+            mode={mode === "owner" ? { kind: "owner" } : { kind: "public", username, slug }}
+          />
+        )}
       </div>
 
       {/* === Sticky bottom nav with step titles === */}
@@ -248,7 +296,7 @@ export default function PathPlayerPage() {
           {step >= total ? (
             <button
               type="button"
-              onClick={() => navigate(`/paths/${pathId}/quiz`)}
+              onClick={() => navigate(quizHref)}
               className="group flex min-w-0 flex-1 items-center justify-end gap-2 rounded-md bg-fuchsia-500/20 px-3 py-2 text-right text-fuchsia-100 ring-1 ring-fuchsia-500/40 transition hover:bg-fuchsia-500/30"
             >
               <span className="min-w-0 flex-1">
