@@ -1,4 +1,4 @@
-import { Check, Loader2, Search as SearchIcon, X } from "lucide-react";
+import { Check, Loader2, Plus, Search as SearchIcon, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -70,24 +70,52 @@ export default function CardPickerModal({ open, alreadyIn, onClose, onPick }: Pr
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-[70] flex bg-black/60 sm:items-center sm:justify-center sm:p-4"
       onClick={onClose}
     >
       <div
-        className="panel-elevated flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-ink-700 bg-ink-900"
+        className="
+          panel-elevated relative z-10 flex w-full flex-col overflow-hidden bg-ink-900
+          h-full sm:h-auto sm:max-h-[80vh]
+          sm:w-full sm:max-w-2xl sm:rounded-xl sm:border sm:border-ink-700
+        "
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b border-ink-800 px-4 py-3">
-          <h2 className="text-sm font-semibold text-ink-100">
-            {t("cardPicker.title", { defaultValue: "Pick cards" })}
-          </h2>
+        <header className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-ink-800 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="-ml-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-ink-300 transition active:bg-ink-800 hover:bg-ink-800 hover:text-ink-100"
+              title={t("common.cancel") ?? ""}
+              aria-label={t("common.cancel") ?? "Cancel"}
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <h2 className="truncate text-sm font-semibold text-ink-100">
+              {t("cardPicker.title", { defaultValue: "Pick cards" })}
+            </h2>
+          </div>
+          {/* Primary action in the header — always visible on mobile
+              regardless of scroll position or soft-keyboard. The footer
+              keeps the same button for desktop / sm+ users. */}
           <button
             type="button"
-            onClick={onClose}
-            className="rounded p-1 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
-            title={t("common.cancel") ?? ""}
+            onClick={() => void submit()}
+            disabled={!picked.length || submitting}
+            className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition active:bg-ink-200 hover:bg-ink-200 disabled:opacity-40"
           >
-            <X className="h-4 w-4" />
+            {submitting ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Plus className="h-3 w-3" />
+            )}
+            {picked.length > 0
+              ? t("cardPicker.addN", {
+                  count: picked.length,
+                  defaultValue: `Hinzufügen (${picked.length})`,
+                })
+              : t("cardPicker.add", { defaultValue: "Hinzufügen" })}
           </button>
         </header>
 
@@ -165,8 +193,15 @@ export default function CardPickerModal({ open, alreadyIn, onClose, onPick }: Pr
           )}
         </div>
 
-        <footer className="flex items-center justify-between gap-2 border-t border-ink-800 px-4 py-3">
-          <p className="text-xs text-ink-400">
+        {/* Footer hint — desktop sm+ shows the full secondary buttons
+            row; mobile relies on the always-visible primary button in
+            the header (the bottom-nav would otherwise overlap a footer
+            here). */}
+        <footer
+          className="flex flex-shrink-0 items-center justify-between gap-2 border-t border-ink-800 px-4 py-3"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <p className="truncate text-xs text-ink-400">
             {picked.length > 0
               ? t("cardPicker.selected", {
                   count: picked.length,
@@ -174,7 +209,7 @@ export default function CardPickerModal({ open, alreadyIn, onClose, onPick }: Pr
                 })
               : t("cardPicker.selectHint", { defaultValue: "Tap a card to select it." })}
           </p>
-          <div className="flex gap-2">
+          <div className="hidden gap-2 sm:flex">
             <button
               type="button"
               onClick={onClose}
