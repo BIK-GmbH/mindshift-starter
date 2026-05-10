@@ -133,9 +133,32 @@ class QuizStats(BaseModel):
     last_completed_at: datetime | None
 
 
+class PublicCardOut(BaseModel):
+    """Subset of CardOut that is safe to expose to non-owner consumers
+    of a public path. Drops owner-private fields (notes_md, error_message,
+    user_id, original_file_id) and consumer-irrelevant detail (tags,
+    public_via_tags)."""
+    id: UUID
+    title: str
+    source_type: str
+    status: str
+    thumbnail_url: str | None = None
+    concise_summary_md: str | None = None
+    detailed_summary_md: str | None = None
+    key_takeaways_json: list | None = None
+    source_url: str | None = None
+    external_id: str | None = None
+    source_metadata: dict | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class PublicPathOut(BaseModel):
     """Public read-only view — username + slug pair instead of the
     owner's UUID."""
+    id: UUID
     title: str
     slug: str
     description_md: str | None

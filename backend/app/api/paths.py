@@ -13,7 +13,10 @@ from app.models.path import Path, PathCard
 from app.models.path_progress import PathProgress
 from app.models.path_quiz_attempt import PathQuizAttempt
 from app.models.quiz import QuizQuestion
+from app.models.source import Source
+from app.models.transcript import Transcript
 from app.models.user import User
+from app.schemas.card import QuizQuestionOut
 from app.schemas.path import (
     AddCardsRequest,
     PathCardItem,
@@ -25,6 +28,7 @@ from app.schemas.path import (
     PathUpdate,
     ProgressOut,
     ProgressUpdate,
+    PublicCardOut,
     PublicPathOut,
     QuizAttemptCreate,
     QuizAttemptOut,
@@ -635,6 +639,33 @@ def quiz_stats(
 public_router = APIRouter(prefix="/public/paths", tags=["paths-public"])
 
 
+def _load_public_card_in_path(
+    db: Session, username: str, slug: str, card_id: UUID
+) -> tuple[Path, Card]:
+    """Resolve a (public-path, card) pair by username + slug + card_id.
+    Raises 404 unless: the user is public, the path is public and owned
+    by them, and the card belongs to that path."""
+    user = db.execute(
+        select(User).where(User.username == username, User.public_profile.is_(True))
+    ).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="Path not found")
+    path = db.execute(
+        select(Path).where(Path.user_id == user.id, Path.slug == slug, Path.is_public.is_(True))
+    ).scalar_one_or_none()
+    if path is None:
+        raise HTTPException(status_code=404, detail="Path not found")
+    pc = db.execute(
+        select(PathCard).where(PathCard.path_id == path.id, PathCard.card_id == card_id)
+    ).scalar_one_or_none()
+    if pc is None:
+        raise HTTPException(status_code=404, detail="Card not in path")
+    card = db.get(Card, card_id)
+    if card is None:
+        raise HTTPException(status_code=404, detail="Card not found")
+    return path, card
+
+
 @public_router.get("/{username}/{slug}", response_model=PublicPathOut)
 def get_public_path(
     username: str,
@@ -680,6 +711,7 @@ def get_public_path(
         f"/api/public/paths/{user.username}/{path.slug}/cover.png" if path.cover_url else None
     )
     return PublicPathOut(
+        id=path.id,
         title=path.title,
         slug=path.slug,
         description_md=path.description_md,
@@ -718,4 +750,65 @@ def stream_public_cover(
             "Content-Length": str(len(blob)),
             "Cache-Control": "public, max-age=86400",
         },
+    )
+
+
+@public_router.get("/{username}/{slug}/cards/{card_id}", response_model=PublicCardOut)
+def get_public_card(
+    username: str,
+    slug: str,
+    card_id: UUID,
+    db: Session = Depends(get_db),
+) -> PublicCardOut:
+    """Full public-safe card detail for a card inside a public path."""
+    _, card = _load_public_card_in_path(db, username, slug, card_id)
+    out = PublicCardOut.model_validate(card)
+    if card.source_id:
+        s = db.get(Source, card.source_id)
+        if s is not None:
+            out.source_url = s.canonical_url or s.url
+            out.external_id = s.external_id
+            out.source_metadata = s.metadata_json
+    return out
+
+
+@public_router.get("/{username}/{slug}/cards/{card_id}/transcript")
+def get_public_card_transcript(
+    username: str,
+    slug: str,
+    card_id: UUID,
+    db: Session = Depends(get_db),
+) -> dict:
+    _, card = _load_public_card_in_path(db, username, slug, card_id)
+    transcript = db.execute(
+        select(Transcript).where(Transcript.card_id == card.id).order_by(Transcript.created_at.desc())
+    ).scalar_one_or_none()
+    if transcript is None:
+        raise HTTPException(status_code=404, detail="No transcript available")
+    return {
+        "card_id": str(card.id),
+        "language": transcript.language,
+        "provider": transcript.provider,
+        "text": transcript.text,
+        "segments": transcript.segments_json,
+    }
+
+
+@public_router.get(
+    "/{username}/{slug}/cards/{card_id}/quiz",
+    response_model=list[QuizQuestionOut],
+)
+def get_public_card_quiz(
+    username: str,
+    slug: str,
+    card_id: UUID,
+    db: Session = Depends(get_db),
+) -> list[QuizQuestion]:
+    _, card = _load_public_card_in_path(db, username, slug, card_id)
+    return list(
+        db.execute(
+            select(QuizQuestion)
+            .where(QuizQuestion.card_id == card.id)
+            .order_by(QuizQuestion.created_at)
+        ).scalars()
     )
