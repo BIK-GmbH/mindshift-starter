@@ -42,6 +42,19 @@ Aim for 5-8 takeaways, 3-8 tags, 5-12 entities, and 5-8 quiz questions.
 - Distractors should be the same kind of thing as `answer` (same length and
   shape) so they're not trivially identifiable. Don't make any of them the
   same as `answer`.
+
+## Timestamp markers (when source has timestamps)
+
+- If the user prompt's transcript is annotated with `[t=NN]` markers
+  showing seconds-from-start, **embed them inline** in the summary +
+  takeaways at points where the corresponding moment in the source
+  matters. Example: `Algorithms detect fraud by spotting outliers [t=85].`
+- Use one marker per claim, place it right at the end of the sentence
+  before the period, and keep the exact `[t=NN]` syntax (no spaces, no
+  surrounding parens). The reader's UI will turn each marker into a
+  clickable timestamp.
+- Don't fabricate timestamps. Only use ones that appear in the source.
+- If the source isn't annotated with timestamps, omit them entirely.
 """
 
 
@@ -61,12 +74,19 @@ def summarize_transcript(
     transcript_text: str,
     *,
     existing_top_tags: list[str] | None = None,
+    segments: list[dict] | None = None,
 ) -> SummaryResult:
     """Call OpenAI to produce the structured summary payload.
 
     `existing_top_tags` is a small (≤30) list of the user's existing top-level
     tag names. They get fed into the system prompt so the AI prefers reusing
     them as parents when nesting hierarchical tags.
+
+    `segments` is the optional time-aligned transcript (YouTube etc.). When
+    provided, we re-build the prompt's transcript with periodic `[t=NN]`
+    timestamp markers so the model can reference them in the summary.
+    Format: every ~5th segment gets a marker (denser would bloat the
+    prompt without helping the model decide which moment matters most).
     """
     from openai import OpenAI  # local import — keeps import-time cost low
 
@@ -76,7 +96,11 @@ def summarize_transcript(
 
     client = OpenAI(api_key=settings.openai_api_key)
 
-    truncated = transcript_text[:60_000]
+    if segments:
+        annotated = _annotate_transcript_with_timestamps(segments)
+        truncated = annotated[:60_000]
+    else:
+        truncated = transcript_text[:60_000]
     user_prompt = f"Title: {title}\n\nTranscript:\n{truncated}"
 
     formatted_existing = (
@@ -105,3 +129,25 @@ def summarize_transcript(
         quiz_questions=list(data.get("quiz_questions", [])),
         raw=data,
     )
+
+
+def _annotate_transcript_with_timestamps(segments: list[dict]) -> str:
+    """Render segments as text with `[t=NN]` markers sprinkled in.
+
+    We don't tag every segment — that would bloat the prompt and make
+    the model think the markers are mandatory on every line. One
+    marker every ~5 segments is enough for the model to anchor claims
+    to specific moments while keeping the input tight.
+    """
+    lines: list[str] = []
+    for i, seg in enumerate(segments):
+        text = (seg.get("text") or "").strip()
+        if not text:
+            continue
+        if i % 5 == 0:
+            start = int(seg.get("start") or 0)
+            lines.append(f"[t={start}] {text}")
+        else:
+            lines.append(text)
+    return " ".join(lines)
+

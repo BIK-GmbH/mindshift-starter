@@ -6,6 +6,8 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.card import Card
 from app.models.embedding import Embedding
+from app.models.source import Source
+from app.models.transcript import Transcript
 from app.models.user import User
 from app.schemas.search import SearchHit, SemanticSearchRequest
 from app.services.embeddings import embed_query
@@ -38,7 +40,7 @@ def keyword_search(
         .limit(limit)
     )
     cards = db.execute(stmt).scalars().all()
-    return [
+    hits: list[SearchHit] = [
         SearchHit(
             card_id=card.id,
             title=card.title,
@@ -52,6 +54,15 @@ def keyword_search(
         )
         for card in cards
     ]
+
+    # Also search inside transcript segments. Each matching segment
+    # becomes its own hit with `timestamp_seconds` set so the UI can
+    # render a "▶ 02:34" deep-link. We only return hits for cards the
+    # user owns and dedup down to a few per card so a verbose
+    # transcript doesn't drown out card-level matches.
+    seg_hits = _search_transcript_segments(db, current_user.id, q, limit=limit)
+    hits.extend(seg_hits)
+    return hits[:limit]
 
 
 @router.post("/semantic", response_model=list[SearchHit])
@@ -96,6 +107,64 @@ def semantic_search(
                 created_at=card.created_at,
             )
         )
+    return hits
+
+
+def _search_transcript_segments(
+    db: Session, user_id, query: str, *, limit: int
+) -> list[SearchHit]:
+    """Scan every transcript with a non-null `segments_json` belonging to
+    the user and pick segments whose text contains `query` (case-insensitive).
+
+    Limited to a few hits per card to keep the result list balanced
+    when a long video mentions a term repeatedly.
+    """
+    rows = db.execute(
+        select(Transcript, Card, Source)
+        .join(Card, Card.id == Transcript.card_id)
+        .join(Source, Source.id == Card.source_id, isouter=True)
+        .where(
+            Card.user_id == user_id,
+            Transcript.segments_json.isnot(None),
+        )
+    ).all()
+
+    needle = query.lower()
+    hits: list[SearchHit] = []
+    PER_CARD_CAP = 3
+    for transcript, card, source in rows:
+        segments = transcript.segments_json or []
+        per_card = 0
+        for seg in segments:
+            text = (seg.get("text") or "").strip()
+            if not text or needle not in text.lower():
+                continue
+            start_seconds = int(seg.get("start") or 0)
+            video_id = (
+                source.external_id
+                if source is not None and card.source_type == "youtube"
+                else None
+            )
+            hits.append(
+                SearchHit(
+                    card_id=card.id,
+                    title=card.title,
+                    source_type=card.source_type,
+                    thumbnail_url=card.thumbnail_url,
+                    snippet=text[:SNIPPET_MAX_CHARS],
+                    chunk_type="transcript_segment",
+                    chunk_index=None,
+                    score=0.9,  # below card-level matches but above pure semantic
+                    created_at=card.created_at,
+                    timestamp_seconds=start_seconds,
+                    youtube_video_id=video_id,
+                )
+            )
+            per_card += 1
+            if per_card >= PER_CARD_CAP:
+                break
+        if len(hits) >= limit:
+            break
     return hits
 
 

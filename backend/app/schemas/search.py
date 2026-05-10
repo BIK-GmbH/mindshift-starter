@@ -19,3 +19,10 @@ class SearchHit(BaseModel):
     chunk_index: int | None = None
     score: float
     created_at: datetime
+    # Set when the hit comes from a transcript segment with a known
+    # offset (YouTube). Lets the UI render the result with a clickable
+    # "▶ 02:34" pill that opens the source at the exact second.
+    timestamp_seconds: int | None = None
+    # YouTube video id, when known and the hit is segmented. Lets the
+    # frontend build the full deep-link without an extra round-trip.
+    youtube_video_id: str | None = None
