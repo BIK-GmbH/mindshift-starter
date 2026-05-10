@@ -226,7 +226,7 @@ export default function AddContentModal({ open, onClose, onCreated }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[8vh]"
+      className="fixed inset-0 z-50 flex flex-col sm:items-start sm:justify-center sm:px-4 sm:pt-[8vh]"
       role="dialog"
       aria-modal="true"
       aria-label={t("library.addContent")}
@@ -238,7 +238,9 @@ export default function AddContentModal({ open, onClose, onCreated }: Props) {
         className="absolute inset-0 bg-ink-900/40 backdrop-blur-md modal-backdrop-enter"
       />
 
-      <div className="relative flex h-[80vh] max-h-[760px] min-h-[520px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
+      {/* Card — fullscreen on mobile so the URL input has the full
+          viewport to itself; centered 80vh dialog on sm+. */}
+      <div className="relative flex h-full w-full flex-col overflow-hidden border-0 bg-ink-800 surface-elevated modal-card-enter sm:h-[80vh] sm:max-h-[760px] sm:min-h-[520px] sm:w-full sm:max-w-2xl sm:rounded-2xl sm:border sm:border-ink-700">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">
           <h2 className="text-base font-semibold text-ink-100">{t("library.addContent")}</h2>

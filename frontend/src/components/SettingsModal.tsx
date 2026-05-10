@@ -63,7 +63,7 @@ export default function SettingsModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={t("nav.settings")}
@@ -76,11 +76,15 @@ export default function SettingsModal() {
         aria-label="Close settings"
       />
 
-      {/* Modal */}
-      <div className="relative flex h-[640px] max-h-[85vh] w-[920px] max-w-[92vw] overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
-        {/* Tabs sidebar */}
-        <aside className="flex w-56 flex-shrink-0 flex-col border-r border-ink-700 bg-ink-900/40 p-3">
-          <nav className="flex flex-1 flex-col gap-0.5" aria-label="settings sections">
+      {/* Modal — fullscreen on mobile (h-full / w-full minus a bit of
+          inset for the backdrop) so the 224 px sidebar doesn't reduce
+          the content area to a 100 px sliver. Desktop keeps 920 × 640
+          centered. */}
+      <div className="relative flex h-[100vh] w-[100vw] max-h-none max-w-none flex-col overflow-hidden border-0 bg-ink-800 surface-elevated modal-card-enter sm:h-[640px] sm:w-[920px] sm:max-h-[85vh] sm:max-w-[92vw] sm:flex-row sm:rounded-2xl sm:border sm:border-ink-700">
+        {/* Tabs nav — horizontal scrollable strip on mobile, vertical
+            sidebar on sm+. */}
+        <aside className="flex flex-shrink-0 flex-row gap-0.5 overflow-x-auto border-b border-ink-700 bg-ink-900/40 p-2 sm:w-56 sm:flex-col sm:gap-0.5 sm:border-b-0 sm:border-r sm:p-3">
+          <nav className="flex flex-1 flex-row gap-0.5 sm:flex-col" aria-label="settings sections">
             {tabs.map(({ id, labelKey, Icon }) => {
               const isActive = active === id;
               return (
@@ -89,13 +93,13 @@ export default function SettingsModal() {
                   type="button"
                   onClick={() => setActive(id)}
                   className={[
-                    "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition",
+                    "flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition sm:gap-2.5",
                     isActive
                       ? "bg-ink-700/80 text-ink-100 ring-1 ring-ink-600"
-                      : "text-ink-300 hover:bg-ink-700/40 hover:text-ink-100",
+                      : "text-ink-300 active:bg-ink-700/60 hover:bg-ink-700/40 hover:text-ink-100",
                   ].join(" ")}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4 flex-shrink-0" />
                   {t(labelKey)}
                 </button>
               );
@@ -104,9 +108,9 @@ export default function SettingsModal() {
         </aside>
 
         {/* Content */}
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-ink-700 px-6 py-4">
+          <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-700 px-4 py-3 sm:px-6 sm:py-4">
             <h2 className="text-base font-semibold text-ink-100">
               {t(tabs.find((tab) => tab.id === active)?.labelKey ?? "")}
             </h2>
@@ -121,7 +125,7 @@ export default function SettingsModal() {
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
             {active === "account" && <AccountTab />}
             {active === "appearance" && <AppearanceTab />}
             {active === "tags" && <TagsTab />}
