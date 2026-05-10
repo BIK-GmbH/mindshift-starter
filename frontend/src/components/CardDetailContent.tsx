@@ -522,13 +522,27 @@ export default function CardDetailContent({
         </div>
 
         <div className={`mx-auto ${innerWidth} ${horizPad}`}>
-          {/* Tab strip + (mobile) ActionBar in one row. ActionBar is
-              ml-auto pushed right so the tabs scroll horizontally on
-              the left half and the actions stay anchored on the
-              right. Mobile-only via sm:hidden wrapper around
-              ActionBar. */}
-          <nav className="no-scrollbar flex items-center gap-0.5 overflow-x-auto" aria-label="card sections">
-            <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
+          {/* Tab strip + (mobile) ActionBar in one row.
+             *
+             * Layout: outer <nav> is a non-scrolling flex row. Tabs
+             * live in an inner div with horizontal scroll (flex-1
+             * min-w-0) so the ActionBar on the right never scrolls
+             * out of view — only the tab list scrolls.
+             *
+             * Touch fix: `touch-action: pan-x` on the inner scroller
+             * tells the browser the element claims horizontal pans,
+             * so vertical swipes pass through to the body. Without
+             * this, dragging the tabs sideways on mobile fought the
+             * page's vertical scroll and the strip felt sticky-shaky.
+             *
+             * Trailing fade hints there's more on the right when the
+             * active tab is part-way and tabs overflow.
+             */}
+          <nav className="flex items-center gap-0.5" aria-label="card sections">
+            <div
+              className="no-scrollbar relative flex min-w-0 flex-1 gap-0.5 overflow-x-auto"
+              style={{ touchAction: "pan-x", overscrollBehaviorX: "contain" }}
+            >
               {tabs.map((id) => {
                 const Icon = TAB_ICONS[id];
                 const active = tab === id;
@@ -551,7 +565,14 @@ export default function CardDetailContent({
                 );
               })}
             </div>
-            <div className="ml-auto flex-shrink-0 pl-2 sm:hidden">
+            {/* Right-edge fade — purely cosmetic affordance on mobile
+                that the tab list keeps going. Pointer-events:none so
+                it never blocks taps on the underlying tabs. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none -ml-6 h-7 w-6 flex-shrink-0 bg-gradient-to-l from-ink-900 to-transparent sm:hidden"
+            />
+            <div className="flex-shrink-0 sm:hidden">
               <ActionBar
                 canRegenerate={canRegenerate}
                 onRegenerate={handleRegenerate}
