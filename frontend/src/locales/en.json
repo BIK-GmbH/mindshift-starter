@@ -609,5 +609,19 @@
       "notes": "Notes",
       "footer": "This is a read-only view of a Mindshift card."
     }
+  },
+  "pdf": {
+    "page": "Page",
+    "of": "of",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "jumpToPage": "Go to",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fitWidth": "Fit width",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen",
+    "loadError": "Couldn't load the PDF",
+    "openOriginal": "Open original"
   }
 }

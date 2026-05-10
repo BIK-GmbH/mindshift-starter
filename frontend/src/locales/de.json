@@ -609,5 +609,19 @@
       "notes": "Notizen",
       "footer": "Das ist eine Read-only-Ansicht einer Mindshift-Card."
     }
+  },
+  "pdf": {
+    "page": "Seite",
+    "of": "von",
+    "previousPage": "Vorherige Seite",
+    "nextPage": "Nächste Seite",
+    "jumpToPage": "Zu",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "fitWidth": "Auf Breite anpassen",
+    "fullscreen": "Vollbild",
+    "exitFullscreen": "Vollbild verlassen",
+    "loadError": "PDF konnte nicht geladen werden",
+    "openOriginal": "Original öffnen"
   }
 }
