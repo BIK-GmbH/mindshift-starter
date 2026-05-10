@@ -1,10 +1,10 @@
-import { ArrowLeft, Brain, FileText, Github, Globe, Hash, Loader2, Rss, Youtube, type LucideIcon } from "lucide-react";
+import { ArrowLeft, FileText, Github, Globe, Hash, Loader2, Rss, Youtube, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import MarkdownView from "../components/MarkdownView";
-import RailFooterButtons from "../components/RailFooterButtons";
+import PublicShell from "../components/PublicShell";
 import Reactions from "../components/Reactions";
 import { api, type PublicCard, type PublicTagDetail } from "../lib/api";
 import { setMetaTags } from "../lib/metaTags";
@@ -88,21 +88,8 @@ export default function PublicTagPage() {
   };
 
   return (
-    <div className="flex h-full bg-ink-900">
-      <aside className="flex w-14 flex-col items-center border-r border-ink-800 bg-ink-900 py-3">
-        <div
-          className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-ink-100 text-ink-900 surface-soft"
-          role="img"
-          aria-label={t("app.name")}
-        >
-          <Brain className="h-4 w-4" />
-        </div>
-        <div className="flex-1" />
-        <RailFooterButtons />
-      </aside>
-
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-8 pb-16 pt-10 page-enter">
+    <PublicShell>
+      <div className="mx-auto max-w-5xl px-4 pb-16 pt-6 page-enter sm:px-8 sm:pt-10">
           <button
             type="button"
             onClick={() => navigate(`/u/${username}`)}
@@ -255,8 +242,7 @@ export default function PublicTagPage() {
             </>
           )}
         </div>
-      </main>
-    </div>
+    </PublicShell>
   );
 }
 

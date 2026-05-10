@@ -97,17 +97,20 @@ export default function PublicPathPage() {
     <div className="min-h-screen bg-ink-900 text-ink-100">
       {/* Brand band */}
       <header className="border-b border-ink-800 bg-ink-900/60 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
           <Link to="/" className="flex items-center gap-2">
             <Brain className="h-4 w-4 text-ink-100" />
             <span className="text-sm font-semibold text-ink-100">Mindshift</span>
           </Link>
-          <Link
-            to={`/u/${path.author_username}`}
-            className="text-[11px] text-ink-400 hover:text-ink-100"
-          >
-            @{path.author_username}
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              to={`/u/${path.author_username}`}
+              className="truncate text-[11px] text-ink-400 hover:text-ink-100"
+            >
+              @{path.author_username}
+            </Link>
+            <RailFooterButtons orientation="row" />
+          </div>
         </div>
       </header>
 
@@ -244,8 +247,6 @@ export default function PublicPathPage() {
           })}
         </ol>
       </main>
-
-      <RailFooterButtons />
     </div>
   );
 }

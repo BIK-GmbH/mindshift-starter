@@ -7,8 +7,15 @@ import { useTheme } from "../lib/ThemeContext";
 /**
  * Footer trio for the outer rail: theme toggle, language toggle, settings.
  * Always visible — independent of which context-sidebar is open.
+ *
+ * `orientation` lets the same component render vertically inside the
+ * desktop rail (default) or horizontally inside a mobile top-bar.
  */
-export default function RailFooterButtons() {
+export default function RailFooterButtons({
+  orientation = "col",
+}: {
+  orientation?: "col" | "row";
+}) {
   const { theme, toggleTheme } = useTheme();
   const { openModal } = useSettingsModal();
   const { i18n, t } = useTranslation();
@@ -17,7 +24,12 @@ export default function RailFooterButtons() {
   const langLabel = current.startsWith("de") ? "DE" : "EN";
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
+    <div
+      className={[
+        "flex items-center gap-1.5",
+        orientation === "row" ? "flex-row" : "flex-col",
+      ].join(" ")}
+    >
       <button
         type="button"
         onClick={toggleTheme}

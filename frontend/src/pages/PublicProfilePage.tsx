@@ -1,9 +1,9 @@
-import { Brain, FileText, Github, Globe, Hash, Loader2, Sparkles, Youtube, type LucideIcon } from "lucide-react";
+import { FileText, Github, Globe, Hash, Loader2, Sparkles, Youtube, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
-import RailFooterButtons from "../components/RailFooterButtons";
+import PublicShell from "../components/PublicShell";
 import { api, type PublicProfileOut } from "../lib/api";
 import { setMetaTags } from "../lib/metaTags";
 
@@ -85,21 +85,8 @@ export default function PublicProfilePage() {
   }, [profile]);
 
   return (
-    <div className="flex h-full bg-ink-900">
-      <aside className="flex w-14 flex-col items-center border-r border-ink-800 bg-ink-900 py-3">
-        <div
-          className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-ink-100 text-ink-900 surface-soft"
-          role="img"
-          aria-label={t("app.name")}
-        >
-          <Brain className="h-4 w-4" />
-        </div>
-        <div className="flex-1" />
-        <RailFooterButtons />
-      </aside>
-
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-8 pb-16 pt-12 page-enter">
+    <PublicShell>
+      <div className="mx-auto max-w-4xl px-4 pb-16 pt-6 page-enter sm:px-8 sm:pt-12">
           {loading && (
             <p className="flex items-center gap-2 text-sm text-ink-400">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -118,20 +105,20 @@ export default function PublicProfilePage() {
 
           {profile && (
             <>
-              <header className="mb-10 flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
+              <header className="mb-8 flex flex-col items-center gap-3 text-center sm:mb-10 sm:flex-row sm:items-center sm:gap-4 sm:text-left">
                 {profile.avatar_file_id ? (
                   <img
                     src={api.publicAvatarUrl(profile.avatar_file_id)}
                     alt=""
-                    className="h-20 w-20 flex-shrink-0 rounded-full object-cover ring-2 ring-ink-700"
+                    className="h-16 w-16 flex-shrink-0 rounded-full object-cover ring-2 ring-ink-700 sm:h-20 sm:w-20"
                   />
                 ) : (
-                  <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-ink-100 to-ink-300 text-2xl font-bold text-ink-900">
+                  <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-ink-100 to-ink-300 text-2xl font-bold text-ink-900 sm:h-20 sm:w-20">
                     {(profile.display_name || profile.username || "?")[0]?.toUpperCase()}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-2xl font-semibold text-ink-100">
+                  <h1 className="text-xl font-semibold text-ink-100 sm:text-2xl">
                     {profile.display_name || profile.username}
                   </h1>
                   <p className="text-sm text-ink-400">@{profile.username}</p>
@@ -223,8 +210,7 @@ export default function PublicProfilePage() {
             </>
           )}
         </div>
-      </main>
-    </div>
+    </PublicShell>
   );
 }
 
