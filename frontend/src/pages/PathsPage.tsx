@@ -72,10 +72,13 @@ export default function PathsPage() {
             type="button"
             onClick={() => void create()}
             disabled={creating}
-            className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+            aria-label={t("paths.new", { defaultValue: "New path" }) ?? "New path"}
+            className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 text-ink-900 transition hover:bg-ink-200 disabled:opacity-50 sm:h-auto sm:w-auto sm:gap-1.5 sm:rounded-md sm:px-3 sm:py-1.5 sm:text-xs sm:font-semibold"
           >
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-            {t("paths.new", { defaultValue: "New path" })}
+            <span className="hidden sm:inline">
+              {t("paths.new", { defaultValue: "New path" })}
+            </span>
           </button>
         </div>
       </div>

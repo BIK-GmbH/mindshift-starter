@@ -314,7 +314,6 @@ export default function LibraryPage() {
   // Grid mode: no card selected.
   return (
     <div className="flex h-full">
-      <LibraryMobileStyle />
       <LibraryTagsSidebar />
       <TagsPickerModal
         open={tagsModalOpen}
@@ -322,11 +321,11 @@ export default function LibraryPage() {
       />
       <div className="flex flex-1 min-w-0 flex-col">
       {/* Title band — same height across pages on desktop, slimmer on mobile. */}
-      <div className="page-header library-header-mobile">
-        <div className="page-header-inner library-header-inner-mobile flex items-center justify-between gap-3">
+      <div className="page-header">
+        <div className="page-header-inner flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <div className="min-w-0 flex-1">
-            <h1 className="page-header-title library-header-title-mobile">{t("nav.library")}</h1>
+            <h1 className="page-header-title">{t("nav.library")}</h1>
             {counts.total > 0 && (
               <p className="page-header-subtitle flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
                 <span>
@@ -829,24 +828,3 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-/**
- * Mobile-specific overrides for the library shell. The global
- * `.page-header` style is shared across pages and assumes desktop
- * proportions (92 px height, 32 px lateral padding). On phones we
- * compress to 56 px / 12 px so the title strip doesn't eat half the
- * viewport above the fold. Lives inline rather than in styles.css
- * because the paths workstream has a parallel branch touching that
- * file — we don't want a merge conflict over a polish patch.
- */
-function LibraryMobileStyle() {
-  return (
-    <style>{`
-      @media (max-width: 767px) {
-        .library-header-mobile { height: 56px !important; }
-        .library-header-inner-mobile { padding: 0 12px !important; }
-        .library-header-title-mobile { font-size: 1.05rem !important; line-height: 1.2; }
-        .library-header-mobile .page-header-subtitle { font-size: 10px !important; margin-top: 2px !important; }
-      }
-    `}</style>
-  );
-}
