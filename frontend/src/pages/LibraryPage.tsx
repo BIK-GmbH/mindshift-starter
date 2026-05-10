@@ -27,6 +27,7 @@ import CardDetailContent from "../components/CardDetailContent";
 import CardSourceMedia from "../components/CardSourceMedia";
 import ChatPanel from "../components/ChatPanel";
 import StatusBadge from "../components/StatusBadge";
+import TagsPickerMobile from "../components/TagsPickerMobile";
 import TagsTree, { type TagsTreeHandle } from "../components/TagsTree";
 import { playHover, playSound } from "../lib/sounds";
 import { useSearchModal } from "../lib/SearchModalContext";
@@ -705,6 +706,11 @@ function LibraryTagsSidebar({ mobileOpen = false, onMobileClose }: LibraryTagsSi
           mobileOpen ? "fixed inset-y-0 left-0 top-12 z-40 flex" : "hidden",
         ].join(" ")}
       >
+        {/* Header strip — same on both surfaces. The "+ New" button
+            is desktop-only because creating tags from a virtual
+            keyboard with arborist's free-form input is fragile;
+            users on mobile pick existing tags, manage them on
+            desktop. */}
         <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
           <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
             {t("nav.tags")}
@@ -716,13 +722,18 @@ function LibraryTagsSidebar({ mobileOpen = false, onMobileClose }: LibraryTagsSi
               tagsTreeRef.current?.createTag();
             }}
             title={t("tags.newTag") ?? ""}
-            className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
+            className="hidden items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200 md:inline-flex"
           >
             <Plus className="h-3 w-3" />
             {t("tags.new", { defaultValue: "New" })}
           </button>
         </div>
-        <div className="flex flex-1 min-h-0 flex-col overflow-hidden py-2">
+        {/* Mobile: lightweight accordion picker (no drag, no card
+            children, 44 px tap targets). Desktop: full arborist tree. */}
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden md:hidden">
+          <TagsPickerMobile onPick={() => onMobileClose?.()} />
+        </div>
+        <div className="hidden flex-1 min-h-0 flex-col overflow-hidden py-2 md:flex">
           <TagsTree ref={tagsTreeRef} />
         </div>
       </aside>
