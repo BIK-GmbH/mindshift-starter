@@ -17,16 +17,12 @@ interface Props {
   children: ReactNode;
   onDelete: () => void;
   onTagPick: () => void;
-  /** Tap handler — fires only when the gesture stayed inside the
-   *  vertical tap tolerance and didn't pass the swipe threshold. */
-  onTap?: () => void;
 }
 
 const COMMIT_THRESHOLD_FRACTION = 0.32;
 const VERTICAL_TOLERANCE = 14;
-const TAP_TOLERANCE = 6;
 
-export default function SwipeableCardRow({ children, onDelete, onTagPick, onTap }: Props) {
+export default function SwipeableCardRow({ children, onDelete, onTagPick }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const startX = useRef(0);
@@ -85,11 +81,12 @@ export default function SwipeableCardRow({ children, onDelete, onTagPick, onTap 
     };
 
     const onEnd = () => {
+      // No manual tap handling: vertical scrolls and pure taps both
+      // leave lockedHorizontal=false. We let the underlying button's
+      // native click event fire (the browser already suppresses click
+      // when the touch moved more than its slop threshold, which keeps
+      // a vertical scroll from also opening the card).
       if (!lockedHorizontal.current) {
-        // Treat as tap if it never crossed the tolerance.
-        if (Math.abs(offset) < TAP_TOLERANCE) {
-          onTap?.();
-        }
         setOffset(0);
         return;
       }
@@ -121,7 +118,7 @@ export default function SwipeableCardRow({ children, onDelete, onTagPick, onTap 
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onEnd);
     };
-  }, [isTouchPrimary, offset, onDelete, onTagPick, onTap]);
+  }, [isTouchPrimary, offset, onDelete, onTagPick]);
 
   if (!isTouchPrimary) {
     return <>{children}</>;

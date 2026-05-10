@@ -633,7 +633,6 @@ export default function LibraryPage() {
                   key={card.id}
                   onDelete={() => requestSwipeDelete(card)}
                   onTagPick={() => void openTagPicker(card.id)}
-                  onTap={() => openCard(card.id)}
                 >
                   <CardRow card={card} onClick={() => openCard(card.id)} />
                 </SwipeableCardRow>
