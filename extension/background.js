@@ -153,6 +153,17 @@ async function markTabSaved(tabId, url, cardId) {
   await applyBadge(tabId, cardId || null);
 }
 
+/** True when the URL or tab mimeType points at a PDF. Mirrors the
+ *  popup's `tabLooksLikePdf` so the routing is consistent across
+ *  surfaces (popup button, hotkey, side-panel auto-add). */
+function looksLikePdf({ url, mimeType }) {
+  if (!url) return false;
+  const mt = (mimeType || "").toLowerCase();
+  if (mt === "application/pdf" || mt === "application/x-pdf") return true;
+  const stripped = url.split("#")[0].split("?")[0].toLowerCase();
+  return stripped.endsWith(".pdf");
+}
+
 /** Shared save path used by both the popup's `savePage` message and
  *  the `save-current-page` hotkey. Returns the same shape for both
  *  callers so they can show consistent feedback.
@@ -160,8 +171,12 @@ async function markTabSaved(tabId, url, cardId) {
  *  When the caller knows which tab the URL belongs to, pass `tabId`
  *  so the badge flips to ✓ immediately. Without it the badge will
  *  catch up on the next tab event (typically <1 s).
+ *
+ *  PDF tabs route to /from-pdf-url instead of /from-url so the
+ *  server fetches the PDF bytes itself; trafilatura on a PDF body
+ *  is garbage.
  */
-async function savePageForUrl(url, { tabId } = {}) {
+async function savePageForUrl(url, { tabId, mimeType } = {}) {
   const stored = await chrome.storage.local.get(["apiUrl", "token"]);
   const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
   const token = stored.token || "";
@@ -169,7 +184,10 @@ async function savePageForUrl(url, { tabId } = {}) {
     return { ok: false, error: "Extension not configured", code: "config" };
   }
   const canon = canonicalizeUrl(url);
-  const res = await fetch(`${apiUrl}/api/cards/from-url`, {
+  const endpoint = looksLikePdf({ url: canon, mimeType })
+    ? "/api/cards/from-pdf-url"
+    : "/api/cards/from-url";
+  const res = await fetch(`${apiUrl}${endpoint}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -336,7 +354,10 @@ if (chrome.commands?.onCommand) {
       notify("Mindshift", "Browser pages can't be saved.", "err");
       return;
     }
-    const res = await savePageForUrl(url, { tabId: tab?.id });
+    const res = await savePageForUrl(url, {
+      tabId: tab?.id,
+      mimeType: tab?.mimeType,
+    });
     if (res.ok) {
       const title = (res.title || tab?.title || url).slice(0, 80);
       notify("Saved to Mindshift", title, "ok");
@@ -379,21 +400,94 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // extension page so we need to look up the active tab. Either
         // way the badge gets updated for the right tab.
         let tabId = sender?.tab?.id;
+        let mimeType = sender?.tab?.mimeType;
         if (typeof tabId !== "number") {
           try {
             const [activeTab] = await chrome.tabs.query({
               active: true,
               currentWindow: true,
             });
-            if (activeTab?.url === msg.url) tabId = activeTab.id;
+            if (activeTab?.url === msg.url) {
+              tabId = activeTab.id;
+              mimeType = mimeType || activeTab.mimeType;
+            }
           } catch {
             /* keep tabId undefined; badge catches up on next event */
           }
         }
-        const result = await savePageForUrl(msg.url, { tabId });
+        const result = await savePageForUrl(msg.url, { tabId, mimeType });
         sendResponse(result);
       } catch (err) {
         sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
+    return true;
+  }
+
+  // Returns the web app's origin so content scripts can render
+  // open-card links pointing at the right host (api ≠ web URL in
+  // production deployments). Falls back to apiUrl in same-origin
+  // / dev setups.
+  if (msg?.type === "getMindshiftOrigins") {
+    void (async () => {
+      try {
+        const stored = await chrome.storage.local.get(["apiUrl", "webUrl"]);
+        sendResponse({
+          ok: true,
+          apiUrl: (stored.apiUrl || "").replace(/\/$/, ""),
+          webUrl: (stored.webUrl || stored.apiUrl || "").replace(/\/$/, ""),
+        });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
+    return true;
+  }
+
+  // Bulk variant of lookupCardForUrl — used by the SERP-overlay
+  // content script to check ten search-result URLs in one round-trip
+  // instead of N+1.
+  if (msg?.type === "lookupCardsBulk") {
+    void (async () => {
+      try {
+        const stored = await chrome.storage.local.get(["apiUrl", "token"]);
+        const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
+        const token = stored.token || "";
+        if (!apiUrl || !token) {
+          sendResponse({ ok: false, configured: false });
+          return;
+        }
+        const urls = Array.isArray(msg.urls) ? msg.urls : [];
+        // Stay under the backend cap and dedup defensively client-side.
+        const unique = Array.from(new Set(urls)).slice(0, 50);
+        if (unique.length === 0) {
+          sendResponse({ ok: true, configured: true, results: {} });
+          return;
+        }
+        const res = await fetch(`${apiUrl}/api/cards/by-source-urls`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ urls: unique }),
+        });
+        if (!res.ok) {
+          sendResponse({
+            ok: false,
+            configured: true,
+            error: `HTTP ${res.status}`,
+          });
+          return;
+        }
+        const results = await res.json();
+        sendResponse({ ok: true, configured: true, results });
+      } catch (err) {
+        sendResponse({
+          ok: false,
+          configured: true,
+          error: String(err?.message || err),
+        });
       }
     })();
     return true;

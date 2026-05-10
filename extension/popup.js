@@ -20,6 +20,7 @@ const els = {
   saveAllBtn: document.getElementById("saveAllTabsBtn"),
   cancelSaveAllBtn: document.getElementById("cancelSaveAllBtn"),
   saveAllProgress: document.getElementById("saveAllProgress"),
+  autoSaveYTToggle: document.getElementById("autoSaveYTToggle"),
   status: document.getElementById("status"),
   settingsBtn: document.getElementById("settingsBtn"),
   apiUrl: document.getElementById("apiUrl"),
@@ -160,6 +161,18 @@ function bounceToSettings(message) {
   setStatus(els.settingsStatus, message, "err");
 }
 
+/** True when the active tab is a PDF — either by URL extension or
+ *  by the mimeType field Chrome 116+ exposes on `tabs.get()`. The PDF
+ *  branch routes through a different backend endpoint that fetches
+ *  bytes server-side, because trafilatura on a PDF produces garbage. */
+function tabLooksLikePdf(tab) {
+  if (!tab) return false;
+  const mime = (tab.mimeType || "").toLowerCase();
+  if (mime === "application/pdf" || mime === "application/x-pdf") return true;
+  const u = (tab.url || "").split("#")[0].split("?")[0].toLowerCase();
+  return u.endsWith(".pdf");
+}
+
 async function refreshActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -170,6 +183,10 @@ async function refreshActiveTab() {
     }
     const isHttp = (tab?.url || "").startsWith("http");
     els.addBtn.disabled = !isHttp;
+    // Surface the PDF mode in the button label so the user knows we
+    // route through a different pipeline. The label persists across
+    // popup re-opens because refreshActiveTab runs every time.
+    els.addBtn.textContent = tabLooksLikePdf(tab) ? "Save this PDF" : "Add this page";
     if (!isHttp) setStatus(els.status, "Browser pages can't be saved.", "err");
   } catch (err) {
     setStatus(els.status, String(err), "err");
@@ -229,7 +246,8 @@ async function saveAllTabs() {
       // resume later. The dedup hit returns the same shape as a fresh
       // insert so we count both as "saved" — distinguishing the two
       // would need an extra GET per tab.
-      await call("/api/cards/from-url", {
+      const ep = tabLooksLikePdf(tab) ? "/api/cards/from-pdf-url" : "/api/cards/from-url";
+      await call(ep, {
         method: "POST",
         body: JSON.stringify({ url: canonicalizeUrl(tab.url) }),
       });
@@ -275,7 +293,10 @@ async function addCurrentPage() {
     // Backend /api/cards/from-url auto-detects YouTube and GitHub
     // URLs and routes them to the right ingestion pipeline — we don't
     // need to branch by host here.
-    const data = await call("/api/cards/from-url", {
+    const endpoint = tabLooksLikePdf(activeTab)
+      ? "/api/cards/from-pdf-url"
+      : "/api/cards/from-url";
+    const data = await call(endpoint, {
       method: "POST",
       body: JSON.stringify({ url: canonicalizeUrl(activeTab.url) }),
     });
@@ -470,6 +491,33 @@ els.sidePanelBtn?.addEventListener("click", async () => {
     setStatus(els.status, res?.error || "Could not open side panel.", "err");
   }
 });
+/** YouTube auto-save-on-end toggle. The flag lives in chrome.storage
+ *  so the YouTube content script can read it independently of the
+ *  popup's lifetime. */
+const AUTO_SAVE_YT_KEY = "autoSaveYouTubeOnEnd";
+
+async function loadAutoSaveYT() {
+  if (!els.autoSaveYTToggle) return;
+  try {
+    const stored = await chrome.storage.local.get([AUTO_SAVE_YT_KEY]);
+    els.autoSaveYTToggle.checked = !!stored?.[AUTO_SAVE_YT_KEY];
+  } catch {
+    els.autoSaveYTToggle.checked = false;
+  }
+}
+
+els.autoSaveYTToggle?.addEventListener("change", async () => {
+  try {
+    await chrome.storage.local.set({
+      [AUTO_SAVE_YT_KEY]: els.autoSaveYTToggle.checked,
+    });
+  } catch (err) {
+    setStatus(els.status, `Could not save toggle: ${err.message}`, "err");
+  }
+});
+
+void loadAutoSaveYT();
+
 els.saveAllBtn?.addEventListener("click", () => void saveAllTabs());
 els.cancelSaveAllBtn?.addEventListener("click", () => {
   saveAllCancel = true;

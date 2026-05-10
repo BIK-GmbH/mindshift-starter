@@ -71,6 +71,14 @@ class FromUrlRequest(BaseModel):
     url: HttpUrl
 
 
+class BySourceUrlsRequest(BaseModel):
+    """Bulk variant of /by-source-url. Used by the SERP-overlay content
+    script to check ten search results in a single round-trip instead
+    of hammering the per-URL endpoint."""
+
+    urls: list[str] = Field(min_length=1, max_length=50)
+
+
 class FromNoteRequest(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     body: str = Field(default="", max_length=200_000)

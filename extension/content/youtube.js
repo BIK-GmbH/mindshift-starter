@@ -205,3 +205,262 @@ void inject();
 pollUntilInjected();
 watchForNavigations();
 void lastUrl; // prevent unused-var warnings if the SPA never navigates
+
+/* ===================== Block N: timestamp + auto-save ===================== */
+
+const TS_BUTTON_ID = "mindshift-timestamp-btn";
+
+function videoElement() {
+  return document.querySelector("video.html5-main-video") || document.querySelector("video");
+}
+
+function currentVideoSeconds() {
+  const v = videoElement();
+  if (!v) return null;
+  const t = Math.floor(v.currentTime || 0);
+  return Number.isFinite(t) && t > 0 ? t : null;
+}
+
+function formatTimestamp(seconds) {
+  const s = Math.max(0, seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  }
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function videoIdFromUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "youtu.be") return u.pathname.slice(1).split("/")[0] || null;
+    if (/youtube\.com$/.test(u.hostname) || /\.youtube\.com$/.test(u.hostname)) {
+      const v = u.searchParams.get("v");
+      if (v) return v;
+      const m = u.pathname.match(/^\/(?:shorts|embed)\/([^/?#]+)/);
+      if (m) return m[1];
+    }
+  } catch {
+    /* malformed */
+  }
+  return null;
+}
+
+function buildTimestampButton() {
+  const btn = document.createElement("button");
+  btn.id = TS_BUTTON_ID;
+  btn.type = "button";
+  btn.className = "mindshift-save-btn mindshift-state-save mindshift-ts-btn";
+  btn.title = "Save the current playback timestamp as a note bookmark";
+  btn.innerHTML = `
+    <span class="ms-icon" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+      </svg>
+    </span>
+    <span class="ms-label ms-ts-label">📌 0:00</span>
+  `;
+  return btn;
+}
+
+function updateTimestampLabel(btn) {
+  const seconds = currentVideoSeconds();
+  const label = btn.querySelector(".ms-ts-label");
+  if (!label) return;
+  if (seconds == null) {
+    label.textContent = "📌 Save spot";
+  } else {
+    label.textContent = `📌 ${formatTimestamp(seconds)}`;
+  }
+}
+
+async function patchCardNotes(cardId, appendChunk) {
+  const stored = await new Promise((resolve) => {
+    chrome.storage.local.get(["apiUrl", "token"], resolve);
+  });
+  const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
+  const token = stored.token || "";
+  if (!apiUrl || !token) return { ok: false, error: "Extension not configured" };
+
+  // Load existing notes first so we can append rather than overwrite —
+  // there's no dedicated append endpoint, but PATCH /notes already
+  // exists.
+  let existing = "";
+  try {
+    const r = await fetch(`${apiUrl}/api/cards/${cardId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (r.ok) {
+      const data = await r.json();
+      existing = data.notes_md ?? "";
+    }
+  } catch {
+    /* tolerate — worst case we replace the notes with the chunk */
+  }
+  const next = existing && existing.trim().length > 0
+    ? `${existing.replace(/\s+$/, "")}\n${appendChunk}`
+    : appendChunk;
+
+  const r2 = await fetch(`${apiUrl}/api/cards/${cardId}/notes`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ notes_md: next }),
+  });
+  if (!r2.ok) return { ok: false, error: `HTTP ${r2.status}` };
+  return { ok: true };
+}
+
+async function handleTimestampClick(btn) {
+  const seconds = currentVideoSeconds();
+  if (seconds == null) {
+    btn.title = "Start playing the video first.";
+    return;
+  }
+  const url = window.location.href;
+  const vid = videoIdFromUrl(url);
+  if (!vid) {
+    btn.title = "Could not parse video id.";
+    return;
+  }
+  const stamp = formatTimestamp(seconds);
+  const linkUrl = `https://www.youtube.com/watch?v=${vid}&t=${seconds}s`;
+  const chunk = `- [${stamp}](${linkUrl}) `;
+
+  const oldLabel = btn.querySelector(".ms-ts-label")?.textContent || "";
+  const setLabel = (text) => {
+    const l = btn.querySelector(".ms-ts-label");
+    if (l) l.textContent = text;
+  };
+  setLabel("Saving…");
+  btn.classList.add("mindshift-state-saving");
+  try {
+    // Use the existing save flow which is idempotent — if the card
+    // already exists for this URL, we get its id back and just
+    // append the bookmark.
+    const saveRes = await chrome.runtime.sendMessage({
+      type: "savePage",
+      url,
+    });
+    if (!saveRes?.ok || !saveRes.cardId) {
+      throw new Error(saveRes?.error || "Could not save the video");
+    }
+    const noteRes = await patchCardNotes(saveRes.cardId, chunk);
+    if (!noteRes.ok) throw new Error(noteRes.error || "Could not append the bookmark");
+    setLabel(`✓ ${stamp}`);
+    btn.classList.remove("mindshift-state-saving");
+    btn.classList.add("mindshift-state-saved");
+    window.setTimeout(() => {
+      btn.classList.remove("mindshift-state-saved");
+      setLabel(oldLabel);
+    }, 2200);
+  } catch (err) {
+    btn.classList.remove("mindshift-state-saving");
+    btn.classList.add("mindshift-state-error");
+    btn.title = String(err?.message || err);
+    setLabel("Retry");
+    window.setTimeout(() => {
+      btn.classList.remove("mindshift-state-error");
+      setLabel(oldLabel);
+    }, 2500);
+  }
+}
+
+function injectTimestampButton() {
+  if (document.getElementById(TS_BUTTON_ID)) return;
+  const saveBtn = document.getElementById(BUTTON_ID);
+  if (!saveBtn || !saveBtn.parentNode) return;
+  const tsBtn = buildTimestampButton();
+  tsBtn.addEventListener("click", () => void handleTimestampClick(tsBtn));
+  saveBtn.parentNode.insertBefore(tsBtn, saveBtn.nextSibling);
+  // Live-update the label so the user always sees the current
+  // timestamp baked into the button. Cheap — runs once per second.
+  const id = window.setInterval(() => {
+    if (!document.getElementById(TS_BUTTON_ID)) {
+      window.clearInterval(id);
+      return;
+    }
+    updateTimestampLabel(tsBtn);
+  }, 1000);
+  updateTimestampLabel(tsBtn);
+}
+
+// Poll for the save button to appear, then inject the timestamp
+// sibling. We piggy-back on the same interval cadence as
+// pollUntilInjected so we don't add a parallel poll loop.
+{
+  let attempts = 0;
+  const id = window.setInterval(() => {
+    attempts++;
+    if (document.getElementById(BUTTON_ID)) {
+      injectTimestampButton();
+    }
+    if (document.getElementById(TS_BUTTON_ID) || attempts > MAX_POLL_ATTEMPTS) {
+      window.clearInterval(id);
+    }
+  }, POLL_INTERVAL_MS);
+}
+
+/* --------------------- Auto-save on video end --------------------- */
+
+const AUTO_SAVE_KEY = "autoSaveYouTubeOnEnd";
+
+async function isAutoSaveEnabled() {
+  try {
+    const stored = await new Promise((resolve) => {
+      chrome.storage.local.get([AUTO_SAVE_KEY], resolve);
+    });
+    return !!stored?.[AUTO_SAVE_KEY];
+  } catch {
+    return false;
+  }
+}
+
+let autoSaveAttached = false;
+let autoSaveFiredFor = "";
+
+async function attachAutoSaveListener() {
+  if (autoSaveAttached) return;
+  if (!(await isAutoSaveEnabled())) return;
+  const v = videoElement();
+  if (!v) return;
+  autoSaveAttached = true;
+  v.addEventListener("ended", () => {
+    const url = window.location.href;
+    // Guard against the same URL firing twice on replay loops.
+    if (autoSaveFiredFor === url) return;
+    autoSaveFiredFor = url;
+    chrome.runtime.sendMessage({ type: "savePage", url }, (res) => {
+      if (!res?.ok) {
+        console.warn("[Mindshift] auto-save failed:", res?.error);
+      }
+    });
+  });
+}
+
+// Reset the auto-save firing guard on SPA navigation.
+window.addEventListener("yt-navigate-finish", () => {
+  autoSaveFiredFor = "";
+  autoSaveAttached = false;
+  // Wait briefly for the new <video> to mount.
+  window.setTimeout(() => void attachAutoSaveListener(), 1500);
+});
+
+void attachAutoSaveListener();
+{
+  // Belt-and-suspenders: video element can mount late on first load.
+  let attempts = 0;
+  const id = window.setInterval(() => {
+    attempts++;
+    if (autoSaveAttached || attempts > MAX_POLL_ATTEMPTS) {
+      window.clearInterval(id);
+      return;
+    }
+    void attachAutoSaveListener();
+  }, POLL_INTERVAL_MS);
+}

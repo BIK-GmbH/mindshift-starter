@@ -13,6 +13,7 @@ from app.models.source import Source
 from app.models.transcript import Transcript
 from app.models.user import User
 from app.schemas.card import (
+    BySourceUrlsRequest,
     CardListItem,
     CardOut,
     CardUpdate,
@@ -324,6 +325,118 @@ async def create_card_from_pdf(
     return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
 
 
+@router.post("/from-pdf-url", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
+def create_card_from_pdf_url(
+    payload: FromUrlRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> IngestionResponse:
+    """Fetch a PDF over HTTP, save it as a PDF card.
+
+    Used by the browser extension when the active tab is a PDF — the
+    extension can't reliably hand us bytes from inside the tab on every
+    site, so the server pulls the URL itself with the same size +
+    content-type guards as the regular /from-pdf upload.
+
+    Dedup follows the same rule as /from-url: if the user already has
+    a card whose Source.url matches, return the existing one.
+    """
+    import httpx  # local import keeps cards.py's top-level imports tidy
+
+    raw_url = canonicalize_url(str(payload.url))
+
+    existing = _existing_card_for_user(db, current_user, url=raw_url)
+    if existing is not None:
+        return _existing_ingestion_response(db, existing)
+
+    try:
+        with httpx.Client(timeout=25.0, follow_redirects=True) as client:
+            head = client.head(raw_url)
+            content_type = (head.headers.get("content-type") or "").split(";")[0].strip().lower()
+            if content_type and content_type not in {"application/pdf", "application/x-pdf"}:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"URL is not a PDF (Content-Type: {content_type})",
+                )
+            res = client.get(raw_url)
+            res.raise_for_status()
+            content = res.content
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Could not fetch PDF: {exc}") from exc
+
+    # Server might have lied in HEAD — re-check with GET response.
+    get_ct = (res.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if get_ct and get_ct not in {"application/pdf", "application/x-pdf"}:
+        raise HTTPException(
+            status_code=400, detail=f"URL is not a PDF (Content-Type: {get_ct})"
+        )
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty PDF")
+    if len(content) > MAX_PDF_BYTES:
+        raise HTTPException(status_code=413, detail="PDF exceeds 25 MB limit")
+
+    # Pull a sensible filename from the URL or Content-Disposition.
+    filename = "document.pdf"
+    cd = res.headers.get("content-disposition", "")
+    if "filename=" in cd:
+        filename = cd.split("filename=", 1)[1].strip().strip('"').strip("'") or filename
+    else:
+        from urllib.parse import urlparse
+
+        path = urlparse(raw_url).path
+        if path:
+            tail = path.rsplit("/", 1)[-1]
+            if tail and tail.lower().endswith(".pdf"):
+                filename = tail
+
+    storage = get_storage()
+    saved = storage.save(
+        db,
+        user_id=current_user.id,
+        content=content,
+        original_filename=filename,
+        content_type=get_ct or "application/pdf",
+        purpose="pdf",
+    )
+
+    source = Source(
+        source_type="pdf",
+        url=raw_url,
+        canonical_url=raw_url,
+        external_id=filename,
+        metadata_json={
+            "size_bytes": len(content),
+            "content_type": get_ct or "application/pdf",
+            "fetched_from": raw_url,
+        },
+    )
+    db.add(source)
+    db.flush()
+
+    card = Card(
+        user_id=current_user.id,
+        source_id=source.id,
+        title=filename,
+        source_type="pdf",
+        status="queued",
+        original_file_id=saved.id,
+    )
+    db.add(card)
+    db.flush()
+
+    job = Job(card_id=card.id, job_type="pdf_ingest", status="queued")
+    db.add(job)
+    db.commit()
+    db.refresh(card)
+    db.refresh(job)
+
+    background_tasks.add_task(process_pdf_card, card.id, job.id, content, filename)
+    return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
+
+
 @router.post("/from-note", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
 def create_card_from_note(
     payload: FromNoteRequest,
@@ -503,6 +616,59 @@ def find_card_by_source_url(
     if card is None:
         raise HTTPException(status_code=404, detail="No card matches this URL")
     return _card_response(db, card)
+
+
+@router.post("/by-source-urls", response_model=dict[str, str | None])
+def find_cards_by_source_urls(
+    payload: BySourceUrlsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str | None]:
+    """Bulk variant of by-source-url for the SERP overlay content script.
+
+    Body: `{ "urls": [...] }` (≤ 50). Returns a mapping from each
+    incoming URL (verbatim) to its matching card id, or null. The key
+    is the caller's original URL — not the canonicalised form — so a
+    content script can map results back to its DOM rows without re-
+    canonicalising client-side.
+
+    Single DB round-trip even for 50 URLs: we union the {raw, canonical}
+    strings into one IN clause, fetch all matches, then resolve each
+    incoming URL against the result set.
+    """
+    raw_urls = [u.strip() for u in payload.urls if isinstance(u, str) and u.strip()]
+    if not raw_urls:
+        return {}
+
+    # Build the candidate set: every raw URL the caller sent + its
+    # canonical form. The canonical form catches URLs we've stored
+    # canonically; the raw form catches legacy rows.
+    canon_map: dict[str, str] = {raw: canonicalize_url(raw) for raw in raw_urls}
+    haystack = set(raw_urls) | set(canon_map.values())
+
+    rows = db.execute(
+        select(Card.id, Source.url, Source.canonical_url)
+        .join(Source, Source.id == Card.source_id)
+        .where(
+            Card.user_id == current_user.id,
+            or_(Source.url.in_(haystack), Source.canonical_url.in_(haystack)),
+        )
+    ).all()
+
+    # Index the rows by every URL form we matched against, so the
+    # per-input lookup below is O(1).
+    by_url: dict[str, str] = {}
+    for card_id, src_url, src_canon in rows:
+        if src_url:
+            by_url.setdefault(src_url, str(card_id))
+        if src_canon:
+            by_url.setdefault(src_canon, str(card_id))
+
+    out: dict[str, str | None] = {}
+    for raw in raw_urls:
+        canon = canon_map[raw]
+        out[raw] = by_url.get(raw) or by_url.get(canon)
+    return out
 
 
 @router.get("/{card_id}", response_model=CardOut)

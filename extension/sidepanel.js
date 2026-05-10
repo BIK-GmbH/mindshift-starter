@@ -124,6 +124,14 @@ async function consumeAutoAddIntent(url) {
   }
 }
 
+function tabLooksLikePdf(tab) {
+  if (!tab) return false;
+  const mime = (tab.mimeType || "").toLowerCase();
+  if (mime === "application/pdf" || mime === "application/x-pdf") return true;
+  const u = (tab.url || "").split("#")[0].split("?")[0].toLowerCase();
+  return u.endsWith(".pdf");
+}
+
 async function autoAddAndEmbed(url) {
   // Show the save pane in "saving…" state while the POST is in flight
   // so the user gets immediate feedback. Backend dedup means a repeat
@@ -132,7 +140,10 @@ async function autoAddAndEmbed(url) {
   els.saveBtn.disabled = true;
   setStatus(els.saveStatus, "Saving…");
   try {
-    const data = await call("/api/cards/from-url", {
+    const endpoint = tabLooksLikePdf(activeTab)
+      ? "/api/cards/from-pdf-url"
+      : "/api/cards/from-url";
+    const data = await call(endpoint, {
       method: "POST",
       body: JSON.stringify({ url: canonicalizeUrl(url) }),
     });
@@ -186,7 +197,10 @@ async function saveActivePage() {
   els.saveBtn.disabled = true;
   setStatus(els.saveStatus, "Saving…");
   try {
-    const data = await call("/api/cards/from-url", {
+    const endpoint = tabLooksLikePdf(activeTab)
+      ? "/api/cards/from-pdf-url"
+      : "/api/cards/from-url";
+    const data = await call(endpoint, {
       method: "POST",
       body: JSON.stringify({ url: canonicalizeUrl(activeTab.url) }),
     });

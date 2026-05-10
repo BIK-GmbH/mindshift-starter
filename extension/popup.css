@@ -155,6 +155,25 @@ button[disabled] { opacity: 0.5; cursor: not-allowed; }
   background: currentColor;
 }
 
+.autosave-row {
+  display: flex;
+  gap: 10px;
+  cursor: pointer;
+  align-items: flex-start;
+}
+.autosave-row input[type="checkbox"] {
+  margin-top: 2px;
+  accent-color: #8b5cf6;
+  flex-shrink: 0;
+}
+.autosave-row .subhead {
+  display: block;
+  margin: 0 0 2px;
+}
+.autosave-row .muted {
+  display: block;
+}
+
 .howto {
   border: 1px solid #262d3a;
   border-radius: 8px;
