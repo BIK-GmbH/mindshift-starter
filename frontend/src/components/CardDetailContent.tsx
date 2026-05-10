@@ -11,6 +11,7 @@ import {
   Highlighter,
   Link2,
   Loader2,
+  Maximize2,
   MessageSquare,
   Network,
   RefreshCw,
@@ -27,6 +28,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import CardGraph from "./CardGraph";
+import CardSourceMedia from "./CardSourceMedia";
 import CardLanguagePicker from "./CardLanguagePicker";
 import CardPodcastPlayer from "./CardPodcastPlayer";
 import CardTagsBar from "./CardTagsBar";
@@ -109,6 +111,10 @@ export default function CardDetailContent({
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Mobile mini-player wiring — see MobileMediaPin section below.
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const mediaSentinelRef = useRef<HTMLDivElement>(null);
+  const [mediaPinned, setMediaPinned] = useState(false);
 
   const fetchCard = useCallback(async () => {
     try {
@@ -140,6 +146,53 @@ export default function CardDetailContent({
     const handle = window.setInterval(() => void fetchCard(), 2500);
     return () => window.clearInterval(handle);
   }, [card, fetchCard]);
+
+  // Mobile sticky-on-scroll mini-player. The media block at the top
+  // of the scroll container holds a sentinel; once it crosses the
+  // root's top edge, the inner element becomes a fixed-position
+  // mini in the top-right corner. Mirror of the desktop pattern in
+  // PathPlayerCardView, but mobile-only — desktop already gets a
+  // right-pane chat with media, no need to pin in the centre column.
+  const mediaPinEligible =
+    (card?.source_type === "youtube" && !!card?.external_id) ||
+    card?.source_type === "pdf";
+  useEffect(() => {
+    if (!mediaPinEligible) {
+      setMediaPinned(false);
+      return;
+    }
+    const sentinel = mediaSentinelRef.current;
+    const root = scrollContainerRef.current;
+    if (!sentinel || !root) return;
+    const mobileQuery = window.matchMedia("(max-width: 767px)");
+    let observer: IntersectionObserver | null = null;
+    const enable = () => {
+      observer = new IntersectionObserver(
+        ([entry]) => setMediaPinned(!entry.isIntersecting),
+        { root, threshold: 0 },
+      );
+      observer.observe(sentinel);
+    };
+    const disable = () => {
+      observer?.disconnect();
+      observer = null;
+      setMediaPinned(false);
+    };
+    if (mobileQuery.matches) enable();
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) enable();
+      else disable();
+    };
+    mobileQuery.addEventListener("change", onChange);
+    return () => {
+      observer?.disconnect();
+      mobileQuery.removeEventListener("change", onChange);
+    };
+  }, [mediaPinEligible, tab]);
+
+  const scrollToMediaTop = () => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   useEffect(() => {
     if (tab === "transcript" && transcript === null && card?.status === "completed") {
@@ -343,14 +396,34 @@ export default function CardDetailContent({
               the viewport on long unbroken titles. */}
           <header className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
             <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+              {/* Mobile-only thumbnail block — hidden when the card is
+                  pinnable (YouTube/PDF) because the active player
+                  below the header serves the same visual hook AND
+                  is tappable. Articles + notes still show the
+                  thumbnail here on mobile. Desktop always shows the
+                  small 128 × 80 thumbnail to anchor the title row. */}
               {card.thumbnail_url ? (
                 <img
                   src={card.thumbnail_url}
                   alt=""
-                  className="aspect-video w-full flex-shrink-0 rounded-md object-cover ring-1 ring-ink-700 sm:h-20 sm:w-32 sm:aspect-auto"
+                  className={[
+                    "flex-shrink-0 rounded-md object-cover ring-1 ring-ink-700",
+                    "sm:block sm:h-20 sm:w-32 sm:aspect-auto sm:w-32",
+                    mediaPinEligible
+                      ? "hidden sm:block"
+                      : "aspect-video w-full",
+                  ].join(" ")}
                 />
               ) : (
-                <div className="flex aspect-video w-full flex-shrink-0 items-center justify-center rounded-md bg-ink-800 ring-1 ring-ink-700 sm:h-20 sm:w-32 sm:aspect-auto">
+                <div
+                  className={[
+                    "flex flex-shrink-0 items-center justify-center rounded-md bg-ink-800 ring-1 ring-ink-700",
+                    "sm:h-20 sm:w-32 sm:aspect-auto",
+                    mediaPinEligible
+                      ? "hidden sm:flex"
+                      : "aspect-video w-full",
+                  ].join(" ")}
+                >
                   <Type className="h-5 w-5 text-ink-500" />
                 </div>
               )}
@@ -452,7 +525,54 @@ export default function CardDetailContent({
       </div>
 
       {/* Scrolling content */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        {/* Mobile media block — only shown for YouTube + PDF cards
+            on `<md`. Holds an active CardSourceMedia (YouTube embed
+            / PdfReader) and a sentinel that triggers the pin via
+            IntersectionObserver. The aspect-video reservation keeps
+            the layout stable when the inner element flips to fixed
+            position so the content below doesn't jump. */}
+        {mediaPinEligible && (
+          <div className="border-b border-ink-800 bg-ink-950/40 md:hidden">
+            <div className="px-3 py-3">
+              <div
+                className={`relative ${
+                  card.source_type === "pdf" ? "aspect-[3/4]" : "aspect-video"
+                }`}
+              >
+                <div
+                  className={[
+                    "overflow-hidden rounded-md ring-1 transition-all duration-300 ease-out",
+                    mediaPinned
+                      ? card.source_type === "pdf"
+                        ? "fixed right-3 top-16 z-30 h-48 w-36 shadow-2xl ring-ink-700"
+                        : "fixed right-3 top-16 z-30 aspect-video w-48 shadow-2xl ring-ink-700"
+                      : "absolute inset-0 ring-transparent",
+                  ].join(" ")}
+                >
+                  <CardSourceMedia card={card} compact={mediaPinned} />
+                  {mediaPinned && (
+                    <button
+                      type="button"
+                      onClick={scrollToMediaTop}
+                      title={t("paths.maximizeVideo", { defaultValue: "Maximize" }) ?? ""}
+                      aria-label={t("paths.maximizeVideo", { defaultValue: "Maximize" }) ?? ""}
+                      className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-ink-900/85 text-ink-200 transition active:bg-ink-800 hover:bg-ink-800 hover:text-ink-100"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Sentinel — when this scrolls past the container's top
+            edge, the observer flips mediaPinned. 1 px height + the
+            aria-hidden so screen readers ignore it. */}
+        {mediaPinEligible && (
+          <div ref={mediaSentinelRef} aria-hidden="true" className="h-px md:hidden" />
+        )}
         <div className={`mx-auto ${innerWidth} ${horizPad} pb-16 pt-6`}>
           {/* Failed-ingestion banner: lives in the scrollable content
               area so its presence/absence never bumps the sticky
