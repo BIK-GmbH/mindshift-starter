@@ -12,6 +12,27 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Mindshift" />
     <title>Mindshift</title>
+    <style>
+      /* iOS Safari auto-zooms when focusing any form control whose
+         font-size is below 16 px. The zoom never reverses cleanly,
+         leaves the layout shifted, and feels broken. Force >=16 px on
+         the form controls that actually take focus on mobile —
+         excludes <button> (no input mode → no zoom) so the visual
+         density of icon buttons is preserved. The !important is
+         required because Tailwind utility classes are loaded after
+         this style block and otherwise win the cascade.
+
+         Trade-off: search-input fonts read slightly larger than
+         the surrounding 11/12 px UI. The no-zoom behaviour is not
+         negotiable. */
+      @media (max-width: 767px) {
+        input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+        select,
+        textarea {
+          font-size: 16px !important;
+        }
+      }
+    </style>
   </head>
   <body class="bg-ink-900 text-ink-100 antialiased">
     <div id="root"></div>

@@ -22,7 +22,6 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import MobileDesktopHint from "../components/MobileDesktopHint";
 import RichTextEditor from "../components/RichTextEditor";
 import { useDialog } from "../lib/DialogContext";
 import {
@@ -171,7 +170,6 @@ export default function PodcastsPage() {
       )}
 
       <div className="flex flex-1 min-w-0 flex-col">
-        <MobileDesktopHint reasonKey="mobileHint.podcasts" />
         <div className="page-header">
           <div className="page-header-inner">
             <h1 className="page-header-title">{t("nav.podcasts")}</h1>

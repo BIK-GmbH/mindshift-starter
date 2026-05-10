@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { NavLink, Outlet } from "react-router-dom";
 
 import GlobalSearchModal from "./GlobalSearchModal";
+import MobileBottomNav from "./MobileBottomNav";
+import MobileTopBar from "./MobileTopBar";
 import RailFooterButtons from "./RailFooterButtons";
 import SettingsModal from "./SettingsModal";
 import { useSearchModal } from "../lib/SearchModalContext";
@@ -23,9 +25,13 @@ export default function AppLayout() {
   const { openModal: openSearch } = useSearchModal();
 
   return (
-    <div className="flex h-full bg-ink-900">
-      {/* Outer rail — narrow icon-only navigation. Always visible. */}
-      <aside className="panel-elevated relative z-10 flex w-14 flex-col items-center border-r border-ink-800 bg-ink-900 py-3">
+    <div className="flex h-full flex-col bg-ink-900 md:flex-row">
+      {/* Mobile-only top bar with brand + hamburger drawer. Hidden on
+          desktop — the icon rail covers the same affordances there. */}
+      <MobileTopBar />
+
+      {/* Outer rail — desktop-only icon navigation. */}
+      <aside className="panel-elevated relative z-10 hidden w-14 flex-col items-center border-r border-ink-800 bg-ink-900 py-3 md:flex">
         <div
           className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-ink-100 text-ink-900 surface-soft"
           role="img"
@@ -88,9 +94,13 @@ export default function AppLayout() {
           saturated localhost sockets and made the UI feel stuck.
           React-Router still mounts/unmounts the matched route via
           <Outlet/>, so each page resets its own state cleanly. */}
-      <main className="flex-1 overflow-hidden page-enter">
+      <main className="flex-1 overflow-hidden pb-[calc(56px+env(safe-area-inset-bottom))] page-enter md:pb-0">
         <Outlet />
       </main>
+
+      {/* Mobile-only bottom nav. Three primary destinations + search;
+          desktop-only sections live in the hamburger drawer. */}
+      <MobileBottomNav />
 
       {/* Global modals */}
       <SettingsModal />

@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import MarkdownView from "../components/MarkdownView";
-import MobileDesktopHint from "../components/MobileDesktopHint";
 import PathPlayerCardView from "../components/PathPlayerCardView";
 import { api, type PathDetail } from "../lib/api";
 
@@ -176,8 +175,6 @@ export default function PathPlayerPage({ mode = "owner" }: PathPlayerPageProps) 
 
   return (
     <div className="flex h-full flex-col">
-      <MobileDesktopHint reasonKey="mobileHint.paths" />
-
       {/* === Top header (sticky) === */}
       <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/60 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">

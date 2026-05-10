@@ -313,11 +313,12 @@ export default function LibraryPage() {
   // Grid mode: no card selected.
   return (
     <div className="flex h-full">
+      <LibraryMobileStyle />
       <LibraryTagsSidebar />
       <div className="flex flex-1 min-w-0 flex-col">
-      {/* Title band — same height across pages */}
-      <div className="page-header">
-        <div className="page-header-inner flex items-center justify-between gap-4">
+      {/* Title band — same height across pages on desktop, slimmer on mobile. */}
+      <div className="page-header library-header-mobile">
+        <div className="page-header-inner library-header-inner-mobile flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             {/* Hamburger toggle for the tags drawer (mobile only) */}
             <button
@@ -329,7 +330,7 @@ export default function LibraryPage() {
               <Menu className="h-4 w-4" />
             </button>
             <div className="min-w-0 flex-1">
-            <h1 className="page-header-title">{t("nav.library")}</h1>
+            <h1 className="page-header-title library-header-title-mobile">{t("nav.library")}</h1>
             {counts.total > 0 && (
               <p className="page-header-subtitle flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
                 <span>
@@ -373,17 +374,18 @@ export default function LibraryPage() {
               playSound("click");
               setModalOpen(true);
             }}
-            className="inline-flex flex-shrink-0 items-center gap-2 rounded-md bg-ink-100 px-3 py-2 text-sm font-medium text-ink-900 shadow-sm transition hover:bg-ink-200"
+            aria-label={t("library.addContent") ?? "Add content"}
+            className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 text-ink-900 shadow-sm transition hover:bg-ink-200 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-md sm:px-3 sm:py-2 sm:text-sm sm:font-medium"
           >
             <Plus className="h-4 w-4" />
-            {t("library.addContent")}
+            <span className="hidden sm:inline">{t("library.addContent")}</span>
           </button>
         </div>
       </div>
 
       {/* Toolbar strip — search + filters + view toggle */}
       <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/60">
-        <div className="mx-auto max-w-6xl px-8 py-2">
+        <div className="mx-auto max-w-6xl px-3 py-2 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -825,5 +827,27 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         {t("library.addContent")}
       </button>
     </div>
+  );
+}
+
+/**
+ * Mobile-specific overrides for the library shell. The global
+ * `.page-header` style is shared across pages and assumes desktop
+ * proportions (92 px height, 32 px lateral padding). On phones we
+ * compress to 56 px / 12 px so the title strip doesn't eat half the
+ * viewport above the fold. Lives inline rather than in styles.css
+ * because the paths workstream has a parallel branch touching that
+ * file — we don't want a merge conflict over a polish patch.
+ */
+function LibraryMobileStyle() {
+  return (
+    <style>{`
+      @media (max-width: 767px) {
+        .library-header-mobile { height: 56px !important; }
+        .library-header-inner-mobile { padding: 0 12px !important; }
+        .library-header-title-mobile { font-size: 1.05rem !important; line-height: 1.2; }
+        .library-header-mobile .page-header-subtitle { font-size: 10px !important; margin-top: 2px !important; }
+      }
+    `}</style>
   );
 }

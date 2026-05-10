@@ -147,12 +147,17 @@
     "chat": "Chat",
     "review": "Learning",
     "podcasts": "Podcasts",
+    "playlists": "Podcasts",
     "feeds": "Feeds",
     "paths": "Paths",
     "search": "Search",
     "settings": "Settings",
     "tags": "Tags",
-    "allCards": "All cards"
+    "allCards": "All cards",
+    "menu": "Menu",
+    "moreSections": "More sections",
+    "preferences": "Preferences",
+    "desktopBetter": "Desktop"
   },
   "tags": {
     "newTag": "New tag",

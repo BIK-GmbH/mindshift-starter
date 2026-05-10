@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import MobileDesktopHint from "../components/MobileDesktopHint";
 import { api, type PathListItem } from "../lib/api";
 import { useAuthedImage } from "../lib/useAuthedImage";
 
@@ -54,7 +53,6 @@ export default function PathsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <MobileDesktopHint reasonKey="mobileHint.paths" />
       <div className="page-header">
         <div className="page-header-inner flex items-center justify-between gap-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
