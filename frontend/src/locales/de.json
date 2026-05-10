@@ -342,9 +342,29 @@
     "selected": {
       "heading": "Ausgewählt",
       "connections": "Verbindungen",
+      "connectionsHeading": "Verbindungen",
       "noEdges": "Dieser Knoten hat noch keine Verbindungen.",
       "level": "Ebenen",
-      "allTooltip": "Alle anzeigen (kein Ausblenden)"
+      "allTooltip": "Alle anzeigen (kein Ausblenden)",
+      "matchTooltip": "Verbindungsstärke: {{percent}}%"
+    },
+    "scoreHelp": {
+      "tooltip": "Wie wird das berechnet?",
+      "title": "Wie Verbindungen bewertet werden",
+      "intro": "Mindshift kombiniert mehrere Signale zu einer Verbindungsstärke. Die Striche neben jeder Verbindung zeigen, wie stark das System die Beziehung einschätzt.",
+      "semanticTitle": "Semantische Ähnlichkeit",
+      "semanticBody": "Embeddings beider Cards werden verglichen. Cards zum gleichen Thema bekommen einen hohen Score, auch bei unterschiedlicher Wortwahl.",
+      "entityTitle": "Gemeinsame Entitäten",
+      "entityBody": "Personen, Produkte und Orte, die in beiden Cards genannt werden, erhöhen den Score.",
+      "tagTitle": "Tag-Überschneidung",
+      "tagBody": "Gleicher Tag (oder Tag im selben Eltern-Tag) bringt einen Bonus.",
+      "manualTitle": "Manuelle Verknüpfungen",
+      "manualBody": "Wenn du zwei Cards explizit verbunden hast, gewinnt das immer.",
+      "barsTitle": "Striche lesen",
+      "barsWeak": "schwach — locker verbunden",
+      "barsMedium": "mittel — klar verbunden",
+      "barsStrong": "stark — eng verbunden",
+      "tooltipNote": "Hover über eine Verbindung zeigt den exakten Prozentwert."
     },
     "filtersHeading": "Filter",
     "filterSource": "Quelle",

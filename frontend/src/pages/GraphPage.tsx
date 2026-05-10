@@ -101,6 +101,7 @@ export default function GraphPage() {
   // the render rather than just dimmed. Useful for very dense graphs
   // where dimming alone still leaves visual noise.
   const [hideOutsideLevel, setHideOutsideLevel] = useState(false);
+  const [edgeHelpOpen, setEdgeHelpOpen] = useState(false);
 
   // Path finder
   const [pathMode, setPathMode] = useState(false);
@@ -652,42 +653,70 @@ export default function GraphPage() {
                     })}
                   </p>
                 ) : (
-                  <ul className="max-h-72 space-y-1 overflow-y-auto pr-1">
-                    {selectedNodeDetail.edges.map(({ other, score, reasons }) => (
-                      <li key={other.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedNodeId(other.id);
-                            setDrawerCardId(other.id);
-                          }}
-                          className="flex w-full flex-col items-start gap-1 rounded-md px-2 py-1.5 text-left transition hover:bg-ink-800/60"
-                        >
-                          <div className="flex w-full items-center gap-1.5">
-                            <span className="text-[10px] tabular-nums font-semibold text-ink-200">
-                              {Math.round(score * 100)}%
-                            </span>
-                            <span className="flex-1 truncate text-[11px] text-ink-100">
-                              {other.title}
-                            </span>
-                          </div>
-                          {reasons.length > 0 && (
-                            <div className="flex flex-wrap gap-0.5">
-                              {reasons.map((r, i) => (
-                                <span
-                                  key={i}
-                                  className="rounded bg-ink-700/70 px-1.5 py-0.5 text-[9px] text-ink-300 ring-1 ring-ink-600"
-                                  title={`weight ${(r.weight ?? 0).toFixed(2)}`}
-                                >
-                                  {r.label}
-                                </span>
-                              ))}
+                  <>
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] uppercase tracking-wider text-ink-500">
+                        {t("graph.selected.connectionsHeading", {
+                          defaultValue: "Connections",
+                        })}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEdgeHelpOpen(true)}
+                        title={
+                          t("graph.scoreHelp.tooltip", {
+                            defaultValue: "How is this scored?",
+                          }) ?? ""
+                        }
+                        className="flex h-4 w-4 items-center justify-center rounded-full bg-ink-700/60 text-[10px] font-semibold text-ink-300 transition hover:bg-ink-600 hover:text-ink-100"
+                        aria-label={
+                          t("graph.scoreHelp.tooltip", {
+                            defaultValue: "How is this scored?",
+                          }) ?? ""
+                        }
+                      >
+                        ?
+                      </button>
+                    </div>
+                    <ul className="max-h-72 space-y-1 overflow-y-auto pr-1">
+                      {selectedNodeDetail.edges.map(({ other, score, reasons }) => (
+                        <li key={other.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedNodeId(other.id);
+                              setDrawerCardId(other.id);
+                            }}
+                            title={t("graph.selected.matchTooltip", {
+                              percent: Math.round(score * 100),
+                              defaultValue: `Match strength: ${Math.round(score * 100)}%`,
+                            }) ?? ""}
+                            className="flex w-full flex-col items-start gap-1 rounded-md px-2 py-1.5 text-left transition hover:bg-ink-800/60"
+                          >
+                            <div className="flex w-full items-center gap-2">
+                              <EdgeStrengthBar score={score} />
+                              <span className="flex-1 truncate text-[11px] text-ink-100">
+                                {other.title}
+                              </span>
                             </div>
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                            {reasons.length > 0 && (
+                              <div className="flex flex-wrap gap-0.5 pl-[18px]">
+                                {reasons.map((r, i) => (
+                                  <span
+                                    key={i}
+                                    className="rounded bg-ink-700/70 px-1.5 py-0.5 text-[9px] text-ink-300 ring-1 ring-ink-600"
+                                    title={`weight ${(r.weight ?? 0).toFixed(2)}`}
+                                  >
+                                    {r.label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
               </div>
             </SidebarSection>
@@ -1328,6 +1357,7 @@ export default function GraphPage() {
         <p className="mt-2 text-[10px] text-ink-500">{t("graph.global.hint2")}</p>
         </div>
       </div>
+      <EdgeScoreHelpModal open={edgeHelpOpen} onClose={() => setEdgeHelpOpen(false)} />
     </div>
   );
 }
@@ -1484,6 +1514,179 @@ function MultiTagPicker({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+ * EdgeStrengthBar — replaces the previous "82 %"-style score number with
+ * three vertical bars (signal-strength glyph). Score thresholds align
+ * with what users actually see in the data: most edges land 0.30–0.85.
+ *  - score < 0.30   → 1 bar  (weak)
+ *  - 0.30–0.65      → 2 bars (medium)
+ *  - ≥ 0.65         → 3 bars (strong)
+ * The exact percent stays available as a tooltip on the parent button.
+ * -------------------------------------------------------------------- */
+
+function EdgeStrengthBar({ score }: { score: number }) {
+  const filled = score >= 0.65 ? 3 : score >= 0.3 ? 2 : 1;
+  return (
+    <span
+      className="inline-flex flex-shrink-0 items-end gap-0.5"
+      style={{ width: 14, height: 12 }}
+      aria-hidden="true"
+    >
+      {[1, 2, 3].map((i) => (
+        <span
+          key={i}
+          className={[
+            "block w-[3px] rounded-[1px]",
+            i <= filled ? "bg-fuchsia-400 dark:bg-fuchsia-300" : "bg-ink-700",
+          ].join(" ")}
+          style={{ height: 4 + i * 3 }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/* ----------------------------------------------------------------------
+ * EdgeScoreHelpModal — small explanatory dialog reachable via the "?"
+ * button next to the connections list. Plain language, no formulas;
+ * the curious power user can read docs/edge-engine.md.
+ * -------------------------------------------------------------------- */
+
+function EdgeScoreHelpModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="panel-elevated w-full max-w-md rounded-xl border border-ink-700 bg-ink-900 p-5 text-sm text-ink-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <h2 className="text-base font-semibold">
+            {t("graph.scoreHelp.title", { defaultValue: "How connections are scored" })}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+            aria-label={t("common.close", { defaultValue: "Close" }) ?? ""}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="mb-3 text-xs leading-relaxed text-ink-300">
+          {t("graph.scoreHelp.intro", {
+            defaultValue:
+              "Mindshift combines several signals into a single connection strength. The bars next to each connection show how strongly the system believes two cards belong together.",
+          })}
+        </p>
+        <ul className="mb-3 space-y-2 text-xs leading-relaxed text-ink-200">
+          <li className="flex gap-2">
+            <span className="mt-0.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-fuchsia-400" />
+            <span>
+              <strong className="text-ink-100">
+                {t("graph.scoreHelp.semanticTitle", { defaultValue: "Semantic similarity" })}
+              </strong>{" "}
+              —{" "}
+              {t("graph.scoreHelp.semanticBody", {
+                defaultValue:
+                  "embeddings of both cards are compared. Cards about the same topic score high even if the wording differs.",
+              })}
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="mt-0.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-fuchsia-400" />
+            <span>
+              <strong className="text-ink-100">
+                {t("graph.scoreHelp.entityTitle", { defaultValue: "Shared entities" })}
+              </strong>{" "}
+              —{" "}
+              {t("graph.scoreHelp.entityBody", {
+                defaultValue:
+                  "people, products and places mentioned in both cards push the score up.",
+              })}
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="mt-0.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-fuchsia-400" />
+            <span>
+              <strong className="text-ink-100">
+                {t("graph.scoreHelp.tagTitle", { defaultValue: "Tag overlap" })}
+              </strong>{" "}
+              —{" "}
+              {t("graph.scoreHelp.tagBody", {
+                defaultValue:
+                  "the same tag (or a tag in the same parent group) earns a bonus.",
+              })}
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="mt-0.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-fuchsia-400" />
+            <span>
+              <strong className="text-ink-100">
+                {t("graph.scoreHelp.manualTitle", { defaultValue: "Manual relations" })}
+              </strong>{" "}
+              —{" "}
+              {t("graph.scoreHelp.manualBody", {
+                defaultValue:
+                  "if you've explicitly linked two cards, that always wins.",
+              })}
+            </span>
+          </li>
+        </ul>
+        <div className="rounded-md border border-ink-800 bg-ink-800/40 p-3 text-[11px] leading-relaxed text-ink-300">
+          <p className="mb-1.5 font-medium text-ink-200">
+            {t("graph.scoreHelp.barsTitle", { defaultValue: "Reading the bars" })}
+          </p>
+          <ul className="space-y-1">
+            <li>
+              <span className="inline-flex items-end gap-0.5 align-middle" style={{ width: 14, height: 10 }}>
+                <span className="block w-[3px] rounded-[1px] bg-fuchsia-400" style={{ height: 4 }} />
+                <span className="block w-[3px] rounded-[1px] bg-ink-700" style={{ height: 7 }} />
+                <span className="block w-[3px] rounded-[1px] bg-ink-700" style={{ height: 10 }} />
+              </span>
+              {"  "}
+              {t("graph.scoreHelp.barsWeak", { defaultValue: "weak — loosely related" })}
+            </li>
+            <li>
+              <span className="inline-flex items-end gap-0.5 align-middle" style={{ width: 14, height: 10 }}>
+                <span className="block w-[3px] rounded-[1px] bg-fuchsia-400" style={{ height: 4 }} />
+                <span className="block w-[3px] rounded-[1px] bg-fuchsia-400" style={{ height: 7 }} />
+                <span className="block w-[3px] rounded-[1px] bg-ink-700" style={{ height: 10 }} />
+              </span>
+              {"  "}
+              {t("graph.scoreHelp.barsMedium", { defaultValue: "medium — clearly related" })}
+            </li>
+            <li>
+              <span className="inline-flex items-end gap-0.5 align-middle" style={{ width: 14, height: 10 }}>
+                <span className="block w-[3px] rounded-[1px] bg-fuchsia-400" style={{ height: 4 }} />
+                <span className="block w-[3px] rounded-[1px] bg-fuchsia-400" style={{ height: 7 }} />
+                <span className="block w-[3px] rounded-[1px] bg-fuchsia-400" style={{ height: 10 }} />
+              </span>
+              {"  "}
+              {t("graph.scoreHelp.barsStrong", { defaultValue: "strong — closely related" })}
+            </li>
+          </ul>
+          <p className="mt-2 text-ink-500">
+            {t("graph.scoreHelp.tooltipNote", {
+              defaultValue: "Hover any connection to see the exact percentage.",
+            })}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

@@ -342,9 +342,29 @@
     "selected": {
       "heading": "Selected",
       "connections": "connections",
+      "connectionsHeading": "Connections",
       "noEdges": "This node has no connections yet.",
       "level": "Levels",
-      "allTooltip": "Show all (no dimming)"
+      "allTooltip": "Show all (no dimming)",
+      "matchTooltip": "Match strength: {{percent}}%"
+    },
+    "scoreHelp": {
+      "tooltip": "How is this scored?",
+      "title": "How connections are scored",
+      "intro": "Mindshift combines several signals into a single connection strength. The bars next to each connection show how strongly the system believes two cards belong together.",
+      "semanticTitle": "Semantic similarity",
+      "semanticBody": "Embeddings of both cards are compared. Cards about the same topic score high even if the wording differs.",
+      "entityTitle": "Shared entities",
+      "entityBody": "People, products and places mentioned in both cards push the score up.",
+      "tagTitle": "Tag overlap",
+      "tagBody": "The same tag (or a tag in the same parent group) earns a bonus.",
+      "manualTitle": "Manual relations",
+      "manualBody": "If you've explicitly linked two cards, that always wins.",
+      "barsTitle": "Reading the bars",
+      "barsWeak": "weak — loosely related",
+      "barsMedium": "medium — clearly related",
+      "barsStrong": "strong — closely related",
+      "tooltipNote": "Hover any connection to see the exact percentage."
     },
     "filtersHeading": "Filters",
     "filterSource": "Source",
