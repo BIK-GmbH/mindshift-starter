@@ -3,6 +3,7 @@ import {
   ChevronRight,
   Copy,
   Download,
+  ExternalLink,
   Github,
   Globe,
   Hash,
@@ -372,16 +373,32 @@ function AccountTab() {
           <p className="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-300">{profileError}</p>
         )}
 
-        <div className="flex items-center justify-end gap-2">
-          {user?.username && user?.public_profile && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* "Open profile" — visible as soon as the saved user has a
+              username AND has the profile toggled public (otherwise
+              /u/<username> returns 404). When username is set but the
+              public toggle is off, we show a small inline hint instead
+              of a dead button. */}
+          {user?.username && user.public_profile && (
             <a
               href={`/u/${user.username}`}
               target="_blank"
               rel="noreferrer"
-              className="text-[11px] text-ink-400 underline-offset-2 hover:text-ink-100 hover:underline"
+              className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-800/40 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:bg-ink-800 hover:text-ink-100"
+              title={`/u/${user.username}`}
             >
-              /u/{user.username}
+              <ExternalLink className="h-3 w-3" />
+              {t("settings.profile.viewProfile", { defaultValue: "Profil öffnen" })}
+              <span className="hidden text-ink-500 sm:inline">/u/{user.username}</span>
             </a>
+          )}
+          {user?.username && !user.public_profile && (
+            <span className="mr-auto text-[11px] text-ink-500">
+              {t("settings.profile.enablePublicHint", {
+                defaultValue:
+                  "Aktiviere „Profil öffentlich“, um deine Seite zu teilen.",
+              })}
+            </span>
           )}
           <button
             type="button"
