@@ -9,7 +9,7 @@ from app.db.session import get_db
 from app.models.feed import Feed
 from app.models.user import User
 from app.schemas.feed import FeedCreate, FeedOut, FeedRefreshResult, FeedUpdate
-from app.services.feeds import poll_feed
+from app.services.feeds import normalize_feed_url, poll_feed
 
 router = APIRouter(prefix="/feeds", tags=["feeds"])
 
@@ -32,7 +32,10 @@ def create_feed(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> FeedOut:
-    url = str(payload.feed_url)
+    # Rewrite user-pasted YouTube playlist / channel URLs to their
+    # Atom-feed counterparts so the feeds page just works without
+    # the user having to look up an obscure /feeds/videos.xml URL.
+    url = normalize_feed_url(str(payload.feed_url))
     # Reject duplicates per user — same URL twice is always a mistake.
     existing = db.execute(
         select(Feed).where(Feed.user_id == current_user.id, Feed.feed_url == url)

@@ -195,6 +195,61 @@ def _existing_card_urls(db: Session, user_id: UUID, urls: list[str]) -> set[str]
     return seen
 
 
+def normalize_feed_url(raw: str) -> str:
+    """Accept user-pasted URLs and return the canonical Atom/RSS URL.
+
+    YouTube exposes Atom feeds at
+        /feeds/videos.xml?playlist_id=<PL...>
+        /feeds/videos.xml?channel_id=<UC...>
+    but users naturally paste the browser-visible URLs:
+        /playlist?list=PL...&si=...
+        /channel/UC...
+        /@handle
+        /watch?v=...&list=PL...
+    Rewriting transparently here means the feeds page just works
+    without making the user copy-paste an obscure Atom URL.
+
+    For non-YouTube URLs the input is returned untouched — RSS-on-
+    article-sites, Substack, GitHub release feeds etc. all follow
+    feed-url conventions the user can paste as-is.
+    """
+    from urllib.parse import parse_qs, urlparse
+
+    s = (raw or "").strip()
+    if not s:
+        return s
+    try:
+        u = urlparse(s)
+    except Exception:  # noqa: BLE001
+        return s
+
+    host = (u.hostname or "").lower()
+    if host not in {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}:
+        return s
+
+    # Already an Atom feed URL — leave alone.
+    if u.path.startswith("/feeds/"):
+        return s
+
+    qs = parse_qs(u.query)
+    list_id = (qs.get("list") or [None])[0]
+    if list_id:
+        return f"https://www.youtube.com/feeds/videos.xml?playlist_id={list_id}"
+
+    # /channel/UC...
+    parts = [p for p in u.path.split("/") if p]
+    if len(parts) >= 2 and parts[0] == "channel":
+        return f"https://www.youtube.com/feeds/videos.xml?channel_id={parts[1]}"
+
+    # /@handle — YouTube doesn't expose the channel-id directly via
+    # @handle URLs; we'd need to scrape the channel page to find the
+    # UC... id. Defer that complexity — return the raw URL and let
+    # the feedparser fail with a clear message the user can react to.
+    # (A future enhancement could resolve handle→channel_id via the
+    # YouTube Data API or by fetching the HTML's `<meta itemprop`.)
+    return s
+
+
 def _classify_url(url: str) -> tuple[str, str | None]:
     """Decide which ingestion pipeline a feed entry belongs to.
 
