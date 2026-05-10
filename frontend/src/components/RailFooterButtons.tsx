@@ -10,11 +10,17 @@ import { useTheme } from "../lib/ThemeContext";
  *
  * `orientation` lets the same component render vertically inside the
  * desktop rail (default) or horizontally inside a mobile top-bar.
+ *
+ * `showSettings` controls whether the settings cog renders — turn off
+ * for public surfaces where the visitor doesn't have an account and
+ * the modal would be useless.
  */
 export default function RailFooterButtons({
   orientation = "col",
+  showSettings = true,
 }: {
   orientation?: "col" | "row";
+  showSettings?: boolean;
 }) {
   const { theme, toggleTheme } = useTheme();
   const { openModal } = useSettingsModal();
@@ -53,15 +59,17 @@ export default function RailFooterButtons({
         </span>
       </button>
 
-      <button
-        type="button"
-        onClick={openModal}
-        title={t("nav.settings")}
-        className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-400 transition hover:bg-ink-800/60 hover:text-ink-100"
-        aria-label="Open settings"
-      >
-        <SettingsIcon className="h-4 w-4" />
-      </button>
+      {showSettings && (
+        <button
+          type="button"
+          onClick={openModal}
+          title={t("nav.settings")}
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-400 transition hover:bg-ink-800/60 hover:text-ink-100"
+          aria-label="Open settings"
+        >
+          <SettingsIcon className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 }

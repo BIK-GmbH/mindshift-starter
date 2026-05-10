@@ -27,7 +27,7 @@ export default function PublicShell({ children }: { children: ReactNode }) {
           <Brain className="h-4 w-4" />
         </div>
         <div className="flex-1" />
-        <RailFooterButtons />
+        <RailFooterButtons showSettings={false} />
       </aside>
 
       <main className="flex-1 overflow-y-auto">
@@ -39,7 +39,7 @@ export default function PublicShell({ children }: { children: ReactNode }) {
           >
             <Brain className="h-4 w-4" />
           </div>
-          <RailFooterButtons orientation="row" />
+          <RailFooterButtons orientation="row" showSettings={false} />
         </div>
         {children}
       </main>

@@ -109,7 +109,7 @@ export default function PublicPathPage() {
             >
               @{path.author_username}
             </Link>
-            <RailFooterButtons orientation="row" />
+            <RailFooterButtons orientation="row" showSettings={false} />
           </div>
         </div>
       </header>

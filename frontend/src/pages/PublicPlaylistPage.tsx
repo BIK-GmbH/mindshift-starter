@@ -94,7 +94,7 @@ export default function PublicPlaylistPage() {
             >
               <ArrowLeft className="h-3 w-3" />@{username}
             </Link>
-            <RailFooterButtons orientation="row" />
+            <RailFooterButtons orientation="row" showSettings={false} />
           </div>
         </div>
       </header>

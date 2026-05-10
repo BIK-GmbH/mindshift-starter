@@ -59,7 +59,7 @@ export default function PublicCardPage() {
           <Brain className="h-4 w-4" />
         </div>
         <div className="flex-1" />
-        <RailFooterButtons />
+        <RailFooterButtons showSettings={false} />
       </aside>
 
       <main className="flex-1 overflow-y-auto">
