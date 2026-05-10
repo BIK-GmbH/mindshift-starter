@@ -42,7 +42,8 @@ Phase 2a closes this gap: **a public path becomes a real, walkable course** for 
 | Quiz questions (read + reveal) | ✅ | ✅ | ✅ |
 | YouTube embed | ✅ | ✅ | ✅ |
 | URL / GitHub preview | ✅ | ✅ | ✅ |
-| PDF reader on source media | ✅ | ✅ | ✅ |
+| "Open original" link (PDF / article — uses card.source_url) | ✅ | ✅ | ✅ |
+| Original PDF download (Action Bar) | ❌ | ❌ | ✅ |
 | Mini-player on scroll (Phase 1 sticky-on-scroll) | ✅ | ✅ | ✅ |
 | Step navigation (←/→, arrow keys, sticky bottom nav) | ✅ | ✅ | ✅ |
 | Progress bookmark (resume where left off) | ❌ no account | ✅ | ✅ |
@@ -61,6 +62,8 @@ All under `public_router` (`/api/public/paths/{username}/{slug}`):
 - `GET /cards/{card_id}/transcript` — returns the transcript shape `TranscriptOut` (text + segments + language + provider).
 - `GET /cards/{card_id}/quiz` — returns `QuizQuestion[]`.
 
+Plus a small additive change to `PublicPathOut` (response of the existing `GET /api/public/paths/{u}/{s}`): include the path's `id: UUID`. The frontend needs it to call the existing logged-in `/api/paths/{id}/progress` endpoints when a non-owner is signed in.
+
 All three handlers share a small helper `_load_public_card_in_path(db, username, slug, card_id) -> Card`:
 1. Look up user by `username` + `public_profile.is_(True)`.
 2. Look up path by `(user_id, slug, is_public.is_(True))`.
@@ -75,12 +78,10 @@ All three handlers share a small helper `_load_public_card_in_path(db, username,
 
 The frontend just needs to know the `path_id` once it has the public path's `slug` — it gets that from the `GET /public/paths/{u}/{s}` response (already returns `id`? check; if not, add it to `PublicPathOut`).
 
-### 5.3 PDF file access
-The existing `GET /api/files/{file_id}` enforces owner-only access (`file.user_id != current_user.id → 404`), so even a logged-in non-owner cannot fetch PDFs of someone else's path. Phase 2a adds:
+### 5.3 PDF file access — not needed for 2a
+`CardSourceMedia` does not render PDFs inline anywhere in the app. PDF / article / wiki cards show only an "Open original" link to `card.source_url`. The owner-only PDF blob download lives behind the Action Bar's "Download original" button — which is already absent from the player (Phase 1 cut). So Phase 2a does NOT need a public file endpoint: consumers see the same "Open original" link, and disk-uploaded PDFs (no `source_url`) are simply silent in the source-media slot for everyone except via the Action Bar (which non-owners can't reach).
 
-- `GET /api/public/paths/{username}/{slug}/cards/{card_id}/file` — streams the original blob (PDF, etc.) with the same access guard `_load_public_card_in_path` uses for the other public endpoints. Cache-Control: `public, max-age=86400`. No auth required.
-
-The frontend's `CardSourceMedia` for PDF cards in public mode points at this URL instead of the auth-protected `/api/files/{id}` route. Anonymous and logged-in non-owners use the same endpoint.
+If we later want consumers to view PDFs uploaded directly from disk, we add a public file endpoint then. Out of scope for 2a.
 
 ### 5.4 What is NOT changed in Phase 2a
 - `chat_card`: remains owner-only.
