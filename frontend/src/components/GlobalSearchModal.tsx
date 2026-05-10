@@ -4,6 +4,7 @@ import {
   Github,
   Globe,
   Loader2,
+  Play,
   Search as SearchIcon,
   Sparkles,
   X,
@@ -89,8 +90,12 @@ export default function GlobalSearchModal() {
   }, [open, closeModal]);
 
   const onPick = useCallback(
-    (cardId: string) => {
-      navigate(`/?card=${cardId}`);
+    (cardId: string, timestampSeconds?: number | null) => {
+      const params = new URLSearchParams({ card: cardId });
+      if (typeof timestampSeconds === "number") {
+        params.set("t", String(timestampSeconds));
+      }
+      navigate(`/?${params.toString()}`);
       closeModal();
     },
     [navigate, closeModal],
@@ -205,6 +210,7 @@ export default function GlobalSearchModal() {
                     hit={h}
                     active={i === activeIdx}
                     onClick={() => onPick(h.card_id)}
+                    onPickTimestamp={(secs) => onPick(h.card_id, secs)}
                   />
                 </li>
               ))}
@@ -262,18 +268,28 @@ function ResultRow({
   hit,
   active,
   onClick,
+  onPickTimestamp,
 }: {
   hit: SearchHit;
   active: boolean;
   onClick: () => void;
+  onPickTimestamp: (seconds: number) => void;
 }) {
   const Icon = SOURCE_ICONS[hit.source_type] ?? Bot;
+  const { t: tHit } = useTranslation();
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={[
-        "flex w-full items-start gap-3 px-5 py-3 text-left transition",
+        "flex w-full cursor-pointer items-start gap-3 px-5 py-3 text-left transition",
         active ? "bg-ink-700/60" : "hover:bg-ink-700/30",
       ].join(" ")}
     >
@@ -288,14 +304,43 @@ function ResultRow({
         <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-ink-500">
           <Icon className="h-3 w-3" />
           {hit.source_type}
+          {hit.chunk_type === "transcript_segment" && (
+            <span className="rounded bg-fuchsia-500/15 px-1 py-0.5 text-fuchsia-300">
+              {tHit("search.global.transcriptHit")}
+            </span>
+          )}
         </p>
         <p className="truncate text-sm font-medium text-ink-100">{hit.title}</p>
         {hit.snippet && (
           <p className="mt-0.5 line-clamp-2 text-xs text-ink-400">{hit.snippet}</p>
         )}
+        {typeof hit.timestamp_seconds === "number" && hit.youtube_video_id && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPickTimestamp(hit.timestamp_seconds!);
+            }}
+            className="mt-1 inline-flex items-center gap-1 rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[11px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-500/30 transition hover:bg-fuchsia-500/25"
+          >
+            <Play className="h-3 w-3" />
+            {formatHitTimestamp(hit.timestamp_seconds)}
+          </button>
+        )}
       </div>
-    </button>
+    </div>
   );
+}
+
+function formatHitTimestamp(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const hh = Math.floor(total / 3600);
+  const mm = Math.floor((total % 3600) / 60);
+  const ss = total % 60;
+  if (hh > 0) {
+    return `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+  }
+  return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 }
 
 function EmptyHint() {

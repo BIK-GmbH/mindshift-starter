@@ -1,6 +1,7 @@
 import { ExternalLink, Search as SearchIcon, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 
 import { SkeletonLines } from "./Section";
 import type { TranscriptOut, TranscriptSegment } from "../../lib/api";
@@ -9,7 +10,7 @@ interface TranscriptTabProps {
   /** `null` while loading, or a populated TranscriptOut. */
   transcript: TranscriptOut | null;
   /** YouTube video id when the source is a YouTube card — enables
-   *  click-a-timestamp-to-open-at-time. */
+   *  click-a-timestamp-to-jump-the-embedded-player. */
   youtubeVideoId?: string | null;
   /** Fallback open URL for non-YouTube segmented sources. */
   youtubeUrl?: string | null;
@@ -31,6 +32,7 @@ export default function TranscriptTab({
   youtubeUrl,
 }: TranscriptTabProps) {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -44,10 +46,20 @@ export default function TranscriptTab({
     return segments.filter((s) => s.text.toLowerCase().includes(q));
   }, [segments, query]);
 
-  const buildTimestampLink = (start: number): string | null => {
-    if (youtubeVideoId) {
-      return `https://www.youtube.com/watch?v=${youtubeVideoId}&t=${Math.floor(start)}s`;
-    }
+  // Click on a timestamp seeks the embedded player by writing the
+  // `?t=` URL param. CardSourceMedia reads it. Only YouTube cards
+  // support this — non-video segmented sources keep the external
+  // link as a fallback so the timestamp still does *something*.
+  const seekEmbeddedPlayer = useCallback(
+    (start: number) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("t", String(Math.floor(start)));
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const buildExternalLink = (start: number): string | null => {
     if (youtubeUrl && /youtube\.com|youtu\.be/i.test(youtubeUrl)) {
       const sep = youtubeUrl.includes("?") ? "&" : "?";
       return `${youtubeUrl}${sep}t=${Math.floor(start)}s`;
@@ -119,12 +131,23 @@ export default function TranscriptTab({
       {filteredSegments && filteredSegments.length > 0 ? (
         <ol className="space-y-1.5">
           {filteredSegments.map((seg, idx) => {
-            const link = buildTimestampLink(seg.start);
+            const externalLink = buildExternalLink(seg.start);
             return (
               <li key={`${seg.start}-${idx}`} className="flex gap-3">
-                {link ? (
+                {youtubeVideoId ? (
+                  <button
+                    type="button"
+                    onClick={() => seekEmbeddedPlayer(seg.start)}
+                    className="flex-shrink-0 font-mono text-[11px] tabular-nums text-fuchsia-400 hover:underline dark:text-fuchsia-300"
+                    title={t("card.openAtTimestamp", {
+                      defaultValue: "Jump to this timestamp",
+                    }) ?? ""}
+                  >
+                    {formatTimestamp(seg.start)}
+                  </button>
+                ) : externalLink ? (
                   <a
-                    href={link}
+                    href={externalLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-shrink-0 font-mono text-[11px] tabular-nums text-fuchsia-400 hover:underline dark:text-fuchsia-300"
