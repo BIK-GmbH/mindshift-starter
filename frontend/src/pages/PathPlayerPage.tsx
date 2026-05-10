@@ -93,9 +93,14 @@ export default function PathPlayerPage({ mode = "owner" }: PathPlayerPageProps) 
   }, [step]);
 
   const goTo = (s: number) => {
-    const next = new URLSearchParams(params);
-    next.set("step", String(Math.min(Math.max(1, s), total)));
-    setParams(next, { replace: true });
+    const clamped = Math.min(Math.max(1, s), total);
+    if (mode === "owner") {
+      const next = new URLSearchParams(params);
+      next.set("step", String(clamped));
+      setParams(next, { replace: true });
+    } else {
+      navigate(`/u/${username}/path/${slug}/play/${clamped}`, { replace: true });
+    }
   };
 
   const onBack = () => {
