@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import ChatPanel from "../components/ChatPanel";
-import MobileDesktopHint from "../components/MobileDesktopHint";
 import PageHeader from "../components/PageHeader";
 import { useDialog } from "../lib/DialogContext";
 import { api, type ChatSessionDetail, type ChatSessionItem } from "../lib/api";
@@ -133,7 +132,6 @@ export default function ChatPage() {
 
       {/* Main */}
       <div className="flex flex-1 min-w-0 flex-col">
-        <MobileDesktopHint reasonKey="mobileHint.chat" />
         <PageHeader
           icon={MessageSquare}
           tone="emerald"

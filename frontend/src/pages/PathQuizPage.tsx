@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
-import MobileDesktopHint from "../components/MobileDesktopHint";
 import { api, type PathQuiz, type PathQuizQuestion, type QuizStats } from "../lib/api";
 
 type Phase = "loading" | "ready" | "answering" | "showing-answer" | "done" | "empty";
@@ -217,7 +216,6 @@ export default function PathQuizPage({ mode = "owner" }: PathQuizPageProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <MobileDesktopHint reasonKey="mobileHint.paths" />
       {/* Header */}
       <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/60 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">

@@ -3,15 +3,6 @@
     "name": "Mindshift",
     "tagline": "Deine persönliche AI Knowledge Base"
   },
-  "mobileHint": {
-    "title": "Am besten am Desktop",
-    "graph": "Die interaktive Graph-Visualisierung braucht eine größere Fläche und Maus/Trackpad zum Navigieren.",
-    "chat": "Der volle Chat-Workspace funktioniert auf einem breiteren Bildschirm besser. Du kannst stattdessen die Karte öffnen und im Karten-Chat fragen.",
-    "review": "Das Lern-Dashboard ist auf nebeneinander liegende Panels ausgelegt.",
-    "podcasts": "Das Podcast-Studio braucht mehr Platz für Voice-Auswahl und Skript-Editor.",
-    "feeds": "Die Feed-Verwaltung lässt sich am Desktop bequemer überblicken.",
-    "paths": "Path-Editor und -Player nutzen mehr Bildschirmfläche optimal."
-  },
   "paths": {
     "title": "Paths",
     "subtitle": "Stelle aus deinen Cards geordnete Lernpfade zusammen. Teile sie unter deinem öffentlichen Profil.",

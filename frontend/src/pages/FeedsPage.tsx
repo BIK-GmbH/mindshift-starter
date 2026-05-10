@@ -2,7 +2,6 @@ import { CheckCircle2, Loader2, Plus, RefreshCw, Rss, Trash2, XCircle } from "lu
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import MobileDesktopHint from "../components/MobileDesktopHint";
 import PageHeader from "../components/PageHeader";
 import { api, type FeedOut } from "../lib/api";
 
@@ -55,7 +54,6 @@ export default function FeedsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <MobileDesktopHint reasonKey="mobileHint.feeds" />
       <PageHeader
         icon={Rss}
         tone="orange"

@@ -13,7 +13,6 @@ import {
   type SessionDetail,
 } from "../lib/api";
 import { playSound } from "../lib/sounds";
-import MobileDesktopHint from "../components/MobileDesktopHint";
 import PageHeader from "../components/PageHeader";
 
 const RATINGS: { id: ReviewRating; classes: string; hint: string }[] = [
@@ -200,7 +199,6 @@ export default function ReviewPage() {
 
       {/* Main column */}
       <div className="flex flex-1 min-w-0 flex-col">
-        <MobileDesktopHint reasonKey="mobileHint.review" />
         <PageHeader
           icon={GraduationCap}
           tone="amber"

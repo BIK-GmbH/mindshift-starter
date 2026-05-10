@@ -3,15 +3,6 @@
     "name": "Mindshift",
     "tagline": "Your personal AI knowledge base"
   },
-  "mobileHint": {
-    "title": "Best viewed on desktop",
-    "graph": "The interactive graph needs a larger canvas and mouse/trackpad to navigate.",
-    "chat": "The full chat workspace works better on a wider screen. You can open a card and ask questions in its in-card chat instead.",
-    "review": "The learning dashboard is laid out for side-by-side panels.",
-    "podcasts": "The podcast studio needs space for voice selection and script editor.",
-    "feeds": "Managing your feed subscriptions is easier with more horizontal room.",
-    "paths": "Path editor and player are designed for a wider screen."
-  },
   "paths": {
     "title": "Paths",
     "subtitle": "Curate ordered learning paths from your cards. Share them publicly under your profile.",

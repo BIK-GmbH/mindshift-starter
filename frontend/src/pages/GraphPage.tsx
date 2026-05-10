@@ -24,7 +24,6 @@ import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { useTranslation } from "react-i18next";
 
 import GraphCardDrawer from "../components/GraphCardDrawer";
-import MobileDesktopHint from "../components/MobileDesktopHint";
 import PageHeader from "../components/PageHeader";
 import {
   api,
@@ -1048,7 +1047,6 @@ export default function GraphPage() {
 
       {/* Main */}
       <div className="flex flex-1 min-w-0 flex-col">
-        <MobileDesktopHint reasonKey="mobileHint.graph" />
         <PageHeader
           icon={Network}
           tone="violet"
