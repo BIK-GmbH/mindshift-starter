@@ -170,6 +170,8 @@
     "empty": "No tags yet. Create your first one above.",
     "noMatch": "No tags match your search.",
     "mobileFooterHint": "Create, delete and reorder tags from the desktop app.",
+    "modalTitle": "Filter by tag",
+    "modalFooterHint": "Create, delete and reorder tags from the sidebar.",
     "share": {
       "needsProfile": "Set a username and enable your public profile under Settings → Account first.",
       "publishHint": "Publish this tag and every card it contains under your public profile. You can revoke at any time.",
@@ -202,7 +204,8 @@
       "oldest": "Oldest first",
       "title": "Title A–Z",
       "viewGrid": "Grid",
-      "viewList": "List"
+      "viewList": "List",
+      "tagFilter": "Filter by tag"
     },
     "stats": {
       "cards": "cards",

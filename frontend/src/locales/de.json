@@ -170,6 +170,8 @@
     "empty": "Noch keine Tags. Lege oben den ersten an.",
     "noMatch": "Keine Tags passen zur Suche.",
     "mobileFooterHint": "Tags am Desktop anlegen, löschen und sortieren.",
+    "modalTitle": "Nach Tag filtern",
+    "modalFooterHint": "Tags in der Sidebar anlegen, löschen und sortieren.",
     "share": {
       "needsProfile": "Lege zuerst einen Benutzernamen an und aktiviere dein öffentliches Profil unter Einstellungen → Account.",
       "publishHint": "Veröffentliche diesen Tag und alle enthaltenen Cards unter deinem öffentlichen Profil. Du kannst die Freigabe jederzeit zurücknehmen.",
@@ -202,7 +204,8 @@
       "oldest": "Älteste zuerst",
       "title": "Titel A–Z",
       "viewGrid": "Raster",
-      "viewList": "Liste"
+      "viewList": "Liste",
+      "tagFilter": "Nach Tag filtern"
     },
     "stats": {
       "cards": "Cards",

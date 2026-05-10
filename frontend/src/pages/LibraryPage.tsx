@@ -8,7 +8,6 @@ import {
   Hash,
   LayoutGrid,
   List as ListIcon,
-  Menu,
   MessageSquare,
   PanelRightClose,
   PanelRightOpen,
@@ -27,7 +26,7 @@ import CardDetailContent from "../components/CardDetailContent";
 import CardSourceMedia from "../components/CardSourceMedia";
 import ChatPanel from "../components/ChatPanel";
 import StatusBadge from "../components/StatusBadge";
-import TagsPickerMobile from "../components/TagsPickerMobile";
+import TagsPickerModal from "../components/TagsPickerModal";
 import TagsTree, { type TagsTreeHandle } from "../components/TagsTree";
 import { playHover, playSound } from "../lib/sounds";
 import { useSearchModal } from "../lib/SearchModalContext";
@@ -120,7 +119,7 @@ export default function LibraryPage() {
   const [chatPlayerOpen, setChatPlayerOpen] = useState(true);
   // Mobile-only: tags sidebar slides in as a drawer. Closed by default;
   // closes again whenever the URL changes so picking a tag dismisses it.
-  const [tagsDrawerOpen, setTagsDrawerOpen] = useState(false);
+  const [tagsModalOpen, setTagsModalOpen] = useState(false);
 
   const fetchCards = useCallback(async () => {
     try {
@@ -174,7 +173,7 @@ export default function LibraryPage() {
   // Auto-close the mobile tags drawer whenever the user picks a tag /
   // card / changes filters — the URL params are the source of truth.
   useEffect(() => {
-    setTagsDrawerOpen(false);
+    setTagsModalOpen(false);
   }, [tag, untaggedFilter, selectedCardId, sourceFilter]);
 
   // Refresh the card list when something elsewhere mutates server state
@@ -227,9 +226,10 @@ export default function LibraryPage() {
   if (selectedCardId) {
     return (
       <div className="flex h-full">
-        <LibraryTagsSidebar
-          mobileOpen={tagsDrawerOpen}
-          onMobileClose={() => setTagsDrawerOpen(false)}
+        <LibraryTagsSidebar />
+        <TagsPickerModal
+          open={tagsModalOpen}
+          onClose={() => setTagsModalOpen(false)}
         />
         <div className="flex flex-1 min-w-0">
           <div className="flex-1 min-w-0 overflow-hidden">
@@ -315,24 +315,16 @@ export default function LibraryPage() {
   return (
     <div className="flex h-full">
       <LibraryMobileStyle />
-      <LibraryTagsSidebar
-        mobileOpen={tagsDrawerOpen}
-        onMobileClose={() => setTagsDrawerOpen(false)}
+      <LibraryTagsSidebar />
+      <TagsPickerModal
+        open={tagsModalOpen}
+        onClose={() => setTagsModalOpen(false)}
       />
       <div className="flex flex-1 min-w-0 flex-col">
       {/* Title band — same height across pages on desktop, slimmer on mobile. */}
       <div className="page-header library-header-mobile">
         <div className="page-header-inner library-header-inner-mobile flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            {/* Hamburger toggle for the tags drawer (mobile only) */}
-            <button
-              type="button"
-              onClick={() => setTagsDrawerOpen(true)}
-              aria-label={t("nav.tags") ?? "Tags"}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100 md:hidden"
-            >
-              <Menu className="h-4 w-4" />
-            </button>
             <div className="min-w-0 flex-1">
             <h1 className="page-header-title library-header-title-mobile">{t("nav.library")}</h1>
             {counts.total > 0 && (
@@ -394,13 +386,43 @@ export default function LibraryPage() {
             <button
               type="button"
               onClick={openSearch}
-              className="inline-flex flex-1 min-w-[200px] max-w-md items-center gap-2 rounded-md border border-ink-700 bg-ink-800/60 px-3 py-1.5 text-left text-sm text-ink-500 transition hover:border-ink-500 hover:bg-ink-800/80"
+              className="inline-flex flex-1 min-w-[160px] max-w-md items-center gap-2 rounded-md border border-ink-700 bg-ink-800/60 px-3 py-1.5 text-left text-sm text-ink-500 transition hover:border-ink-500 hover:bg-ink-800/80"
             >
               <SearchIcon className="h-3.5 w-3.5 text-ink-500" />
               <span className="flex-1 truncate">{t("library.search")}</span>
               <kbd className="hidden rounded border border-ink-700 bg-ink-900/50 px-1.5 py-0.5 text-[10px] font-mono text-ink-400 sm:inline-block">
                 ⌘K
               </kbd>
+            </button>
+
+            {/* Tag-filter trigger — opens the full-screen modal on
+                mobile, centred card on desktop. We surface this on
+                every breakpoint so the desktop user can hop into
+                tag navigation without scrolling the sidebar tree.
+                The mobile pain point this solves: the previous
+                burger-into-side-drawer was too cramped. */}
+            <button
+              type="button"
+              onClick={() => setTagsModalOpen(true)}
+              aria-label={t("library.toolbar.tagFilter", {
+                defaultValue: "Filter by tag",
+              }) ?? "Filter by tag"}
+              title={t("library.toolbar.tagFilter", {
+                defaultValue: "Filter by tag",
+              }) ?? ""}
+              className={[
+                "inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition",
+                tag || untaggedFilter
+                  ? "border-ink-100 bg-ink-100 text-ink-900 hover:bg-ink-200"
+                  : "border-ink-700 bg-ink-800/60 text-ink-300 hover:border-ink-500 hover:text-ink-100",
+              ].join(" ")}
+            >
+              <Hash className="h-3.5 w-3.5" />
+              {(tag || untaggedFilter) && (
+                <span className="max-w-[120px] truncate">
+                  {untaggedFilter ? t("tags.untagged") : tag}
+                </span>
+              )}
             </button>
 
             <SelectPill
@@ -671,73 +693,38 @@ function SelectPill({
   );
 }
 
-interface LibraryTagsSidebarProps {
-  /** When true on `<md` viewports, the sidebar shows as a fixed drawer with a
-   *  backdrop. Desktop ignores this prop — the sidebar is always inline. */
-  mobileOpen?: boolean;
-  onMobileClose?: () => void;
-}
-
-function LibraryTagsSidebar({ mobileOpen = false, onMobileClose }: LibraryTagsSidebarProps) {
+/**
+ * Desktop-only tag sidebar — react-arborist tree with drag-to-reparent
+ * and inline create. Mobile users get the TagsPickerModal triggered
+ * from the toolbar's Hash button instead, because arborist plus a
+ * virtual keyboard plus a 256 px drawer is unusable.
+ */
+function LibraryTagsSidebar() {
   const { t } = useTranslation();
   const tagsTreeRef = useRef<TagsTreeHandle>(null);
   return (
-    <>
-      {/* Mobile backdrop — only rendered when the drawer is open.
-          top-12 keeps the MobileTopBar tappable so the user can still
-          navigate (drawer-vs-burger has no race). */}
-      {mobileOpen && (
+    <aside className="panel-elevated relative hidden w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60 md:flex">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
+          {t("nav.tags")}
+        </span>
         <button
           type="button"
-          aria-label="Close tags"
-          onClick={onMobileClose}
-          className="fixed inset-x-0 bottom-0 top-12 z-30 bg-black/60 md:hidden"
-        />
-      )}
-      <aside
-        className={[
-          "panel-elevated w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60",
-          // Desktop: always in flow.
-          "md:relative md:flex",
-          // Mobile: fixed overlay sliding in from the left edge. The
-          // icon rail is hidden under md (see AppLayout) so we anchor
-          // at left-0 and overlap the MobileTopBar via top-12 to keep
-          // the brand visible at the top.
-          mobileOpen ? "fixed inset-y-0 left-0 top-12 z-40 flex" : "hidden",
-        ].join(" ")}
-      >
-        {/* Header strip — same on both surfaces. The "+ New" button
-            is desktop-only because creating tags from a virtual
-            keyboard with arborist's free-form input is fragile;
-            users on mobile pick existing tags, manage them on
-            desktop. */}
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
-            {t("nav.tags")}
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              playSound("click");
-              tagsTreeRef.current?.createTag();
-            }}
-            title={t("tags.newTag") ?? ""}
-            className="hidden items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200 md:inline-flex"
-          >
-            <Plus className="h-3 w-3" />
-            {t("tags.new", { defaultValue: "New" })}
-          </button>
-        </div>
-        {/* Mobile: lightweight accordion picker (no drag, no card
-            children, 44 px tap targets). Desktop: full arborist tree. */}
-        <div className="flex flex-1 min-h-0 flex-col overflow-hidden md:hidden">
-          <TagsPickerMobile onPick={() => onMobileClose?.()} />
-        </div>
-        <div className="hidden flex-1 min-h-0 flex-col overflow-hidden py-2 md:flex">
-          <TagsTree ref={tagsTreeRef} />
-        </div>
-      </aside>
-    </>
+          onClick={() => {
+            playSound("click");
+            tagsTreeRef.current?.createTag();
+          }}
+          title={t("tags.newTag") ?? ""}
+          className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
+        >
+          <Plus className="h-3 w-3" />
+          {t("tags.new", { defaultValue: "New" })}
+        </button>
+      </div>
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden py-2">
+        <TagsTree ref={tagsTreeRef} />
+      </div>
+    </aside>
   );
 }
 
