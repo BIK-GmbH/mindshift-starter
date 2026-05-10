@@ -32,12 +32,13 @@ import CardPodcastPlayer from "./CardPodcastPlayer";
 import CardSourceMedia from "./CardSourceMedia";
 import CardTagsBar from "./CardTagsBar";
 import ChatPanel from "./ChatPanel";
-import MarkdownView, { markdownToPlainText } from "./MarkdownView";
+import { markdownToPlainText } from "./MarkdownView";
 import RichTextEditor from "./RichTextEditor";
 import ShareModal from "./ShareModal";
 import IngestionSkeleton from "./IngestionSkeleton";
 import StatusBadge from "./StatusBadge";
-import { Section, SkeletonLines } from "./cardTabs/Section";
+import { SkeletonLines } from "./cardTabs/Section";
+import SummaryTab from "./cardTabs/SummaryTab";
 import { useDialog } from "../lib/DialogContext";
 import { api, type Card, type CardTranslationOut, type QuizQuestion } from "../lib/api";
 import { emit } from "../lib/events";
@@ -457,46 +458,7 @@ export default function CardDetailContent({
           ) : (
           <div key={tab} className="tab-content-enter">
             {tab === "summary" && (
-              <div className="space-y-8 text-sm leading-relaxed">
-                {(activeTranslation?.concise_summary_md ?? card.concise_summary_md) && (
-                  <Section icon={BookOpen} label={t("card.tldr", { defaultValue: "TL;DR" })}>
-                    <p className="text-base text-ink-100/90">
-                      {activeTranslation?.concise_summary_md ?? card.concise_summary_md}
-                    </p>
-                  </Section>
-                )}
-
-                {(() => {
-                  const takeaways =
-                    activeTranslation?.key_takeaways_json ?? card.key_takeaways_json ?? [];
-                  if (takeaways.length === 0) return null;
-                  return (
-                    <Section icon={Sparkles} label={t("card.summary") + " — Key Takeaways"}>
-                      <ul className="grid gap-2 md:grid-cols-2">
-                        {takeaways.map((point, idx) => (
-                          <li
-                            key={idx}
-                            className="surface-soft group flex items-start gap-2 rounded-md border border-transparent bg-ink-800/40 p-3 text-ink-200 transition hover:bg-ink-800/70"
-                          >
-                            <span className="mt-1 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ink-400 transition group-hover:bg-ink-200" />
-                            <span>{point}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </Section>
-                  );
-                })()}
-
-                {(activeTranslation?.detailed_summary_md ?? card.detailed_summary_md) && (
-                  <Section icon={FileText} label={t("card.summary")}>
-                    <MarkdownView
-                      source={
-                        activeTranslation?.detailed_summary_md ?? card.detailed_summary_md ?? ""
-                      }
-                    />
-                  </Section>
-                )}
-              </div>
+              <SummaryTab card={card} activeTranslation={activeTranslation} />
             )}
 
             {tab === "transcript" && (
