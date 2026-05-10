@@ -10,7 +10,6 @@ import {
   EyeOff,
   FileText,
   Globe,
-  Hash,
   Loader2,
   MessageSquare,
   Network,
@@ -37,6 +36,7 @@ import ShareModal from "./ShareModal";
 import IngestionSkeleton from "./IngestionSkeleton";
 import StatusBadge from "./StatusBadge";
 import NotesTab from "./cardTabs/NotesTab";
+import QuizTab from "./cardTabs/QuizTab";
 import SummaryTab from "./cardTabs/SummaryTab";
 import TranscriptTab from "./cardTabs/TranscriptTab";
 import { useDialog } from "../lib/DialogContext";
@@ -473,23 +473,7 @@ export default function CardDetailContent({
               />
             )}
 
-            {tab === "quiz" && (
-              <div className="space-y-3">
-                {quiz.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-ink-700 p-8 text-center text-sm text-ink-400">
-                    {card.status === "completed"
-                      ? t("card.quiz.empty", {
-                          defaultValue: "No quiz questions for this card.",
-                        })
-                      : t("card.quiz.processing", {
-                          defaultValue: "Quiz will appear once the card finishes processing.",
-                        })}
-                  </p>
-                ) : (
-                  quiz.map((q, i) => <QuizCard key={q.id} index={i + 1} question={q} t={t} />)
-                )}
-              </div>
-            )}
+            {tab === "quiz" && <QuizTab quiz={quiz} cardStatus={card.status} />}
 
             {tab === "chat" && (() => {
               const hasMedia =
@@ -760,36 +744,6 @@ function MenuItem({
       <Icon className="h-3.5 w-3.5 text-ink-400" />
       {label}
     </button>
-  );
-}
-
-function QuizCard({ index, question, t }: { index: number; question: QuizQuestion; t: (k: string) => string }) {
-  const [revealed, setRevealed] = useState(false);
-  return (
-    <div className="surface-soft group rounded-lg border border-transparent bg-ink-800/50 p-4 text-sm transition">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-ink-700 text-[10px] font-semibold text-ink-200">
-          {index}
-        </span>
-        <div className="flex-1">
-          <p className="font-medium leading-snug text-ink-100">{question.question}</p>
-          {revealed ? (
-            <p className="mt-3 rounded-md bg-ink-900/60 p-3 text-ink-200 ring-1 ring-ink-700">
-              {question.answer}
-            </p>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setRevealed(true)}
-              className="mt-2 inline-flex items-center gap-1.5 text-xs text-ink-300 transition hover:text-ink-100"
-            >
-              <Hash className="h-3 w-3" />
-              {t("card.reveal")}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 
