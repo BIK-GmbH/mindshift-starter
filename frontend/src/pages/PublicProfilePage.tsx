@@ -1,4 +1,4 @@
-import { FileText, Github, Globe, Hash, Loader2, Sparkles, Youtube, type LucideIcon } from "lucide-react";
+import { FileText, Github, Globe, Hash, Headphones, Loader2, Sparkles, Youtube, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
@@ -127,6 +127,56 @@ export default function PublicProfilePage() {
                   )}
                 </div>
               </header>
+
+              {profile.playlists.length > 0 && (
+                <section className="mb-8">
+                  <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+                    {t("podcastPage.playlists", { defaultValue: "Podcast playlists" })}
+                  </h2>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {profile.playlists.map((pl) => (
+                      <Link
+                        key={pl.id}
+                        to={`/u/${profile.username}/podcasts/${pl.id}`}
+                        className="card-hover group flex gap-3 rounded-xl border border-ink-800 bg-ink-800/40 p-3 transition hover:border-sky-500/40"
+                      >
+                        {pl.cover_url ? (
+                          <img
+                            src={pl.cover_url}
+                            alt=""
+                            className="h-16 w-16 flex-shrink-0 rounded-md object-cover ring-1 ring-ink-700"
+                          />
+                        ) : (
+                          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-md bg-sky-500/10 ring-1 ring-sky-500/30">
+                            <Headphones className="h-5 w-5 text-sky-300" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-ink-100 group-hover:text-ink-50">
+                            {pl.name}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-ink-400">
+                            {pl.episode_count}{" "}
+                            {t("podcastPage.episodes", {
+                              count: pl.episode_count,
+                              defaultValue: "episodes",
+                            })}
+                            {" · "}
+                            {pl.card_count}{" "}
+                            {t("podcastPage.cards", {
+                              count: pl.card_count,
+                              defaultValue: "cards",
+                            })}
+                          </p>
+                          {pl.description && (
+                            <p className="mt-1 line-clamp-2 text-xs text-ink-300">{pl.description}</p>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {profile.paths.length > 0 && (
                 <section className="mb-8">

@@ -139,6 +139,7 @@ def list_playlists(
             created_at=p.created_at,
             card_count=_card_count(db, p.id),
             has_draft=bool(p.draft_narrative_text),
+            is_public=p.is_public,
         )
         for p in rows
     ]
@@ -163,6 +164,7 @@ def create_playlist(
         created_at=pl.created_at,
         card_count=0,
         has_draft=False,
+        is_public=pl.is_public,
     )
 
 
@@ -201,6 +203,7 @@ def get_playlist(
         created_at=pl.created_at,
         card_count=len(cards),
         has_draft=bool(pl.draft_narrative_text),
+        is_public=pl.is_public,
         cards=cards,
         episodes=[_episode_to_out(e) for e in eps],
         draft_title=pl.draft_title,
@@ -227,6 +230,8 @@ def update_playlist(
         pl.draft_narrative_text = payload.draft_narrative_text or None
     if payload.draft_target_minutes is not None:
         pl.draft_target_minutes = payload.draft_target_minutes
+    if payload.is_public is not None:
+        pl.is_public = payload.is_public
     db.commit()
     db.refresh(pl)
     return PlaylistOut(
@@ -236,6 +241,7 @@ def update_playlist(
         created_at=pl.created_at,
         card_count=_card_count(db, pl.id),
         has_draft=bool(pl.draft_narrative_text),
+        is_public=pl.is_public,
     )
 
 
@@ -841,6 +847,7 @@ def create_playlist_from_tag(
         created_at=pl.created_at,
         card_count=len(cards),
         has_draft=False,
+        is_public=pl.is_public,
     )
 
 

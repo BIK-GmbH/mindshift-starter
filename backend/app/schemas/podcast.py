@@ -15,6 +15,7 @@ class PlaylistUpdate(BaseModel):
     draft_title: str | None = None
     draft_narrative_text: str | None = None
     draft_target_minutes: int | None = None
+    is_public: bool | None = None
 
 
 class PlaylistCardOut(BaseModel):
@@ -46,6 +47,7 @@ class PlaylistOut(BaseModel):
     created_at: datetime
     card_count: int
     has_draft: bool = False
+    is_public: bool = False
 
 
 class PlaylistDetail(PlaylistOut):

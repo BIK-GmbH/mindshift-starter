@@ -508,12 +508,17 @@ export const api = {
       draft_title?: string | null;
       draft_narrative_text?: string | null;
       draft_target_minutes?: number | null;
+      is_public?: boolean;
     },
   ) =>
     request<PodcastPlaylistOut>(`/api/podcasts/playlists/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+  getPublicPlaylist: (username: string, playlistId: string) =>
+    request<PublicPlaylistDetail>(
+      `/api/public/users/${encodeURIComponent(username)}/podcasts/${playlistId}`,
+    ),
   deletePlaylist: (id: string) =>
     request<void>(`/api/podcasts/playlists/${id}`, { method: "DELETE" }),
   addPlaylistCard: (id: string, cardId: string) =>
@@ -1122,6 +1127,15 @@ export interface PublicProfilePathOut {
   card_count: number;
 }
 
+export interface PublicProfilePlaylistOut {
+  id: string;
+  name: string;
+  description: string | null;
+  card_count: number;
+  episode_count: number;
+  cover_url: string | null;
+}
+
 export interface PublicProfileOut {
   username: string;
   display_name: string | null;
@@ -1129,6 +1143,26 @@ export interface PublicProfileOut {
   avatar_file_id: string | null;
   tags: PublicProfileTagOut[];
   paths: PublicProfilePathOut[];
+  playlists: PublicProfilePlaylistOut[];
+}
+
+export interface PublicEpisodeBrief {
+  id: string;
+  title: string;
+  voice: string;
+  audio_url: string;
+  cover_url: string | null;
+  narrative_text: string;
+  created_at: string;
+}
+
+export interface PublicPlaylistDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  author_username: string;
+  author_display_name: string | null;
+  episodes: PublicEpisodeBrief[];
 }
 
 export interface PublicCardSummary {
@@ -1217,6 +1251,7 @@ export interface PodcastPlaylistOut {
   created_at: string;
   card_count: number;
   has_draft: boolean;
+  is_public: boolean;
 }
 
 export interface PodcastEpisodeOut {

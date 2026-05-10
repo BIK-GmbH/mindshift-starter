@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -50,6 +51,7 @@ class PublicProfileOut(BaseModel):
     avatar_file_id: UUID | None = None
     tags: list["PublicProfileTagOut"] = Field(default_factory=list)
     paths: list["PublicProfilePathOut"] = Field(default_factory=list)
+    playlists: list["PublicProfilePlaylistOut"] = Field(default_factory=list)
 
 
 class PublicProfileTagOut(BaseModel):
@@ -67,6 +69,41 @@ class PublicProfilePathOut(BaseModel):
     description_md: str | None = None
     cover_url: str | None = None
     card_count: int
+
+
+class PublicProfilePlaylistOut(BaseModel):
+    """Public podcast playlist summary as listed on a user's profile."""
+
+    id: UUID
+    name: str
+    description: str | None = None
+    card_count: int
+    episode_count: int
+    cover_url: str | None = None  # latest episode's cover, when available
+
+
+class PublicEpisodeBrief(BaseModel):
+    """Episode summary for the public playlist page — just enough to
+    render a player card without exposing private file ids."""
+
+    id: UUID
+    title: str
+    voice: str
+    audio_url: str
+    cover_url: str | None = None
+    narrative_text: str
+    created_at: datetime
+
+
+class PublicPlaylistDetail(BaseModel):
+    """Public playlist with its `ready` episodes."""
+
+    id: UUID
+    name: str
+    description: str | None = None
+    author_username: str
+    author_display_name: str | None = None
+    episodes: list[PublicEpisodeBrief] = Field(default_factory=list)
 
 
 class PublicTagDetail(BaseModel):

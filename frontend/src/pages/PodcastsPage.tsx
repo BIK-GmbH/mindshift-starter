@@ -6,11 +6,13 @@ import {
   Copy,
   Disc3,
   ExternalLink,
+  Globe,
   Hash,
   Headphones,
   Image as ImageIcon,
   Link2,
   Loader2,
+  Lock,
   Plus,
   RefreshCw,
   Share2,
@@ -25,6 +27,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import PageHeader from "../components/PageHeader";
 import RichTextEditor from "../components/RichTextEditor";
+import { useAuth } from "../lib/AuthContext";
 import { useDialog } from "../lib/DialogContext";
 import {
   api,
@@ -694,6 +697,11 @@ function PlaylistDetailView({
           </p>
         )}
       </section>
+
+      {/* Visibility — mirrors PathEditPage. Toggle controls public_profile
+          page surfacing + makes audio/cover endpoints reachable without
+          auth. */}
+      <PlaylistVisibilitySection detail={detail} onChange={onChange} onError={onError} />
 
       {/* Cards */}
       <section>
@@ -1797,5 +1805,125 @@ function TagToPlaylistModal({
       </div>
     </div>,
     document.body,
+  );
+}
+
+/* ----------------------------------------------------------------------
+ * Visibility toggle for a playlist — public on/off + a copy-share URL
+ * when public. Same shape as PathEditPage's Visibility section.
+ * -------------------------------------------------------------------- */
+function PlaylistVisibilitySection({
+  detail,
+  onChange,
+  onError,
+}: {
+  detail: PodcastPlaylistDetail;
+  onChange: (d: PodcastPlaylistDetail) => void;
+  onError: (msg: string) => void;
+}) {
+  const { t } = useTranslation();
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const publicUrl =
+    detail.is_public && user?.username
+      ? `${window.location.origin}/u/${user.username}/podcasts/${detail.id}`
+      : null;
+
+  const toggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const next = await api.updatePlaylist(detail.id, {
+        is_public: !detail.is_public,
+      });
+      onChange({ ...detail, is_public: next.is_public });
+    } catch (err) {
+      onError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-ink-800 bg-ink-800/30 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-300">
+            {t("paths.visibility", { defaultValue: "Visibility" })}
+          </h2>
+          <p className="text-[11px] leading-relaxed text-ink-400">
+            {detail.is_public
+              ? t("podcastPage.publicHint", {
+                  defaultValue:
+                    "Anyone with the link can stream this playlist's episodes — they appear under your public profile.",
+                })
+              : t("podcastPage.privateHint", {
+                  defaultValue: "Only you can see this playlist. Toggle public to share it.",
+                })}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void toggle()}
+          disabled={busy}
+          className={[
+            "inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition disabled:opacity-50",
+            detail.is_public
+              ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25"
+              : "border border-ink-700 text-ink-300 hover:bg-ink-800",
+          ].join(" ")}
+        >
+          {detail.is_public ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+          {detail.is_public
+            ? t("paths.publicPill", { defaultValue: "Public" })
+            : t("paths.privatePill", { defaultValue: "Private" })}
+        </button>
+      </div>
+      {publicUrl && (
+        <div className="mt-3 flex items-center gap-1">
+          <input
+            readOnly
+            value={publicUrl}
+            className="flex-1 rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1 font-mono text-[10px] text-ink-200"
+          />
+          <button
+            type="button"
+            title={t("tags.share.copy") ?? ""}
+            onClick={async () => {
+              await navigator.clipboard.writeText(publicUrl);
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1500);
+            }}
+            className={[
+              "flex h-7 w-7 items-center justify-center rounded-md border transition",
+              copied
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                : "border-ink-700 text-ink-300 hover:bg-ink-800",
+            ].join(" ")}
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          </button>
+          <a
+            href={publicUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800"
+            title={t("tags.share.open") ?? ""}
+          >
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      )}
+      {detail.is_public && !user?.public_profile && (
+        <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[11px] text-amber-200">
+          {t("podcastPage.profilePrivateWarning", {
+            defaultValue:
+              "Dein Profil ist privat — aktiviere „Profil öffentlich“ in den Einstellungen, damit der Link funktioniert.",
+          })}
+        </p>
+      )}
+    </section>
   );
 }

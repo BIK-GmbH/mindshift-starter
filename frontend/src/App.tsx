@@ -17,6 +17,7 @@ import LibraryPage from "./pages/LibraryPage";
 import PodcastsPage from "./pages/PodcastsPage";
 import PublicCardPage from "./pages/PublicCardPage";
 import PublicEpisodePage from "./pages/PublicEpisodePage";
+import PublicPlaylistPage from "./pages/PublicPlaylistPage";
 import PublicProfilePage from "./pages/PublicProfilePage";
 import PublicTagPage from "./pages/PublicTagPage";
 import ReviewPage from "./pages/ReviewPage";
@@ -62,6 +63,7 @@ function RootRoutes() {
           path="u/:username/path/:slug/quiz"
           element={<PathQuizPage mode="public" />}
         />
+        <Route path="u/:username/podcasts/:playlistId" element={<PublicPlaylistPage />} />
         <Route path="u/:username/*" element={<PublicTagPage />} />
       </Routes>
     );
@@ -82,6 +84,7 @@ function RootRoutes() {
       <Route path="embed/cards/:cardId" element={<EmbedCardPage />} />
       <Route path="share/:token" element={<PublicCardPage />} />
       <Route path="u/:username" element={<PublicProfilePage />} />
+      <Route path="u/:username/podcasts/:playlistId" element={<PublicPlaylistPage />} />
       <Route path="u/:username/*" element={<PublicTagPage />} />
       <Route element={<AppLayout />}>
         <Route index element={<LibraryPage />} />

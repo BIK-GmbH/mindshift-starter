@@ -34,13 +34,17 @@ from app.db.session import get_db
 from app.models.card import Card
 from app.models.file import File
 from app.models.path import Path, PathCard
+from app.models.podcast import PodcastEpisode, PodcastPlaylist, PodcastPlaylistCard
 from app.models.reaction import CardReaction
 from app.models.tag import CardTag, Tag
 from app.models.user import User
 from app.schemas.auth import (
     PublicCardSummary,
+    PublicEpisodeBrief,
+    PublicPlaylistDetail,
     PublicProfileOut,
     PublicProfilePathOut,
+    PublicProfilePlaylistOut,
     PublicProfileTagOut,
     PublicTagDetail,
 )
@@ -138,6 +142,44 @@ def get_public_profile(
             )
         )
 
+    # Public podcast playlists. cover_url comes from the latest episode
+    # with a cover (if any) — we don't store a cover on the playlist
+    # itself, so this gives the visitor something to look at on the tile.
+    playlist_rows = db.execute(
+        select(PodcastPlaylist)
+        .where(PodcastPlaylist.user_id == user.id, PodcastPlaylist.is_public.is_(True))
+        .order_by(PodcastPlaylist.created_at.desc())
+    ).scalars().all()
+    out_playlists: list[PublicProfilePlaylistOut] = []
+    for pl in playlist_rows:
+        card_count = db.execute(
+            select(func.count(PodcastPlaylistCard.card_id))
+            .where(PodcastPlaylistCard.playlist_id == pl.id)
+        ).scalar_one()
+        ready_eps = db.execute(
+            select(PodcastEpisode)
+            .where(
+                PodcastEpisode.playlist_id == pl.id,
+                PodcastEpisode.status == "ready",
+            )
+            .order_by(PodcastEpisode.created_at.desc())
+        ).scalars().all()
+        cover = (
+            f"/api/public/users/{user.username}/podcasts/{pl.id}/episodes/{ready_eps[0].id}/cover.png"
+            if ready_eps and ready_eps[0].cover_file_id
+            else None
+        )
+        out_playlists.append(
+            PublicProfilePlaylistOut(
+                id=pl.id,
+                name=pl.name,
+                description=pl.description,
+                card_count=int(card_count or 0),
+                episode_count=len(ready_eps),
+                cover_url=cover,
+            )
+        )
+
     if not public_tags:
         return PublicProfileOut(
             username=user.username or "",
@@ -146,6 +188,7 @@ def get_public_profile(
             avatar_file_id=user.avatar_file_id,
             tags=[],
             paths=out_paths,
+            playlists=out_playlists,
         )
 
     # Card counts per public tag tree.
@@ -176,6 +219,7 @@ def get_public_profile(
         avatar_file_id=user.avatar_file_id,
         tags=out_tags,
         paths=out_paths,
+        playlists=out_playlists,
     )
 
 
@@ -521,4 +565,114 @@ def get_public_avatar(file_id: UUID, db: Session = Depends(get_db)) -> Response:
         content=blob,
         media_type=file.content_type or "application/octet-stream",
         headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+# --- Public podcast playlists -----------------------------------------------
+
+
+def _load_public_playlist(
+    db: Session, username: str, playlist_id: UUID
+) -> tuple[User, PodcastPlaylist]:
+    user = _load_public_user(db, username)
+    pl = db.get(PodcastPlaylist, playlist_id)
+    if pl is None or pl.user_id != user.id or not pl.is_public:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+    return user, pl
+
+
+@router.get("/users/{username}/podcasts/{playlist_id}", response_model=PublicPlaylistDetail)
+def get_public_playlist(
+    username: str,
+    playlist_id: UUID,
+    db: Session = Depends(get_db),
+) -> PublicPlaylistDetail:
+    user, pl = _load_public_playlist(db, username, playlist_id)
+    eps = db.execute(
+        select(PodcastEpisode)
+        .where(
+            PodcastEpisode.playlist_id == pl.id,
+            PodcastEpisode.status == "ready",
+        )
+        .order_by(PodcastEpisode.created_at.desc())
+    ).scalars().all()
+    base = f"/api/public/users/{username}/podcasts/{pl.id}/episodes"
+    return PublicPlaylistDetail(
+        id=pl.id,
+        name=pl.name,
+        description=pl.description,
+        author_username=user.username or "",
+        author_display_name=user.display_name,
+        episodes=[
+            PublicEpisodeBrief(
+                id=ep.id,
+                title=ep.title,
+                voice=ep.voice,
+                audio_url=f"{base}/{ep.id}/audio.wav",
+                cover_url=f"{base}/{ep.id}/cover.png" if ep.cover_file_id else None,
+                narrative_text=ep.narrative_text,
+                created_at=ep.created_at,
+            )
+            for ep in eps
+        ],
+    )
+
+
+def _load_public_episode(
+    db: Session, username: str, playlist_id: UUID, episode_id: UUID
+) -> PodcastEpisode:
+    _, pl = _load_public_playlist(db, username, playlist_id)
+    ep = db.get(PodcastEpisode, episode_id)
+    if ep is None or ep.playlist_id != pl.id or ep.status != "ready":
+        raise HTTPException(status_code=404, detail="Episode not found")
+    return ep
+
+
+@router.get("/users/{username}/podcasts/{playlist_id}/episodes/{episode_id}/audio.wav")
+def get_public_playlist_episode_audio(
+    username: str,
+    playlist_id: UUID,
+    episode_id: UUID,
+    db: Session = Depends(get_db),
+) -> Response:
+    ep = _load_public_episode(db, username, playlist_id, episode_id)
+    if ep.audio_file_id is None:
+        raise HTTPException(status_code=404, detail="No audio")
+    file = db.get(File, ep.audio_file_id)
+    if file is None:
+        raise HTTPException(status_code=404, detail="Audio file missing")
+    blob = get_storage().read(file)
+    return Response(
+        content=blob,
+        media_type="audio/wav",
+        headers={
+            "Content-Disposition": "inline",
+            "Content-Length": str(len(blob)),
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
+
+
+@router.get("/users/{username}/podcasts/{playlist_id}/episodes/{episode_id}/cover.png")
+def get_public_playlist_episode_cover(
+    username: str,
+    playlist_id: UUID,
+    episode_id: UUID,
+    db: Session = Depends(get_db),
+) -> Response:
+    ep = _load_public_episode(db, username, playlist_id, episode_id)
+    if ep.cover_file_id is None:
+        raise HTTPException(status_code=404, detail="No cover")
+    file = db.get(File, ep.cover_file_id)
+    if file is None:
+        raise HTTPException(status_code=404, detail="Cover file missing")
+    blob = get_storage().read(file)
+    return Response(
+        content=blob,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": "inline",
+            "Content-Length": str(len(blob)),
+            "Cache-Control": "public, max-age=86400",
+        },
     )
