@@ -1,5 +1,6 @@
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   Check,
   Copy,
@@ -9,7 +10,6 @@ import {
   Headphones,
   Image as ImageIcon,
   Link2,
-  ListMusic,
   Loader2,
   Plus,
   RefreshCw,
@@ -21,7 +21,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import PageHeader from "../components/PageHeader";
 import RichTextEditor from "../components/RichTextEditor";
@@ -39,57 +39,235 @@ import { playSound } from "../lib/sounds";
 const VOICES = ["Kore", "Puck", "Enceladus", "Charon", "Fenrir"];
 
 export default function PodcastsPage() {
+  // Two modes share this component, mirroring the Paths page:
+  //   /podcasts              → list of all playlists (tile grid)
+  //   /podcasts/:playlistId  → that playlist's editor + episodes
+  // The detail-side keeps its own data fetch + polling; the list side
+  // only needs the lightweight summaries.
+  const { playlistId } = useParams<{ playlistId: string }>();
+  return playlistId ? (
+    <PodcastDetailScreen playlistId={playlistId} />
+  ) : (
+    <PodcastListScreen />
+  );
+}
+
+/* ----------------------------------------------------------------------
+ * List screen — tile grid of every playlist + Plus/Hash actions.
+ * -------------------------------------------------------------------- */
+function PodcastListScreen() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [playlists, setPlaylists] = useState<PodcastPlaylistOut[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<PodcastPlaylistDetail | null>(null);
+  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Mobile-only: the playlist sidebar slides in as a drawer. Closed by
-  // default; opens via the header action button on <md screens.
-  const [playlistDrawerOpen, setPlaylistDrawerOpen] = useState(false);
 
-  const refreshPlaylists = useCallback(async () => {
+  const fetchPlaylists = useCallback(async () => {
     try {
       const list = await api.listPlaylists();
       setPlaylists(list);
-      if (!activeId && list.length > 0) setActiveId(list[0].id);
+      setError(null);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setLoading(false);
     }
-  }, [activeId]);
+  }, []);
 
   useEffect(() => {
-    void refreshPlaylists();
-  }, [refreshPlaylists]);
+    void fetchPlaylists();
+  }, [fetchPlaylists]);
 
-  // Initial load when the user picks a different playlist.
-  useEffect(() => {
-    if (!activeId) {
-      setDetail(null);
-      return;
+  const create = async () => {
+    setCreating(true);
+    setError(null);
+    try {
+      const pl = await api.createPlaylist(
+        t("podcastPage.untitled", { defaultValue: "Untitled playlist" }) ?? "Untitled playlist",
+      );
+      navigate(`/podcasts/${pl.id}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCreating(false);
     }
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <PageHeader
+        icon={Headphones}
+        tone="sky"
+        title={t("nav.podcasts")}
+        subtitle={t("podcastPage.subtitle", {
+          defaultValue: "Build playlists, generate narrated episodes with cover art.",
+        })}
+        action={
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                playSound("click");
+                setTagPickerOpen(true);
+              }}
+              aria-label={t("podcastPage.fromTagTitle", { defaultValue: "Create playlist from a tag" }) ?? "From tag"}
+              title={t("podcastPage.fromTagTitle", { defaultValue: "Create playlist from a tag" }) ?? ""}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-ink-700 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100 sm:h-auto sm:w-auto sm:gap-1.5 sm:rounded-md sm:px-3 sm:py-1.5 sm:text-xs sm:font-medium"
+            >
+              <Hash className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">
+                {t("podcastPage.fromTag", { defaultValue: "From tag" })}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void create()}
+              disabled={creating}
+              aria-label={t("podcastPage.newPlaylist", { defaultValue: "New playlist" }) ?? "New playlist"}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-ink-100 text-ink-900 transition hover:bg-ink-200 disabled:opacity-50 sm:h-auto sm:w-auto sm:gap-1.5 sm:rounded-md sm:px-3 sm:py-1.5 sm:text-xs sm:font-semibold"
+            >
+              {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">
+                {t("podcastPage.newPlaylist", { defaultValue: "New playlist" })}
+              </span>
+            </button>
+          </div>
+        }
+      />
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-5xl px-6 pb-16 pt-6">
+          {error && (
+            <p className="mb-3 rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>
+          )}
+          {loading ? (
+            <div className="flex items-center gap-2 text-xs text-ink-400">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t("common.loading")}
+            </div>
+          ) : playlists.length === 0 ? (
+            <ListEmptyState />
+          ) : (
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {playlists.map((p) => (
+                <li key={p.id}>
+                  <PlaylistTile playlist={p} onOpen={() => navigate(`/podcasts/${p.id}`)} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {tagPickerOpen && (
+        <TagToPlaylistModal
+          onClose={() => setTagPickerOpen(false)}
+          onCreated={(pl) => {
+            setTagPickerOpen(false);
+            navigate(`/podcasts/${pl.id}`);
+          }}
+          onError={setError}
+        />
+      )}
+    </div>
+  );
+}
+
+function PlaylistTile({
+  playlist,
+  onOpen,
+}: {
+  playlist: PodcastPlaylistOut;
+  onOpen: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group flex h-full w-full flex-col overflow-hidden rounded-xl border border-ink-800 bg-ink-800/30 text-left transition hover:border-sky-500/40 hover:bg-ink-800/50"
+    >
+      <div className="flex aspect-[16/8] w-full items-center justify-center bg-gradient-to-br from-sky-500/20 via-ink-800/40 to-ink-900/40">
+        <Disc3 className="h-10 w-10 text-sky-300/60 transition group-hover:text-sky-300" />
+      </div>
+      <div className="flex flex-1 flex-col p-3">
+        <div className="mb-1 flex items-center gap-2">
+          {playlist.has_draft && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30">
+              {t("podcastPage.hasDraft", { defaultValue: "Draft" })}
+            </span>
+          )}
+        </div>
+        <h3 className="mb-1 line-clamp-2 text-sm font-semibold text-ink-100 group-hover:text-sky-300">
+          {playlist.name}
+        </h3>
+        {playlist.description && (
+          <p className="line-clamp-2 text-[11px] text-ink-400">{playlist.description}</p>
+        )}
+        <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-[10px] uppercase tracking-wider text-ink-500">
+          <span>
+            {playlist.card_count}{" "}
+            {t("podcastPage.cards", { defaultValue: "cards", count: playlist.card_count })}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function ListEmptyState() {
+  const { t } = useTranslation();
+  return (
+    <div className="rounded-md border border-dashed border-ink-700 bg-ink-800/30 px-6 py-12 text-center">
+      <Disc3 className="mx-auto mb-3 h-8 w-8 text-ink-600" />
+      <p className="mb-2 text-sm text-ink-200">
+        {t("podcastPage.empty.title", { defaultValue: "No playlists yet" })}
+      </p>
+      <p className="text-xs text-ink-400">
+        {t("podcastPage.empty.body", {
+          defaultValue: "Erstelle deine erste Playlist über das Plus-Symbol oben rechts.",
+        })}
+      </p>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+ * Detail screen — single playlist editor + episode list.
+ * -------------------------------------------------------------------- */
+function PodcastDetailScreen({ playlistId }: { playlistId: string }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [detail, setDetail] = useState<PodcastPlaylistDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     void api
-      .getPlaylist(activeId)
+      .getPlaylist(playlistId)
       .then((d) => {
-        if (!cancelled) setDetail(d);
+        if (!cancelled) {
+          setDetail(d);
+          setError(null);
+        }
       })
-      .catch(() => {
-        /* ignore — next user action will refetch */
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [activeId]);
+  }, [playlistId]);
 
-  // Polling: re-runs whenever the set of processing episodes changes.
-  // Critical: when the user clicks "Produce", the optimistic refresh in
-  // produce() sets a detail with a processing episode → this effect
-  // re-fires and starts a 4 s tick. Previous bug: polling was tied to
-  // activeId only, so it never re-armed after produce().
+  // Same per-detail polling logic as before: re-run when the set of
+  // processing episode ids changes.
   const processingKey =
     detail?.episodes
       .filter((e) => e.status === "processing")
@@ -114,317 +292,50 @@ export default function PodcastsPage() {
     };
   }, [processingKey, detail?.id]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // (detail is referenced indirectly via detail?.id; full detail in
-  //  deps would re-run on unrelated state changes.)
-
-  const submitCreate = async () => {
-    const name = newName.trim();
-    if (!name) {
-      setCreating(false);
-      return;
-    }
-    try {
-      const pl = await api.createPlaylist(name);
-      setPlaylists((prev) => [pl, ...prev]);
-      setActiveId(pl.id);
-      setCreating(false);
-      setNewName("");
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  };
-
-  const onPlaylistDeleted = (id: string) => {
-    setPlaylists((prev) => prev.filter((p) => p.id !== id));
-    if (activeId === id) setActiveId(null);
-  };
-
-  // When the user picks a playlist on mobile, close the drawer so the
-  // detail view becomes visible. On desktop the sidebar is always shown
-  // so this is a no-op.
-  const handlePickPlaylist = (id: string) => {
-    setActiveId(id);
-    setPlaylistDrawerOpen(false);
-  };
-
-  const handleInlineCreate = async () => {
-    await submitCreate();
-    setPlaylistDrawerOpen(false);
-  };
 
   return (
-    <div className="flex h-full">
-      <PlaylistSidebar
-        playlists={playlists}
-        activeId={activeId}
-        onPick={handlePickPlaylist}
-        creating={creating}
-        newName={newName}
-        setNewName={setNewName}
-        onStartCreate={() => {
-          playSound("click");
-          setCreating(true);
-        }}
-        onSubmitCreate={handleInlineCreate}
-        onCancelCreate={() => {
-          setCreating(false);
-          setNewName("");
-        }}
-        onFromTag={() => {
-          playSound("click");
-          setTagPickerOpen(true);
-        }}
-        mobileOpen={playlistDrawerOpen}
-        onMobileClose={() => setPlaylistDrawerOpen(false)}
+    <div className="flex h-full flex-col">
+      <PageHeader
+        icon={Headphones}
+        tone="sky"
+        title={detail?.name ?? t("nav.podcasts")}
+        subtitle={
+          detail
+            ? `${detail.card_count} ${t("podcastPage.cards", { defaultValue: "cards", count: detail.card_count })}`
+            : undefined
+        }
+        action={
+          <button
+            type="button"
+            onClick={() => navigate("/podcasts")}
+            aria-label={t("common.back", { defaultValue: "Back" }) ?? "Back"}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+            title={t("podcastPage.backToList", { defaultValue: "Back to playlists" }) ?? ""}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        }
       />
-      {tagPickerOpen && (
-        <TagToPlaylistModal
-          onClose={() => setTagPickerOpen(false)}
-          onCreated={(pl) => {
-            setPlaylists((prev) => [pl, ...prev]);
-            setActiveId(pl.id);
-            setTagPickerOpen(false);
-            setPlaylistDrawerOpen(false);
-          }}
-          onError={setError}
-        />
-      )}
 
-      <div className="flex flex-1 min-w-0 flex-col">
-        <PageHeader
-          icon={Headphones}
-          tone="sky"
-          title={t("nav.podcasts")}
-          subtitle={t("podcastPage.subtitle", {
-            defaultValue: "Build playlists, generate narrated episodes with cover art.",
-          })}
-          action={
-            // Mobile-only: opens the playlist drawer (which carries the
-            // New + From-tag create buttons). Desktop has the sidebar
-            // always visible so the trigger is hidden on md+.
-            <button
-              type="button"
-              onClick={() => {
-                playSound("click");
-                setPlaylistDrawerOpen(true);
-              }}
-              aria-label={t("podcastPage.openPlaylists", { defaultValue: "Playlists öffnen" }) ?? "Playlists"}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-sky-500/15 text-sky-200 ring-1 ring-sky-500/30 transition active:bg-sky-500/25 hover:bg-sky-500/25 md:hidden"
-            >
-              <ListMusic className="h-4 w-4" />
-            </button>
-          }
-        />
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-4xl px-8 pb-12 pt-6">
-            {error && (
-              <p className="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
-                {error}
-              </p>
-            )}
-            {detail ? (
-              <PlaylistDetailView
-                detail={detail}
-                onChange={(d) => {
-                  setDetail(d);
-                  // Keep the sidebar entry's name/description/counters in
-                  // sync without a refetch.
-                  setPlaylists((prev) =>
-                    prev.map((p) =>
-                      p.id === d.id
-                        ? {
-                            ...p,
-                            name: d.name,
-                            description: d.description,
-                            card_count: d.card_count,
-                            has_draft: d.has_draft,
-                          }
-                        : p,
-                    ),
-                  );
-                }}
-                onDeleted={onPlaylistDeleted}
-                onError={setError}
-              />
-            ) : (
-              <EmptyState />
-            )}
-          </div>
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl px-4 pb-12 pt-6 sm:px-8">
+          {error && (
+            <p className="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>
+          )}
+          {loading && !detail ? (
+            <div className="flex items-center gap-2 text-xs text-ink-400">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t("common.loading")}
+            </div>
+          ) : detail ? (
+            <PlaylistDetailView
+              detail={detail}
+              onChange={setDetail}
+              onDeleted={() => navigate("/podcasts")}
+              onError={setError}
+            />
+          ) : null}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function PlaylistSidebar({
-  playlists,
-  activeId,
-  onPick,
-  creating,
-  newName,
-  setNewName,
-  onStartCreate,
-  onSubmitCreate,
-  onCancelCreate,
-  onFromTag,
-  mobileOpen,
-  onMobileClose,
-}: {
-  playlists: PodcastPlaylistOut[];
-  activeId: string | null;
-  onPick: (id: string) => void;
-  creating: boolean;
-  newName: string;
-  setNewName: (v: string) => void;
-  onStartCreate: () => void;
-  onSubmitCreate: () => void;
-  onCancelCreate: () => void;
-  onFromTag: () => void;
-  /** Mobile-drawer visibility. Ignored on md+ where the sidebar is
-   *  permanently inline. */
-  mobileOpen: boolean;
-  onMobileClose: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <>
-      {/* Mobile-only backdrop. Tap outside to close the drawer. */}
-      {mobileOpen && (
-        <button
-          type="button"
-          aria-label={t("common.close", { defaultValue: "Close" }) ?? "Close"}
-          onClick={onMobileClose}
-          className="fixed inset-0 z-40 bg-ink-900/70 backdrop-blur-sm md:hidden"
-        />
-      )}
-      <aside
-        className={[
-          "panel-elevated flex w-72 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/95 sm:bg-ink-900/60",
-          // Mobile: fixed overlay drawer, slides in from the left.
-          "fixed inset-y-0 left-0 z-50 transform transition-transform duration-200",
-          mobileOpen ? "translate-x-0" : "-translate-x-full",
-          // Desktop md+: inline column, always visible regardless of mobileOpen.
-          "md:static md:z-auto md:w-64 md:translate-x-0",
-        ].join(" ")}
-      >
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
-          {t("podcastPage.playlists", { defaultValue: "Playlists" })}
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onFromTag}
-            title={t("podcastPage.fromTagTitle", { defaultValue: "Create playlist from a tag" }) ?? ""}
-            className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[10px] font-medium text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
-          >
-            <Hash className="h-3 w-3" />
-            {t("podcastPage.fromTag", { defaultValue: "From tag" })}
-          </button>
-          <button
-            type="button"
-            onClick={onStartCreate}
-            title={t("podcastPage.newPlaylist", { defaultValue: "New playlist" }) ?? ""}
-            className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-2 py-1 text-[10px] font-semibold text-ink-900 transition hover:bg-ink-200"
-          >
-            <Plus className="h-3 w-3" />
-            {t("tags.new", { defaultValue: "New" })}
-          </button>
-          {/* Close button on mobile only — small target inside the
-              drawer header in addition to the backdrop tap. */}
-          <button
-            type="button"
-            onClick={onMobileClose}
-            aria-label={t("common.close", { defaultValue: "Close" }) ?? "Close"}
-            className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-400 transition active:bg-ink-800 md:hidden"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-      {creating && (
-        <div className="border-b border-ink-800 px-3 py-2">
-          <input
-            type="text"
-            autoFocus
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") onSubmitCreate();
-              if (e.key === "Escape") onCancelCreate();
-            }}
-            placeholder={t("podcastPage.playlistNamePlaceholder", { defaultValue: "Playlist name…" }) ?? ""}
-            className="w-full rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1.5 text-xs text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none"
-          />
-        </div>
-      )}
-      <ul className="flex-1 overflow-y-auto py-2">
-        {playlists.length === 0 ? (
-          <li className="px-4 py-6 text-center text-[11px] text-ink-500">
-            {t("podcastPage.noPlaylists", { defaultValue: "No playlists yet" })}
-          </li>
-        ) : (
-          playlists.map((p) => {
-            const isActive = p.id === activeId;
-            return (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={() => onPick(p.id)}
-                  className={[
-                    "flex w-full flex-col items-start gap-0.5 px-4 py-2 text-left text-xs transition",
-                    isActive
-                      ? "bg-ink-700/70 text-ink-100"
-                      : "text-ink-300 hover:bg-ink-800",
-                  ].join(" ")}
-                >
-                  <span className="flex w-full items-center gap-1.5 truncate font-medium">
-                    <Headphones className="h-3 w-3 flex-shrink-0 text-ink-400" />
-                    <span className="flex-1 truncate">{p.name}</span>
-                    {p.has_draft && (
-                      <span
-                        title={t("podcastPage.hasDraftTooltip", { defaultValue: "Has unfinished draft" }) ?? ""}
-                        className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400"
-                      />
-                    )}
-                  </span>
-                  <span className="text-[10px] text-ink-500">
-                    {p.card_count}{" "}
-                    {t("podcastPage.cards", { defaultValue: "cards", count: p.card_count })}
-                  </span>
-                </button>
-              </li>
-            );
-          })
-        )}
-      </ul>
-      </aside>
-    </>
-  );
-}
-
-function EmptyState() {
-  const { t } = useTranslation();
-  return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-ink-700 bg-ink-800/30 p-16 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-ink-700/50">
-        <Disc3 className="h-6 w-6 text-ink-300" />
-      </div>
-      <div>
-        <h2 className="text-lg font-semibold text-ink-100">
-          {t("podcastPage.empty.title", { defaultValue: "No playlist selected" })}
-        </h2>
-        <p className="mt-1 text-sm text-ink-400">
-          {t("podcastPage.empty.body", {
-            defaultValue: "Wähle links eine Playlist oder erstelle eine neue.",
-          })}
-        </p>
-        <p className="mt-1 text-xs text-ink-500 md:hidden">
-          {t("podcastPage.empty.bodyMobile", {
-            defaultValue: "Tippe oben rechts auf das Listen-Symbol, um deine Playlists zu öffnen.",
-          })}
-        </p>
       </div>
     </div>
   );

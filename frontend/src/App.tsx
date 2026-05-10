@@ -90,6 +90,7 @@ function RootRoutes() {
         <Route path="graph" element={<GraphPage />} />
         <Route path="review" element={<ReviewPage />} />
         <Route path="podcasts" element={<PodcastsPage />} />
+        <Route path="podcasts/:playlistId" element={<PodcastsPage />} />
         <Route path="feeds" element={<FeedsPage />} />
         <Route path="paths" element={<PathsPage />} />
         <Route path="paths/:pathId" element={<PathEditPage />} />
