@@ -1,4 +1,4 @@
-import { ArrowRight, Brain, Calendar, Check, CheckCheck, Eye, Flame, History, Loader2, RefreshCw, Target, X } from "lucide-react";
+import { ArrowRight, Brain, Calendar, Check, CheckCheck, Eye, Flame, GraduationCap, History, Loader2, RefreshCw, Target, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +14,7 @@ import {
 } from "../lib/api";
 import { playSound } from "../lib/sounds";
 import MobileDesktopHint from "../components/MobileDesktopHint";
+import PageHeader from "../components/PageHeader";
 
 const RATINGS: { id: ReviewRating; classes: string; hint: string }[] = [
   {
@@ -200,12 +201,12 @@ export default function ReviewPage() {
       {/* Main column */}
       <div className="flex flex-1 min-w-0 flex-col">
         <MobileDesktopHint reasonKey="mobileHint.review" />
-        <div className="page-header">
-          <div className="page-header-inner">
-            <h1 className="page-header-title">{t("nav.review")}</h1>
-            <p className="page-header-subtitle">{t("review.subtitle")}</p>
-          </div>
-        </div>
+        <PageHeader
+          icon={GraduationCap}
+          tone="amber"
+          title={t("nav.review")}
+          subtitle={t("review.subtitle")}
+        />
 
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-8 pb-12 pt-6">

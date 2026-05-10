@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import PageHeader from "../components/PageHeader";
 import { api, type PathListItem } from "../lib/api";
 import { useAuthedImage } from "../lib/useAuthedImage";
 
@@ -53,35 +54,29 @@ export default function PathsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="page-header">
-        <div className="page-header-inner flex items-center justify-between gap-2.5">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-fuchsia-500/15 ring-1 ring-fuchsia-500/30">
-              <Compass className="h-4 w-4 text-fuchsia-300" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="page-header-title">{t("paths.title", { defaultValue: "Paths" })}</h1>
-              <p className="page-header-subtitle">
-                {t("paths.subtitle", {
-                  defaultValue: "Curate ordered learning paths from your cards. Share them publicly under your profile.",
-                })}
-              </p>
-            </div>
-          </div>
+      <PageHeader
+        icon={Compass}
+        tone="fuchsia"
+        title={t("paths.title", { defaultValue: "Paths" })}
+        subtitle={t("paths.subtitle", {
+          defaultValue:
+            "Curate ordered learning paths from your cards. Share them publicly under your profile.",
+        })}
+        action={
           <button
             type="button"
             onClick={() => void create()}
             disabled={creating}
             aria-label={t("paths.new", { defaultValue: "New path" }) ?? "New path"}
-            className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 text-ink-900 transition hover:bg-ink-200 disabled:opacity-50 sm:h-auto sm:w-auto sm:gap-1.5 sm:rounded-md sm:px-3 sm:py-1.5 sm:text-xs sm:font-semibold"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-ink-100 text-ink-900 transition hover:bg-ink-200 disabled:opacity-50 sm:h-auto sm:w-auto sm:gap-1.5 sm:rounded-md sm:px-3 sm:py-1.5 sm:text-xs sm:font-semibold"
           >
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">
               {t("paths.new", { defaultValue: "New path" })}
             </span>
           </button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-5xl px-6 pb-16 pt-6">

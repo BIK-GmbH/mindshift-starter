@@ -7,6 +7,7 @@ import {
   Globe,
   Hash,
   LayoutGrid,
+  Library,
   List as ListIcon,
   MessageSquare,
   PanelRightClose,
@@ -25,6 +26,7 @@ import AddContentModal from "../components/AddYouTubeModal";
 import CardDetailContent from "../components/CardDetailContent";
 import CardSourceMedia from "../components/CardSourceMedia";
 import ChatPanel from "../components/ChatPanel";
+import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import TagsPickerModal from "../components/TagsPickerModal";
 import TagsTree, { type TagsTreeHandle } from "../components/TagsTree";
@@ -320,49 +322,48 @@ export default function LibraryPage() {
         onClose={() => setTagsModalOpen(false)}
       />
       <div className="flex flex-1 min-w-0 flex-col">
-      {/* Title band — same height across pages on desktop, slimmer on mobile. */}
-      <div className="page-header">
-        <div className="page-header-inner flex items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <div className="min-w-0 flex-1">
-            <h1 className="page-header-title">{t("nav.library")}</h1>
-            {counts.total > 0 && (
-              <p className="page-header-subtitle flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
-                <span>
-                  <span className="font-medium tabular-nums text-ink-200">{counts.total}</span>{" "}
-                  {t("library.stats.cards")}
-                </span>
-                {counts.completed > 0 && (
-                  <>
-                    <span className="text-ink-600">·</span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      {counts.completed} {t("library.stats.completed")}
-                    </span>
-                  </>
-                )}
-                {counts.inflight > 0 && (
-                  <>
-                    <span className="text-ink-600">·</span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
-                      {counts.inflight} {t("library.stats.processing")}
-                    </span>
-                  </>
-                )}
-                {counts.failed > 0 && (
-                  <>
-                    <span className="text-ink-600">·</span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                      {counts.failed} {t("library.stats.failed")}
-                    </span>
-                  </>
-                )}
-              </p>
-            )}
-            </div>
-          </div>
+      <PageHeader
+        icon={Library}
+        tone="ink"
+        title={t("nav.library")}
+        subtitle={
+          counts.total > 0 ? (
+            <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <span>
+                <span className="font-medium tabular-nums text-ink-200">{counts.total}</span>{" "}
+                {t("library.stats.cards")}
+              </span>
+              {counts.completed > 0 && (
+                <>
+                  <span className="text-ink-600">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    {counts.completed} {t("library.stats.completed")}
+                  </span>
+                </>
+              )}
+              {counts.inflight > 0 && (
+                <>
+                  <span className="text-ink-600">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                    {counts.inflight} {t("library.stats.processing")}
+                  </span>
+                </>
+              )}
+              {counts.failed > 0 && (
+                <>
+                  <span className="text-ink-600">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                    {counts.failed} {t("library.stats.failed")}
+                  </span>
+                </>
+              )}
+            </span>
+          ) : undefined
+        }
+        action={
           <button
             type="button"
             onClick={() => {
@@ -370,13 +371,13 @@ export default function LibraryPage() {
               setModalOpen(true);
             }}
             aria-label={t("library.addContent") ?? "Add content"}
-            className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 text-ink-900 shadow-sm transition hover:bg-ink-200 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-md sm:px-3 sm:py-2 sm:text-sm sm:font-medium"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-ink-100 text-ink-900 shadow-sm transition hover:bg-ink-200 sm:h-auto sm:w-auto sm:gap-2 sm:rounded-md sm:px-3 sm:py-2 sm:text-sm sm:font-medium"
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">{t("library.addContent")}</span>
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Toolbar strip — search + filters + view toggle */}
       <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/60">

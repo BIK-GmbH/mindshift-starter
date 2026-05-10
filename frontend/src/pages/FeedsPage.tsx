@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import MobileDesktopHint from "../components/MobileDesktopHint";
+import PageHeader from "../components/PageHeader";
 import { api, type FeedOut } from "../lib/api";
 
 /**
@@ -55,21 +56,15 @@ export default function FeedsPage() {
   return (
     <div className="flex h-full flex-col">
       <MobileDesktopHint reasonKey="mobileHint.feeds" />
-      <div className="page-header">
-        <div className="page-header-inner flex items-center gap-2.5">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-orange-500/15 ring-1 ring-orange-500/30">
-            <Rss className="h-4 w-4 text-orange-300" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="page-header-title">{t("feeds.title", { defaultValue: "Feeds" })}</h1>
-            <p className="page-header-subtitle">
-              {t("feeds.subtitle", {
-                defaultValue: "Subscribe to RSS / Atom feeds — new posts get auto-summarised into cards.",
-              })}
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={Rss}
+        tone="orange"
+        title={t("feeds.title", { defaultValue: "Feeds" })}
+        subtitle={t("feeds.subtitle", {
+          defaultValue:
+            "Subscribe to RSS / Atom feeds — new posts get auto-summarised into cards.",
+        })}
+      />
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-6 pb-16 pt-6">

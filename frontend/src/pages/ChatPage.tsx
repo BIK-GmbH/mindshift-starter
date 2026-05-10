@@ -1,9 +1,10 @@
-import { MessageSquare, Plus, Sparkles, Trash2 } from "lucide-react";
+import { MessageSquare, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import ChatPanel from "../components/ChatPanel";
 import MobileDesktopHint from "../components/MobileDesktopHint";
+import PageHeader from "../components/PageHeader";
 import { useDialog } from "../lib/DialogContext";
 import { api, type ChatSessionDetail, type ChatSessionItem } from "../lib/api";
 import { playSound } from "../lib/sounds";
@@ -133,19 +134,12 @@ export default function ChatPage() {
       {/* Main */}
       <div className="flex flex-1 min-w-0 flex-col">
         <MobileDesktopHint reasonKey="mobileHint.chat" />
-        <div className="page-header">
-          <div className="page-header-inner flex items-center gap-2.5">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-ink-700/60 ring-1 ring-ink-700">
-              <Sparkles className="h-4 w-4 text-ink-100" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h1 className="page-header-title truncate">
-                {activeSession?.title ?? t("nav.chat")}
-              </h1>
-              <p className="page-header-subtitle">{t("chat.kbSubtitle")}</p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          icon={MessageSquare}
+          tone="emerald"
+          title={activeSession?.title ?? t("nav.chat")}
+          subtitle={t("chat.kbSubtitle")}
+        />
 
         <div className="mx-auto flex w-full max-w-3xl flex-1 min-h-0 flex-col px-8 pb-6 pt-4">
           {loadingDetail ? (

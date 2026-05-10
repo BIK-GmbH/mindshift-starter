@@ -8,6 +8,7 @@ import {
   Loader2,
   Lock,
   Maximize2,
+  Network,
   Plus,
   RotateCcw,
   Route,
@@ -24,6 +25,7 @@ import { useTranslation } from "react-i18next";
 
 import GraphCardDrawer from "../components/GraphCardDrawer";
 import MobileDesktopHint from "../components/MobileDesktopHint";
+import PageHeader from "../components/PageHeader";
 import {
   api,
   type ConnectionReason,
@@ -1047,24 +1049,24 @@ export default function GraphPage() {
       {/* Main */}
       <div className="flex flex-1 min-w-0 flex-col">
         <MobileDesktopHint reasonKey="mobileHint.graph" />
-        <div className="page-header">
-          <div className="page-header-inner flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="page-header-title">{t("graph.global.title")}</h1>
-              <p className="page-header-subtitle">{t("graph.global.subtitle")}</p>
-            </div>
-            {focusedNodeId && (
+        <PageHeader
+          icon={Network}
+          tone="violet"
+          title={t("graph.global.title")}
+          subtitle={t("graph.global.subtitle")}
+          action={
+            focusedNodeId ? (
               <button
                 type="button"
                 onClick={exitFocus}
-                className="inline-flex flex-shrink-0 items-center gap-1 rounded-md border border-ink-700 px-2.5 py-1.5 text-xs text-ink-200 hover:bg-ink-800"
+                className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-2.5 py-1.5 text-xs text-ink-200 hover:bg-ink-800"
               >
                 <ArrowLeft className="h-3 w-3" />
                 {t("graph.focus.exit")}
               </button>
-            )}
-          </div>
-        </div>
+            ) : undefined
+          }
+        />
 
         <div className="flex flex-1 min-h-0 flex-col p-6">
         {/* Focus breadcrumb */}

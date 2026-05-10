@@ -22,6 +22,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
+import PageHeader from "../components/PageHeader";
 import RichTextEditor from "../components/RichTextEditor";
 import { useDialog } from "../lib/DialogContext";
 import {
@@ -170,16 +171,14 @@ export default function PodcastsPage() {
       )}
 
       <div className="flex flex-1 min-w-0 flex-col">
-        <div className="page-header">
-          <div className="page-header-inner">
-            <h1 className="page-header-title">{t("nav.podcasts")}</h1>
-            <p className="page-header-subtitle">
-              {t("podcastPage.subtitle", {
-                defaultValue: "Build playlists, generate narrated episodes with cover art.",
-              })}
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          icon={Headphones}
+          tone="sky"
+          title={t("nav.podcasts")}
+          subtitle={t("podcastPage.subtitle", {
+            defaultValue: "Build playlists, generate narrated episodes with cover art.",
+          })}
+        />
 
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-4xl px-8 pb-12 pt-6">
