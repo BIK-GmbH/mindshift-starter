@@ -62,7 +62,14 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
       cancelled = true;
       if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
-  }, [card.id, card.original_file_id, mode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    card.id,
+    card.original_file_id,
+    mode.kind,
+    mode.kind === "public" ? mode.username : null,
+    mode.kind === "public" ? mode.slug : null,
+  ]);
 
   // Keyboard shortcuts — only when no input has focus.
   useEffect(() => {
