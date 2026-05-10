@@ -691,6 +691,22 @@ export const api = {
     }),
   publicPath: (username: string, slug: string) =>
     request<PublicPathOut>(`/api/public/paths/${username}/${slug}`),
+  getPublicPathCard: (username: string, slug: string, cardId: string) =>
+    request<PublicCardOut>(
+      `/api/public/paths/${username}/${slug}/cards/${cardId}`,
+    ),
+  getPublicPathCardTranscript: (
+    username: string,
+    slug: string,
+    cardId: string,
+  ) =>
+    request<TranscriptOut>(
+      `/api/public/paths/${username}/${slug}/cards/${cardId}/transcript`,
+    ),
+  getPublicPathCardQuiz: (username: string, slug: string, cardId: string) =>
+    request<QuizQuestion[]>(
+      `/api/public/paths/${username}/${slug}/cards/${cardId}/quiz`,
+    ),
   getPathProgress: (id: string) =>
     request<PathProgress | null>(`/api/paths/${id}/progress`),
   updatePathProgress: (id: string, currentPosition: number) =>
@@ -820,12 +836,28 @@ export interface PathDetail extends PathListItem {
 }
 
 export interface PublicPathOut {
+  id: string;
   title: string;
   slug: string;
   description_md: string | null;
   cover_url: string | null;
   author_username: string;
   cards: PathCardItem[];
+  created_at: string;
+}
+
+export interface PublicCardOut {
+  id: string;
+  title: string;
+  source_type: string;
+  status: string;
+  thumbnail_url: string | null;
+  concise_summary_md: string | null;
+  detailed_summary_md: string | null;
+  key_takeaways_json: unknown[] | null;
+  source_url: string | null;
+  external_id: string | null;
+  source_metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
