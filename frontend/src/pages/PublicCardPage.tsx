@@ -1,7 +1,7 @@
 import { Brain, Check, Copy, FileText, Github, Globe, Loader2, Share2, Youtube, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import MarkdownView from "../components/MarkdownView";
 import RailFooterButtons from "../components/RailFooterButtons";
@@ -52,12 +52,14 @@ export default function PublicCardPage() {
     <div className="flex h-full bg-ink-900">
       {/* Slim rail with branding + theme/lang toggles only */}
       <aside className="flex w-14 flex-col items-center border-r border-ink-800 bg-ink-900 py-3">
-        <div
-          className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-ink-100 text-ink-900 surface-soft"
+        <Link
+          to="/"
+          className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-ink-100 text-ink-900 surface-soft transition hover:opacity-90"
           title={t("app.name")}
+          aria-label={t("app.name")}
         >
           <Brain className="h-4 w-4" />
-        </div>
+        </Link>
         <div className="flex-1" />
         <RailFooterButtons showSettings={false} />
       </aside>

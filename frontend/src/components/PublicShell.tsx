@@ -1,6 +1,7 @@
 import { Brain } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import RailFooterButtons from "./RailFooterButtons";
 
@@ -19,26 +20,28 @@ export default function PublicShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full bg-ink-900">
       <aside className="hidden w-14 flex-col items-center border-r border-ink-800 bg-ink-900 py-3 md:flex">
-        <div
-          className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-ink-100 text-ink-900 surface-soft"
-          role="img"
+        <Link
+          to="/"
+          className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-ink-100 text-ink-900 surface-soft transition hover:opacity-90"
           aria-label={t("app.name")}
+          title={t("nav.home", { defaultValue: "Home" }) ?? t("app.name")}
         >
           <Brain className="h-4 w-4" />
-        </div>
+        </Link>
         <div className="flex-1" />
         <RailFooterButtons showSettings={false} />
       </aside>
 
       <main className="flex-1 overflow-y-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-ink-800 bg-ink-900/95 px-3 py-2 backdrop-blur md:hidden">
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-100 text-ink-900"
-            role="img"
+          <Link
+            to="/"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-100 text-ink-900 transition active:opacity-80"
             aria-label={t("app.name")}
+            title={t("nav.home", { defaultValue: "Home" }) ?? t("app.name")}
           >
             <Brain className="h-4 w-4" />
-          </div>
+          </Link>
           <RailFooterButtons orientation="row" showSettings={false} />
         </div>
         {children}
