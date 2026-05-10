@@ -89,77 +89,6 @@ export default function GlobalSearchModal() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, closeModal]);
 
-  // iOS Safari body-scroll-lock. Setting only body.style.overflow =
-  // "hidden" doesn't actually stop scroll on iOS Safari — the proven
-  // workaround is to fix the body in place and restore the previous
-  // scroll position when the modal closes.
-  useEffect(() => {
-    if (!open) return;
-    const scrollY = window.scrollY;
-    const body = document.body;
-    const prev = {
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-      overflow: body.style.overflow,
-    };
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
-    body.style.overflow = "hidden";
-    return () => {
-      body.style.position = prev.position;
-      body.style.top = prev.top;
-      body.style.left = prev.left;
-      body.style.right = prev.right;
-      body.style.width = prev.width;
-      body.style.overflow = prev.overflow;
-      window.scrollTo(0, scrollY);
-    };
-  }, [open]);
-
-  // Keep the sheet pinned to the visible viewport. The outer fixed
-  // container is anchored to the LAYOUT viewport, which on iOS is taller
-  // than what the user actually sees (URL bar + keyboard area). The
-  // ref'd sheet gets its height synced to window.visualViewport.height
-  // so the input row stays right above the keyboard rather than below
-  // it. Falls back to innerHeight when visualViewport is missing.
-  const sheetRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const syncHeight = () => {
-      const el = sheetRef.current;
-      if (!el) return;
-      if (window.innerWidth >= 640) {
-        el.style.height = "";
-        return;
-      }
-      const h = window.visualViewport?.height ?? window.innerHeight;
-      el.style.height = `${h}px`;
-    };
-    syncHeight();
-    // Sync now AND on the next two frames — iOS sometimes reports the
-    // pre-keyboard height on initial open and only updates after the
-    // next layout pass.
-    const r1 = window.requestAnimationFrame(syncHeight);
-    const r2 = window.setTimeout(syncHeight, 60);
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", syncHeight);
-    vv?.addEventListener("scroll", syncHeight);
-    window.addEventListener("resize", syncHeight);
-    return () => {
-      window.cancelAnimationFrame(r1);
-      window.clearTimeout(r2);
-      vv?.removeEventListener("resize", syncHeight);
-      vv?.removeEventListener("scroll", syncHeight);
-      window.removeEventListener("resize", syncHeight);
-    };
-  }, [open]);
-
   const onPick = useCallback(
     (cardId: string, timestampSeconds?: number | null) => {
       const params = new URLSearchParams({ card: cardId });
@@ -199,7 +128,7 @@ export default function GlobalSearchModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-center modal-enter sm:items-start sm:px-4 sm:pt-[10vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[10vh] modal-enter"
       role="dialog"
       aria-modal="true"
       aria-label={t("search.global.title")}
@@ -211,21 +140,12 @@ export default function GlobalSearchModal() {
         aria-label="Close"
       />
 
-      {/* Outer card. Mobile: fullscreen — height anchored to the dynamic
-          viewport so the URL bar / keyboard don't push the sheet around
-          (the visualViewport effect above fine-tunes it once the
-          keyboard opens). flex-col with reordered children puts the
-          input at the bottom for thumb reach. Desktop: floating sheet,
-          original order. */}
-      <div
-        ref={sheetRef}
-        className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-ink-800 surface-elevated modal-card-enter sm:h-auto sm:max-w-2xl sm:rounded-2xl sm:border sm:border-ink-700 [overscroll-behavior:contain]"
-      >
-        {/* Header — order-1 everywhere. */}
-        <div className="order-1 flex flex-shrink-0 items-center justify-between border-b border-ink-700 px-5 py-3">
+      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">
           <h2 className="text-base font-semibold text-ink-100">{t("search.global.title")}</h2>
           <div className="flex items-center gap-2">
-            <kbd className="hidden rounded border border-ink-700 bg-ink-900/40 px-1.5 py-0.5 text-[10px] font-mono text-ink-400 sm:inline">
+            <kbd className="rounded border border-ink-700 bg-ink-900/40 px-1.5 py-0.5 text-[10px] font-mono text-ink-400">
               ESC
             </kbd>
             <button
@@ -239,21 +159,38 @@ export default function GlobalSearchModal() {
           </div>
         </div>
 
-        {/* Results — order-2 on mobile (between header and bottom input),
-            order-2 on desktop too (between top input and footer). The
-            container drives the order; the section itself is unchanged. */}
-        <div
-          className={[
-            "order-2 flex flex-1 flex-col overflow-y-auto",
-            // Trap scroll so dragging the result list past its top/bottom
-            // doesn't bubble up and scroll the underlying page on iOS.
-            "[overscroll-behavior:contain] [-webkit-overflow-scrolling:touch]",
-            // On desktop the card grows organically; cap the result list
-            // height so the input + footer stay visible without scroll.
-            "sm:max-h-[55vh] sm:flex-none",
-          ].join(" ")}
-        >
-          {!debounced && <EmptyHint />}
+        {/* Input + mode toggle */}
+        <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-3">
+          <SearchIcon className="h-4 w-4 flex-shrink-0 text-ink-400" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={placeholder}
+            className="flex-1 bg-transparent text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="rounded p-1 text-ink-400 transition hover:bg-ink-700/60 hover:text-ink-100"
+              aria-label="Clear"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <div className="flex flex-shrink-0 gap-0.5 rounded-md bg-ink-900/60 p-0.5 ring-1 ring-ink-700">
+            <ModeButton active={mode === "text"} onClick={() => setMode("text")} icon={SearchIcon} label={t("search.global.text")} />
+            <ModeButton active={mode === "ai"} onClick={() => setMode("ai")} icon={Sparkles} label={t("search.global.ai")} />
+          </div>
+        </div>
+
+        {/* Results */}
+        <div className="flex max-h-[55vh] flex-col overflow-y-auto">
+          {!debounced && (
+            <EmptyHint />
+          )}
           {debounced && busy && hits.length === 0 && (
             <div className="flex items-center gap-2 px-5 py-8 text-sm text-ink-400">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -281,43 +218,8 @@ export default function GlobalSearchModal() {
           )}
         </div>
 
-        {/* Input + mode toggle — order-3 on mobile (bottom, thumb reach
-            + iOS-style), order-2 on desktop (immediately under the title).
-            Mobile gets a top border (it's at the bottom of the sheet);
-            desktop gets a bottom border (original position). */}
-        <div
-          className="order-3 flex flex-shrink-0 items-center gap-2 border-t border-ink-700 px-4 py-3 sm:order-2 sm:border-b sm:border-t-0"
-          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-        >
-          <SearchIcon className="h-4 w-4 flex-shrink-0 text-ink-400" />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={placeholder}
-            className="flex-1 bg-transparent text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              className="rounded p-1 text-ink-400 transition hover:bg-ink-700/60 hover:text-ink-100"
-              aria-label="Clear"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <div className="flex flex-shrink-0 gap-0.5 rounded-md bg-ink-900/60 p-0.5 ring-1 ring-ink-700">
-            <ModeButton active={mode === "text"} onClick={() => setMode("text")} icon={SearchIcon} label={t("search.global.text")} />
-            <ModeButton active={mode === "ai"} onClick={() => setMode("ai")} icon={Sparkles} label={t("search.global.ai")} />
-          </div>
-        </div>
-
-        {/* Footer with kbd hints — desktop only. The ⌘K / ↑↓ / ↵ keys
-            don't exist on touch, and hiding the footer also keeps the
-            mobile input at the very bottom of the sheet. */}
-        <div className="order-4 hidden flex-shrink-0 items-center gap-3 border-t border-ink-700 bg-ink-900/40 px-5 py-2 text-[10px] text-ink-400 sm:flex">
+        {/* Footer with hint */}
+        <div className="flex items-center gap-3 border-t border-ink-700 bg-ink-900/40 px-5 py-2 text-[10px] text-ink-400">
           <span className="inline-flex items-center gap-1">
             <kbd className="rounded border border-ink-700 px-1 font-mono">↑↓</kbd>
             {t("search.global.hintNav")}
