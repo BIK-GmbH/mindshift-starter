@@ -370,7 +370,11 @@
       "searchTags": "Tags suchen…",
       "noTags": "Keine Tags gefunden.",
       "clearTags": "Auswahl löschen",
-      "hideIsolated": "Isolierte ausblenden"
+      "hideIsolated": "Isolierte ausblenden",
+      "depth": "Verbindungstiefe",
+      "depthHint": "Knoten auswählen",
+      "depthAllTooltip": "Alle verbundenen Knoten zeigen",
+      "hideOutside": "Außerhalb der Tiefe ausblenden"
     },
     "color": {
       "source": "Nach Quelle",

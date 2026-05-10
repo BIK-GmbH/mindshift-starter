@@ -370,7 +370,11 @@
       "searchTags": "Search tags…",
       "noTags": "No tags match.",
       "clearTags": "Clear selection",
-      "hideIsolated": "Hide isolated"
+      "hideIsolated": "Hide isolated",
+      "depth": "Connection depth",
+      "depthHint": "select a node",
+      "depthAllTooltip": "Show every connected node",
+      "hideOutside": "Hide nodes outside depth"
     },
     "color": {
       "source": "By source",
