@@ -3,19 +3,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
-import CardDetailContent from "../components/CardDetailContent";
 import MarkdownView from "../components/MarkdownView";
 import MobileDesktopHint from "../components/MobileDesktopHint";
+import PathPlayerCardView from "../components/PathPlayerCardView";
 import { api, type PathDetail } from "../lib/api";
 
 /**
- * Linear path player. Sticky top bar carries the path title, a
- * step indicator, prev / next, and an "edit" link back to the editor.
- * The card itself is rendered by the existing CardDetailContent
- * component — every tab the user knows from the library works here too.
- *
- * Position is held in the URL `?step=` so the back button, refresh and
- * deep-links all behave correctly.
+ * Linear path player. The page owns navigation, lesson note and progress;
+ * `<PathPlayerCardView />` owns the card-level rendering (source media + tabs).
  */
 export default function PathPlayerPage() {
   const { t } = useTranslation();
@@ -25,13 +20,12 @@ export default function PathPlayerPage() {
   const [path, setPath] = useState<PathDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lessonExpanded, setLessonExpanded] = useState(false);
 
   const fetchPath = useCallback(async () => {
     try {
       const detail = await api.getPath(pathId);
       setPath(detail);
-      // If the user has prior progress and the URL doesn't already
-      // override the step, jump them to where they left off.
       if (!params.get("step")) {
         try {
           const prog = await api.getPathProgress(pathId);
@@ -61,15 +55,20 @@ export default function PathPlayerPage() {
   const total = path?.cards.length ?? 0;
   const step = Number.isFinite(stepRaw) ? Math.min(Math.max(1, stepRaw), Math.max(1, total)) : 1;
   const current = path?.cards[step - 1] ?? null;
+  const prevStepCard = step > 1 ? path?.cards[step - 2] ?? null : null;
+  const nextStepCard = step < total ? path?.cards[step] ?? null : null;
 
-  // Persist progress whenever the active step changes. Server takes the
-  // max so revisiting earlier steps doesn't roll the bookmark back.
+  // Persist progress on step change (server takes max → revisits don't roll back).
   useEffect(() => {
     if (!path || total === 0) return;
-    void api.updatePathProgress(pathId, step - 1).catch(() => {
-      /* progress is best-effort; don't block the player on failure */
-    });
+    void api.updatePathProgress(pathId, step - 1).catch(() => undefined);
   }, [pathId, step, total, path]);
+
+  // Reset lesson-expand when the step changes — short notes don't need it,
+  // long notes get a fresh truncation.
+  useEffect(() => {
+    setLessonExpanded(false);
+  }, [step]);
 
   const goTo = (s: number) => {
     const next = new URLSearchParams(params);
@@ -77,8 +76,7 @@ export default function PathPlayerPage() {
     setParams(next, { replace: true });
   };
 
-  // Keyboard navigation — left/right arrow keys move through steps.
-  // Skip when the user is typing in an input.
+  // Arrow-key navigation; skip when typing in inputs / contenteditable.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -110,7 +108,9 @@ export default function PathPlayerPage() {
     return (
       <div className="flex h-full items-center justify-center text-center text-sm text-ink-400">
         <div>
-          <p className="mb-3">{t("paths.noStepsToPlay", { defaultValue: "This path has no steps yet." })}</p>
+          <p className="mb-3">
+            {t("paths.noStepsToPlay", { defaultValue: "This path has no steps yet." })}
+          </p>
           <button
             type="button"
             onClick={() => navigate(`/paths/${pathId}`)}
@@ -124,10 +124,14 @@ export default function PathPlayerPage() {
     );
   }
 
+  const lessonMd = current?.lesson_md ?? null;
+  const lessonIsLong = (lessonMd?.length ?? 0) > 240; // rough proxy for "needs truncation"
+
   return (
     <div className="flex h-full flex-col">
       <MobileDesktopHint reasonKey="mobileHint.paths" />
-      {/* Player bar — replaces the standard page-header */}
+
+      {/* === Top header (sticky) === */}
       <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/60 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
           <button
@@ -158,7 +162,6 @@ export default function PathPlayerPage() {
               <ArrowLeft className="h-4 w-4" />
             </button>
             {step >= total ? (
-              // On the last step, swap "Next" for the path-quiz CTA.
               <button
                 type="button"
                 onClick={() => navigate(`/paths/${pathId}/quiz`)}
@@ -179,7 +182,7 @@ export default function PathPlayerPage() {
             )}
           </div>
         </div>
-        {/* Progress bar */}
+        {/* Progress bar (full width) */}
         <div className="h-0.5 w-full bg-ink-800">
           <div
             className="h-full bg-gradient-to-r from-fuchsia-500 to-fuchsia-300 transition-all"
@@ -188,28 +191,94 @@ export default function PathPlayerPage() {
         </div>
       </div>
 
-      {current?.lesson_md && (
+      {/* === Lesson note (only if present, max 3 lines + read-more) === */}
+      {lessonMd && (
         <div className="flex-shrink-0 border-b border-ink-800 bg-fuchsia-500/5">
           <div className="mx-auto max-w-5xl px-4 py-3">
             <p className="mb-1 text-[10px] uppercase tracking-wider text-fuchsia-300">
               {t("paths.lesson", { defaultValue: "Lesson" })}
             </p>
-            <div className="prose prose-invert prose-sm max-w-none text-ink-200">
-              <MarkdownView source={current.lesson_md} />
+            <div
+              className={[
+                "prose prose-invert prose-sm max-w-none text-ink-200",
+                lessonIsLong && !lessonExpanded ? "line-clamp-3" : "",
+              ].join(" ")}
+            >
+              <MarkdownView source={lessonMd} />
             </div>
+            {lessonIsLong && (
+              <button
+                type="button"
+                onClick={() => setLessonExpanded((v) => !v)}
+                className="mt-1 text-[11px] font-medium text-fuchsia-300 transition hover:text-fuchsia-200"
+              >
+                {lessonExpanded
+                  ? t("paths.lessonReadLess", { defaultValue: "Show less" })
+                  : t("paths.lessonReadMore", { defaultValue: "Read more" })}
+              </button>
+            )}
           </div>
         </div>
       )}
 
+      {/* === Card content (source media + tabs) === */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {current && (
-          <CardDetailContent
-            key={current.card_id}
-            cardId={current.card_id}
-            onBack={() => navigate(`/paths/${pathId}`)}
-            backStyle="close"
-          />
-        )}
+        {current && <PathPlayerCardView key={current.card_id} cardId={current.card_id} />}
+      </div>
+
+      {/* === Sticky bottom nav with step titles === */}
+      <div className="flex-shrink-0 border-t border-ink-800 bg-ink-900/85 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+          <button
+            type="button"
+            disabled={step <= 1}
+            onClick={() => goTo(step - 1)}
+            className="group flex min-w-0 flex-1 items-center gap-2 rounded-md border border-ink-700 px-3 py-2 text-left text-ink-300 transition hover:bg-ink-800 hover:text-ink-100 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <ArrowLeft className="h-4 w-4 flex-shrink-0 transition group-hover:-translate-x-0.5" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] uppercase tracking-wider text-ink-500">
+                {t("paths.previousStep", { defaultValue: "Previous" })}
+              </span>
+              <span className="block truncate text-xs font-medium">
+                {prevStepCard?.title ?? "—"}
+              </span>
+            </span>
+          </button>
+          {step >= total ? (
+            <button
+              type="button"
+              onClick={() => navigate(`/paths/${pathId}/quiz`)}
+              className="group flex min-w-0 flex-1 items-center justify-end gap-2 rounded-md bg-fuchsia-500/20 px-3 py-2 text-right text-fuchsia-100 ring-1 ring-fuchsia-500/40 transition hover:bg-fuchsia-500/30"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-[10px] uppercase tracking-wider text-fuchsia-300">
+                  {t("paths.completed", { defaultValue: "Completed" })}
+                </span>
+                <span className="block truncate text-xs font-medium">
+                  {t("paths.takeQuiz", { defaultValue: "Take quiz" })}
+                </span>
+              </span>
+              <Sparkles className="h-4 w-4 flex-shrink-0" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => goTo(step + 1)}
+              className="group flex min-w-0 flex-1 items-center justify-end gap-2 rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-3 py-2 text-right text-fuchsia-100 transition hover:bg-fuchsia-500/20"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-[10px] uppercase tracking-wider text-fuchsia-300">
+                  {t("paths.nextStep", { defaultValue: "Next" })}
+                </span>
+                <span className="block truncate text-xs font-medium">
+                  {nextStepCard?.title ?? "—"}
+                </span>
+              </span>
+              <ArrowRight className="h-4 w-4 flex-shrink-0 transition group-hover:translate-x-0.5" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
