@@ -491,57 +491,90 @@ export default function CardDetailContent({
               </div>
             </div>
 
-            <ActionBar
-              canRegenerate={canRegenerate}
-              onRegenerate={handleRegenerate}
-              onDownload={downloadMarkdown}
-              onCopyMarkdown={copyMarkdown}
-              onCopyPlain={copyPlainText}
-              onDownloadOriginal={
-                card.original_file_id
-                  ? () => downloadOriginalFile(card.original_file_id!)
-                  : undefined
-              }
-              onShare={() => setShareOpen(true)}
-              onDelete={handleDelete}
-              sourceUrl={
-                // Hide for note-only cards (the URL is just an internal
-                // note:// pseudo-URL) and for anything else without a
-                // proper http(s) source.
-                card.source_type !== "note" &&
-                card.source_url &&
-                /^https?:\/\//i.test(card.source_url)
-                  ? card.source_url
-                  : null
-              }
-              t={t}
-            />
+            {/* Desktop ActionBar — own column at the right of the
+                header. Hidden on mobile; the same actions fold into
+                the tab-strip nav row below to free up an entire row. */}
+            <div className="hidden sm:block">
+              <ActionBar
+                canRegenerate={canRegenerate}
+                onRegenerate={handleRegenerate}
+                onDownload={downloadMarkdown}
+                onCopyMarkdown={copyMarkdown}
+                onCopyPlain={copyPlainText}
+                onDownloadOriginal={
+                  card.original_file_id
+                    ? () => downloadOriginalFile(card.original_file_id!)
+                    : undefined
+                }
+                onShare={() => setShareOpen(true)}
+                onDelete={handleDelete}
+                sourceUrl={
+                  card.source_type !== "note" &&
+                  card.source_url &&
+                  /^https?:\/\//i.test(card.source_url)
+                    ? card.source_url
+                    : null
+                }
+                t={t}
+              />
+            </div>
           </header>
         </div>
 
         <div className={`mx-auto ${innerWidth} ${horizPad}`}>
-          <nav className="no-scrollbar flex gap-0.5 overflow-x-auto" aria-label="card sections">
-            {tabs.map((id) => {
-              const Icon = TAB_ICONS[id];
-              const active = tab === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setTab(id)}
-                  className={[
-                    "group relative inline-flex items-center gap-1.5 px-3 pb-3 pt-2 text-sm transition-colors",
-                    active ? "text-ink-100" : "text-ink-400 hover:text-ink-200",
-                  ].join(" ")}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span>{t(`card.${id}`)}</span>
-                  {active && (
-                    <span className="tab-indicator absolute -bottom-px left-2 right-2 h-0.5 rounded-full bg-ink-100" />
-                  )}
-                </button>
-              );
-            })}
+          {/* Tab strip + (mobile) ActionBar in one row. ActionBar is
+              ml-auto pushed right so the tabs scroll horizontally on
+              the left half and the actions stay anchored on the
+              right. Mobile-only via sm:hidden wrapper around
+              ActionBar. */}
+          <nav className="no-scrollbar flex items-center gap-0.5 overflow-x-auto" aria-label="card sections">
+            <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
+              {tabs.map((id) => {
+                const Icon = TAB_ICONS[id];
+                const active = tab === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setTab(id)}
+                    className={[
+                      "group relative inline-flex flex-shrink-0 items-center gap-1.5 px-2.5 pb-2 pt-1.5 text-sm transition-colors sm:px-3 sm:pb-3 sm:pt-2",
+                      active ? "text-ink-100" : "text-ink-400 hover:text-ink-200",
+                    ].join(" ")}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    <span>{t(`card.${id}`)}</span>
+                    {active && (
+                      <span className="tab-indicator absolute -bottom-px left-2 right-2 h-0.5 rounded-full bg-ink-100" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="ml-auto flex-shrink-0 pl-2 sm:hidden">
+              <ActionBar
+                canRegenerate={canRegenerate}
+                onRegenerate={handleRegenerate}
+                onDownload={downloadMarkdown}
+                onCopyMarkdown={copyMarkdown}
+                onCopyPlain={copyPlainText}
+                onDownloadOriginal={
+                  card.original_file_id
+                    ? () => downloadOriginalFile(card.original_file_id!)
+                    : undefined
+                }
+                onShare={() => setShareOpen(true)}
+                onDelete={handleDelete}
+                sourceUrl={
+                  card.source_type !== "note" &&
+                  card.source_url &&
+                  /^https?:\/\//i.test(card.source_url)
+                    ? card.source_url
+                    : null
+                }
+                t={t}
+              />
+            </div>
           </nav>
         </div>
       </div>
