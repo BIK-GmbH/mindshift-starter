@@ -314,7 +314,10 @@ export default function LibraryPage() {
   return (
     <div className="flex h-full">
       <LibraryMobileStyle />
-      <LibraryTagsSidebar />
+      <LibraryTagsSidebar
+        mobileOpen={tagsDrawerOpen}
+        onMobileClose={() => setTagsDrawerOpen(false)}
+      />
       <div className="flex flex-1 min-w-0 flex-col">
       {/* Title band — same height across pages on desktop, slimmer on mobile. */}
       <div className="page-header library-header-mobile">
@@ -679,13 +682,15 @@ function LibraryTagsSidebar({ mobileOpen = false, onMobileClose }: LibraryTagsSi
   const tagsTreeRef = useRef<TagsTreeHandle>(null);
   return (
     <>
-      {/* Mobile backdrop — only rendered when the drawer is open. */}
+      {/* Mobile backdrop — only rendered when the drawer is open.
+          top-12 keeps the MobileTopBar tappable so the user can still
+          navigate (drawer-vs-burger has no race). */}
       {mobileOpen && (
         <button
           type="button"
           aria-label="Close tags"
           onClick={onMobileClose}
-          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+          className="fixed inset-x-0 bottom-0 top-12 z-30 bg-black/60 md:hidden"
         />
       )}
       <aside
@@ -693,9 +698,11 @@ function LibraryTagsSidebar({ mobileOpen = false, onMobileClose }: LibraryTagsSi
           "panel-elevated w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60",
           // Desktop: always in flow.
           "md:relative md:flex",
-          // Mobile: fixed overlay anchored to the right of the icon rail
-          // (left-14 = 56 px). Display flips between flex and hidden.
-          mobileOpen ? "fixed inset-y-0 left-14 z-40 flex" : "hidden",
+          // Mobile: fixed overlay sliding in from the left edge. The
+          // icon rail is hidden under md (see AppLayout) so we anchor
+          // at left-0 and overlap the MobileTopBar via top-12 to keep
+          // the brand visible at the top.
+          mobileOpen ? "fixed inset-y-0 left-0 top-12 z-40 flex" : "hidden",
         ].join(" ")}
       >
         <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
