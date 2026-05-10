@@ -144,7 +144,9 @@ export default function PathPlayerCardView({ cardId, mode }: PathPlayerCardViewP
 
   // PDF readers, URL previews and repo cards aren't useful as floating
   // thumbnails — the mini-player is YouTube-only.
-  const pinningEligible = card?.source_type === "youtube" && !!card?.external_id;
+  const pinningEligible =
+    (card?.source_type === "youtube" && !!card?.external_id) ||
+    card?.source_type === "pdf";
 
   useEffect(() => {
     if (!pinningEligible) {
@@ -220,16 +222,26 @@ export default function PathPlayerCardView({ cardId, mode }: PathPlayerCardViewP
               {/* aspect-video reservation: keeps the 16:9 space in flow
                   even when the inner element pins to the corner — this
                   prevents the layout below from jumping. */}
-              <div className="relative aspect-video">
+              <div className={`relative ${card.source_type === "pdf" ? "aspect-[3/4]" : "aspect-video"}`}>
                 <div
                   className={[
                     "overflow-hidden rounded-md ring-1 transition-all duration-300 ease-out",
                     isPinned
-                      ? "fixed right-4 top-24 z-30 aspect-video w-80 shadow-2xl ring-ink-700"
+                      ? card.source_type === "pdf"
+                        ? "fixed right-4 top-24 z-30 h-80 w-60 shadow-2xl ring-ink-700"
+                        : "fixed right-4 top-24 z-30 aspect-video w-80 shadow-2xl ring-ink-700"
                       : "absolute inset-0 ring-transparent",
                   ].join(" ")}
                 >
-                  <CardSourceMedia card={card} />
+                  <CardSourceMedia
+                    card={card}
+                    pdfMode={
+                      playerMode.kind === "owner"
+                        ? { kind: "owner" }
+                        : { kind: "public", username: playerMode.username, slug: playerMode.slug }
+                    }
+                    compact={isPinned}
+                  />
                   {isPinned && (
                     <button
                       type="button"
