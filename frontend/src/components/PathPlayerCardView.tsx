@@ -1,5 +1,5 @@
-import { BookOpen, FileText, Loader2, MessageSquare, Sparkles, StickyNote } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FC } from "react";
+import { BookOpen, FileText, Loader2, Maximize2, MessageSquare, Sparkles, StickyNote } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 
 import CardSourceMedia from "./CardSourceMedia";
@@ -34,6 +34,13 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Mini-player state. When the user scrolls past the auto-shown source
+  // media, the YouTube embed shrinks and pins to the top-right corner of
+  // the viewport so the user can keep watching while reading the tabs
+  // below. Only enabled for YouTube cards on viewports >= 768 px.
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isPinned, setIsPinned] = useState(false);
 
   const fetchCard = useCallback(async () => {
     try {
@@ -50,16 +57,13 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
     void fetchCard();
   }, [fetchCard]);
 
-  // Reset transient state when the card changes (path player swaps cards
-  // by remounting via `key={card_id}`, but defending here keeps it correct
-  // if a parent ever passes a changing `cardId` without remount).
   useEffect(() => {
     setTab("summary");
     setTranscript(null);
     setQuiz([]);
+    setIsPinned(false);
   }, [cardId]);
 
-  // Re-poll while ingestion is still running.
   useEffect(() => {
     if (!card) return;
     if (card.status === "completed" || card.status === "failed") return;
@@ -67,7 +71,6 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
     return () => window.clearInterval(handle);
   }, [card, fetchCard]);
 
-  // Lazy fetch per active tab.
   useEffect(() => {
     if (!card || card.status !== "completed") return;
     if (tab === "transcript" && transcript === null) {
@@ -103,8 +106,51 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
 
   const tabs = useMemo<PlayerTab[]>(
     () => ["summary", "transcript", "quiz", "notes", "chat"],
-    []
+    [],
   );
+
+  // PDF readers, URL previews and repo cards aren't useful as floating
+  // thumbnails — the mini-player is YouTube-only.
+  const pinningEligible = card?.source_type === "youtube" && !!card?.external_id;
+
+  useEffect(() => {
+    if (!pinningEligible) {
+      setIsPinned(false);
+      return;
+    }
+    const sentinel = sentinelRef.current;
+    const root = scrollContainerRef.current;
+    if (!sentinel || !root) return;
+
+    const desktopQuery = window.matchMedia("(min-width: 768px)");
+    let observer: IntersectionObserver | null = null;
+    const enable = () => {
+      observer = new IntersectionObserver(
+        ([entry]) => setIsPinned(!entry.isIntersecting),
+        { root, threshold: 0 },
+      );
+      observer.observe(sentinel);
+    };
+    const disable = () => {
+      observer?.disconnect();
+      observer = null;
+      setIsPinned(false);
+    };
+    if (desktopQuery.matches) enable();
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) enable();
+      else disable();
+    };
+    desktopQuery.addEventListener("change", onChange);
+    return () => {
+      observer?.disconnect();
+      desktopQuery.removeEventListener("change", onChange);
+    };
+  }, [pinningEligible]);
+
+  const scrollToTop = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   if (!card) {
     return (
@@ -129,45 +175,83 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
 
   return (
     <div className="flex h-full flex-col">
-      {/* Auto-shown source media — full content width, 16:9 for YouTube,
-          natural sizing for other source types. */}
-      {hasMedia && (
-        <div className="flex-shrink-0 border-b border-ink-800 bg-ink-950/40">
-          <div className="mx-auto max-w-5xl px-4 py-4">
-            <CardSourceMedia card={card} />
+      {/* Single scroll region — source-media + sticky tab strip + tab
+          content all live here. The sticky tab strip stays visible as
+          the user scrolls past the source-media; for YouTube cards an
+          IntersectionObserver on the sentinel below the source-media
+          flips the embed into a fixed top-right mini-player. */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        {hasMedia && (
+          <div className="border-b border-ink-800 bg-ink-950/40">
+            <div className="mx-auto max-w-5xl px-4 py-4">
+              {/* aspect-video reservation: keeps the 16:9 space in flow
+                  even when the inner element pins to the corner — this
+                  prevents the layout below from jumping. */}
+              <div className="relative aspect-video">
+                <div
+                  className={[
+                    "overflow-hidden rounded-md ring-1 transition-all duration-300 ease-out",
+                    isPinned
+                      ? "fixed right-4 top-24 z-30 aspect-video w-80 shadow-2xl ring-ink-700"
+                      : "absolute inset-0 ring-transparent",
+                  ].join(" ")}
+                >
+                  <CardSourceMedia card={card} />
+                  {isPinned && (
+                    <button
+                      type="button"
+                      onClick={scrollToTop}
+                      title={t("paths.maximizeVideo", { defaultValue: "Maximize" }) ?? ""}
+                      aria-label={t("paths.maximizeVideo", { defaultValue: "Maximize" }) ?? ""}
+                      className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-ink-900/85 text-ink-200 transition hover:bg-ink-800 hover:text-ink-100"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
+        )}
+
+        {/* Sentinel — when this scrolls out of view at the container top,
+            the embed pins. Only rendered when pinning is eligible. */}
+        {pinningEligible && (
+          <div ref={sentinelRef} aria-hidden="true" className="h-px" />
+        )}
+
+        {/* Tab strip — sticky inside the scroll container so it stays
+            visible after the user has scrolled past the source-media. */}
+        <div className="sticky top-0 z-20 border-b border-ink-800 bg-ink-900/85 backdrop-blur-md">
+          <nav
+            className="no-scrollbar mx-auto flex max-w-5xl gap-0.5 overflow-x-auto px-4"
+            aria-label="card sections"
+          >
+            {tabs.map((id) => {
+              const Icon = TAB_ICONS[id];
+              const active = tab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTab(id)}
+                  className={[
+                    "group relative inline-flex items-center gap-1.5 px-3 pb-3 pt-2 text-sm transition-colors",
+                    active ? "text-ink-100" : "text-ink-400 hover:text-ink-200",
+                  ].join(" ")}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{t(`card.${id}`)}</span>
+                  {active && (
+                    <span className="tab-indicator absolute -bottom-px left-2 right-2 h-0.5 rounded-full bg-ink-100" />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
-      )}
 
-      {/* Tab strip */}
-      <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/85 backdrop-blur-md">
-        <nav className="no-scrollbar mx-auto flex max-w-5xl gap-0.5 overflow-x-auto px-4" aria-label="card sections">
-          {tabs.map((id) => {
-            const Icon = TAB_ICONS[id];
-            const active = tab === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                className={[
-                  "group relative inline-flex items-center gap-1.5 px-3 pb-3 pt-2 text-sm transition-colors",
-                  active ? "text-ink-100" : "text-ink-400 hover:text-ink-200",
-                ].join(" ")}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                <span>{t(`card.${id}`)}</span>
-                {active && (
-                  <span className="tab-indicator absolute -bottom-px left-2 right-2 h-0.5 rounded-full bg-ink-100" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Active tab body — scrolls within the player frame */}
-      <div className="flex-1 overflow-y-auto">
+        {/* Active tab body */}
         <div className="mx-auto max-w-5xl px-4 pb-12 pt-6">
           {(card.status === "queued" || card.status === "processing") ? (
             <IngestionSkeleton
