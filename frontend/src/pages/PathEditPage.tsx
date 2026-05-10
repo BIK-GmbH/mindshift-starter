@@ -20,7 +20,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import CardPickerModal from "../components/CardPickerModal";
-import MobileDesktopHint from "../components/MobileDesktopHint";
 import { useAuth } from "../lib/AuthContext";
 import { useDialog } from "../lib/DialogContext";
 import { api, type PathDetail } from "../lib/api";
@@ -192,7 +191,6 @@ export default function PathEditPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <MobileDesktopHint reasonKey="mobileHint.paths" />
       {/* Sticky title band */}
       <div className="page-header">
         <div className="page-header-inner flex items-center gap-3">
