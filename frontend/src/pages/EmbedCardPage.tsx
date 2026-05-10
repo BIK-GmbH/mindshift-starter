@@ -1,12 +1,20 @@
-import { ExternalLink, FileText, Loader2, Moon, StickyNote, Sun } from "lucide-react";
-import { useEffect, useMemo, useState, type FC } from "react";
+import { ExternalLink, FileText, Loader2, Moon, Search, StickyNote, Sun, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 import CardLanguagePicker from "../components/CardLanguagePicker";
 import IngestionSkeleton from "../components/IngestionSkeleton";
 import MarkdownView from "../components/MarkdownView";
-import { api, tokenStorage, type Card, type CardTranslationOut, type TranscriptOut } from "../lib/api";
+import {
+  api,
+  tokenStorage,
+  type Card,
+  type CardTranslationOut,
+  type Connection,
+  type SearchHit,
+  type TranscriptOut,
+} from "../lib/api";
 
 /**
  * Side-panel-local theme state, independent of the main app's
@@ -64,6 +72,7 @@ const TAB_ICONS: Record<EmbedTab, FC<{ className?: string }>> = {
  */
 export default function EmbedCardPage() {
   const { cardId = "" } = useParams<{ cardId: string }>();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const [hasToken, setHasToken] = useState<boolean | null>(null);
   const [card, setCard] = useState<Card | null>(null);
@@ -75,6 +84,9 @@ export default function EmbedCardPage() {
   const [copied, setCopied] = useState(false);
   const [embedTheme, setEmbedTheme] = useState<"dark" | "light">(readEmbedTheme);
   const [activeTranslation, setActiveTranslation] = useState<CardTranslationOut | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [defaultLang, setDefaultLang] = useState<string | null>(null);
+  const autoTriggeredFor = useRef<Set<string>>(new Set());
 
   // Apply the embed theme to the document root. We're effectively
   // racing the global ThemeProvider for the same classList, but we
@@ -121,6 +133,52 @@ export default function EmbedCardPage() {
       }
     })();
   }, [cardId]);
+
+  // Read the user's default-translation-language preference once per
+  // mount. Auto-translate only fires when the preference is non-null
+  // AND the card is completed (no point translating an empty card).
+  useEffect(() => {
+    if (!hasToken) return;
+    void (async () => {
+      try {
+        const prefs = await api.getPreferences();
+        setDefaultLang(prefs.default_translation_language);
+      } catch {
+        /* preferences endpoint missing or 401 — no auto-translate,
+           but the panel still works. */
+      }
+    })();
+  }, [hasToken]);
+
+  // Trigger auto-translate when:
+  //   - the user has a default language set
+  //   - the card is finished processing
+  //   - we haven't already kicked it off this mount (the picker would
+  //     loop us into re-creation otherwise)
+  // The CardLanguagePicker on the mini-bar then picks up the new
+  // translation in its existing list/poll cycle and flips
+  // `activeTranslation` once status="ready".
+  useEffect(() => {
+    if (!defaultLang) return;
+    if (!card || card.status !== "completed") return;
+    const key = `${card.id}::${defaultLang}`;
+    if (autoTriggeredFor.current.has(key)) return;
+    autoTriggeredFor.current.add(key);
+    void (async () => {
+      try {
+        const existing = await api.listTranslations(card.id);
+        const has = existing.some(
+          (t2) => t2.language === defaultLang && t2.status !== "failed",
+        );
+        if (!has) {
+          await api.createTranslation(card.id, defaultLang);
+        }
+      } catch {
+        /* swallow — failure leaves the user on the original language,
+           which is the same fallback we'd hit without preferences. */
+      }
+    })();
+  }, [defaultLang, card?.id, card?.status]);
 
   // Poll while the card is still being processed so the side panel
   // catches up to "completed" without the user having to refresh.
@@ -249,8 +307,25 @@ export default function EmbedCardPage() {
         <span className="ml-auto rounded-full bg-ink-800/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-400">
           {card.source_type}
         </span>
+        <button
+          type="button"
+          onClick={() => setSearchOpen((v) => !v)}
+          title={t("embed.searchTooltip", { defaultValue: "Search library" }) ?? ""}
+          className={[
+            "inline-flex h-7 w-7 items-center justify-center rounded-md transition",
+            searchOpen
+              ? "bg-ink-800 text-ink-100"
+              : "text-ink-300 hover:bg-ink-800 hover:text-ink-100",
+          ].join(" ")}
+        >
+          <Search className="h-3.5 w-3.5" />
+        </button>
         {card.status === "completed" && (
-          <CardLanguagePicker cardId={card.id} onActive={setActiveTranslation} />
+          <CardLanguagePicker
+            cardId={card.id}
+            onActive={setActiveTranslation}
+            initialActiveLanguage={defaultLang}
+          />
         )}
         <button
           type="button"
@@ -261,6 +336,18 @@ export default function EmbedCardPage() {
           {embedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
         </button>
       </div>
+
+      {searchOpen && (
+        <EmbedSearchStrip
+          onClose={() => setSearchOpen(false)}
+          onPick={(hit) => {
+            setSearchOpen(false);
+            if (hit.card_id !== cardId) {
+              navigate(`/embed/cards/${hit.card_id}`);
+            }
+          }}
+        />
+      )}
 
       {/* While the card is still being processed, replace the regular
           tabbed body with the animated skeleton. Polling above flips
@@ -359,6 +446,7 @@ export default function EmbedCardPage() {
               translation={activeTranslation}
               depth={summaryDepth}
               onDepthChange={setSummaryDepth}
+              onPickRelated={(c) => navigate(`/embed/cards/${c.card_id}`)}
             />
           )}
           {tab === "transcript" && (
@@ -402,17 +490,21 @@ function SummaryTab({
   translation,
   depth,
   onDepthChange,
+  onPickRelated,
 }: {
   card: Card;
   translation: CardTranslationOut | null;
   depth: SummaryDepth;
   onDepthChange: (d: SummaryDepth) => void;
+  onPickRelated: (c: Connection) => void;
 }) {
   const text =
     depth === "concise"
       ? translation?.concise_summary_md ?? card.concise_summary_md
       : translation?.detailed_summary_md ?? card.detailed_summary_md;
   const takeaways = translation?.key_takeaways_json ?? card.key_takeaways_json ?? [];
+  const videoId = card.source_type === "youtube" ? card.external_id ?? null : null;
+  const sourceUrl = card.source_url ?? null;
   return (
     <div className="space-y-3 p-3">
       <div className="flex gap-1">
@@ -425,7 +517,7 @@ function SummaryTab({
       </div>
       {text ? (
         <div className="prose prose-invert prose-sm max-w-none text-[13px] leading-relaxed text-ink-200">
-          <MarkdownView source={text} />
+          <MarkdownView source={text} youtubeVideoId={videoId} youtubeUrl={sourceUrl} />
         </div>
       ) : (
         <p className="text-xs text-ink-500">No {depth} summary available yet.</p>
@@ -439,13 +531,109 @@ function SummaryTab({
             {takeaways.map((tk, i) => (
               <li key={i} className="flex gap-2">
                 <span className="flex-shrink-0 text-ink-600">•</span>
-                <span>{tk}</span>
+                <span className="flex-1">
+                  <MarkdownView
+                    source={typeof tk === "string" ? tk : ""}
+                    youtubeVideoId={videoId}
+                    youtubeUrl={sourceUrl}
+                  />
+                </span>
               </li>
             ))}
           </ul>
         </section>
       )}
+      <RelatedCardsStrip cardId={card.id} onPick={onPickRelated} />
     </div>
+  );
+}
+
+/* ----------------------- related-cards strip ----------------------- */
+
+/**
+ * Bottom-of-summary row of cards the edge engine considers semantically
+ * related. Hidden when there are no connections (new cards), so the
+ * surface stays clean. Loading state shows three skeleton tiles to
+ * preserve layout height across the swap-in.
+ */
+function RelatedCardsStrip({
+  cardId,
+  onPick,
+}: {
+  cardId: string;
+  onPick: (c: Connection) => void;
+}) {
+  const { t } = useTranslation();
+  const [items, setItems] = useState<Connection[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setItems(null);
+    void (async () => {
+      try {
+        const result = await api.cardConnections(cardId, 5);
+        if (!cancelled) setItems(result);
+      } catch {
+        if (!cancelled) setItems([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId]);
+
+  // Hide once we know there are no connections — keeps the surface
+  // clean for fresh cards before the edge engine has had a chance.
+  if (!loading && (items?.length ?? 0) === 0) return null;
+
+  return (
+    <section className="border-t border-ink-800 pt-3">
+      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+        {t("embed.related", { defaultValue: "Related cards" })}
+      </h3>
+      <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1">
+        {loading
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-20 w-32 flex-shrink-0 animate-shimmer rounded-md bg-gradient-to-r from-ink-800 via-ink-700/60 to-ink-800"
+              />
+            ))
+          : items?.map((c) => (
+              <button
+                key={c.card_id}
+                type="button"
+                onClick={() => onPick(c)}
+                className="group flex w-32 flex-shrink-0 flex-col gap-1.5 text-left"
+                title={c.title}
+              >
+                {c.thumbnail_url ? (
+                  <img
+                    src={c.thumbnail_url}
+                    alt=""
+                    className="aspect-video w-full rounded-md object-cover ring-1 ring-ink-700 transition group-hover:ring-ink-500"
+                  />
+                ) : (
+                  <div className="flex aspect-video w-full items-center justify-center rounded-md bg-ink-800 text-[8px] uppercase text-ink-500 ring-1 ring-ink-700 transition group-hover:ring-ink-500">
+                    {c.source_type}
+                  </div>
+                )}
+                <p className="line-clamp-2 text-[10px] leading-tight text-ink-200 group-hover:text-ink-100">
+                  {c.title}
+                </p>
+                {c.reasons[0] && (
+                  <span className="inline-flex w-fit rounded-full bg-ink-800/80 px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-ink-400">
+                    {c.reasons[0].kind}
+                  </span>
+                )}
+              </button>
+            ))}
+      </div>
+    </section>
   );
 }
 
@@ -567,17 +755,253 @@ function TranscriptTab({
   );
 }
 
+/**
+ * In-panel notes editor. Lightweight by design — a textarea with
+ * markdown, debounced auto-save (1500 ms idle). Heavy editing flows
+ * stay in the main app's TipTap editor; the side panel is for quick
+ * captures.
+ *
+ * Save semantics:
+ *  - "saving" while a request is in flight
+ *  - "saved" briefly after a successful round-trip (auto-clears)
+ *  - "error" persists until the next successful save or manual retry
+ *
+ * The textarea state is the source of truth — we never overwrite it
+ * with `card.notes_md` after first mount, so a save failure doesn't
+ * lose the user's typing.
+ */
 function NotesTab({ card }: { card: Card }) {
-  if (!card.notes_md) {
-    return (
-      <p className="p-4 text-xs text-ink-500">
-        No notes yet. Open the full card in Mindshift to write some.
-      </p>
-    );
-  }
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState<string>(card.notes_md ?? "");
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const lastSavedRef = useRef<string>(card.notes_md ?? "");
+  const cardIdRef = useRef<string>(card.id);
+
+  // When the parent navigates to a different card, reset the draft
+  // to that card's notes. Comparing card.id catches the swap; the
+  // dep array ensures we don't clobber the user's typing on every
+  // poll-driven re-render of the same card.
+  useEffect(() => {
+    if (cardIdRef.current !== card.id) {
+      cardIdRef.current = card.id;
+      setDraft(card.notes_md ?? "");
+      lastSavedRef.current = card.notes_md ?? "";
+      setStatus("idle");
+      setErrorMessage(null);
+    }
+  }, [card.id, card.notes_md]);
+
+  // Debounced auto-save. Cancels on every keystroke and re-arms.
+  useEffect(() => {
+    if (draft === lastSavedRef.current) return;
+    const timer = window.setTimeout(async () => {
+      setStatus("saving");
+      try {
+        await api.updateNotes(card.id, draft);
+        lastSavedRef.current = draft;
+        setStatus("saved");
+        setErrorMessage(null);
+        // Clear the "saved" pill after a beat so the bar is quiet
+        // when the user is just reading what they wrote.
+        window.setTimeout(() => {
+          setStatus((s) => (s === "saved" ? "idle" : s));
+        }, 1500);
+      } catch (err) {
+        setStatus("error");
+        setErrorMessage(err instanceof Error ? err.message : "Save failed");
+      }
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [draft, card.id]);
+
+  const retry = async () => {
+    setStatus("saving");
+    try {
+      await api.updateNotes(card.id, draft);
+      lastSavedRef.current = draft;
+      setStatus("saved");
+      setErrorMessage(null);
+    } catch (err) {
+      setStatus("error");
+      setErrorMessage(err instanceof Error ? err.message : "Save failed");
+    }
+  };
+
   return (
-    <div className="prose prose-invert prose-sm m-3 max-w-none rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-[12px] text-ink-200">
-      <MarkdownView source={card.notes_md} />
+    <div className="flex h-full flex-col gap-2 p-3">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-ink-500">
+        <span>{t("embed.notes.label", { defaultValue: "Notes" })}</span>
+        {status === "saving" && (
+          <span className="inline-flex items-center gap-1 normal-case tracking-normal text-ink-400">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t("embed.notes.saving", { defaultValue: "Saving…" })}
+          </span>
+        )}
+        {status === "saved" && (
+          <span className="normal-case tracking-normal text-emerald-400">
+            {t("embed.notes.saved", { defaultValue: "Saved" })}
+          </span>
+        )}
+        {status === "error" && (
+          <button
+            type="button"
+            onClick={() => void retry()}
+            className="rounded border border-red-500/40 px-1.5 py-0.5 normal-case tracking-normal text-red-300 transition hover:bg-red-500/10"
+            title={errorMessage ?? ""}
+          >
+            {t("embed.notes.retry", { defaultValue: "Retry save" })}
+          </button>
+        )}
+      </div>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder={
+          t("embed.notes.placeholder", {
+            defaultValue: "Type your notes — Markdown welcome. Auto-saves.",
+          }) ?? ""
+        }
+        spellCheck={true}
+        className="min-h-[160px] flex-1 resize-y rounded-md border border-ink-800 bg-ink-900 px-3 py-2 text-[12px] leading-relaxed text-ink-100 outline-none transition focus:border-ink-600 focus:bg-ink-900/95"
+      />
+    </div>
+  );
+}
+
+/* ------------------------- inline search ------------------------- */
+
+/**
+ * Library search strip that drops in below the mini-bar. Debounced
+ * keystrokes hit `searchKeyword` (320 chars max snippet, 20 hits).
+ * Hover renders a tiny preview snippet; click hands the chosen
+ * SearchHit back to the parent which navigates the iframe.
+ */
+function EmbedSearchStrip({
+  onClose,
+  onPick,
+}: {
+  onClose: () => void;
+  onPick: (hit: SearchHit) => void;
+}) {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Autofocus the input on mount so the user can type immediately.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Esc closes the strip.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Debounced search. The cleanup runs every time `query` changes, so
+  // an in-flight timer for the previous keystroke gets cancelled —
+  // the API only sees the user's last 250 ms-stable query.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setHits([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await api.searchKeyword(q, 12);
+        // Dedup by card_id — transcript-segment hits and card hits
+        // for the same card collapse to one row in the dropdown.
+        const seen = new Set<string>();
+        const deduped: SearchHit[] = [];
+        for (const h of result) {
+          if (seen.has(h.card_id)) continue;
+          seen.add(h.card_id);
+          deduped.push(h);
+        }
+        setHits(deduped);
+      } catch {
+        setHits([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  return (
+    <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/95 backdrop-blur">
+      <div className="flex items-center gap-2 px-2 py-1.5">
+        <Search className="h-3.5 w-3.5 flex-shrink-0 text-ink-500" />
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={
+            t("embed.searchPlaceholder", {
+              defaultValue: "Search your library…",
+            }) ?? ""
+          }
+          className="min-w-0 flex-1 bg-transparent text-[12px] text-ink-100 outline-none placeholder:text-ink-500"
+        />
+        {loading && <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin text-ink-500" />}
+        <button
+          type="button"
+          onClick={onClose}
+          title={t("common.close", { defaultValue: "Close" }) ?? ""}
+          className="inline-flex h-6 w-6 items-center justify-center rounded text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+      {hits.length > 0 && (
+        <ul className="max-h-72 overflow-y-auto border-t border-ink-800 py-1">
+          {hits.map((h) => (
+            <li key={h.card_id}>
+              <button
+                type="button"
+                onClick={() => onPick(h)}
+                className="flex w-full items-start gap-2 px-2 py-1.5 text-left transition hover:bg-ink-800/60"
+              >
+                {h.thumbnail_url ? (
+                  <img
+                    src={h.thumbnail_url}
+                    alt=""
+                    className="h-8 w-12 flex-shrink-0 rounded object-cover ring-1 ring-ink-700"
+                  />
+                ) : (
+                  <div className="flex h-8 w-12 flex-shrink-0 items-center justify-center rounded bg-ink-800 text-[8px] uppercase text-ink-500 ring-1 ring-ink-700">
+                    {h.source_type}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12px] font-medium leading-tight text-ink-100">
+                    {h.title}
+                  </p>
+                  {h.snippet && (
+                    <p className="line-clamp-2 text-[10px] leading-snug text-ink-500">
+                      {h.snippet}
+                    </p>
+                  )}
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!loading && query.trim().length >= 2 && hits.length === 0 && (
+        <p className="border-t border-ink-800 px-3 py-2 text-[11px] text-ink-500">
+          {t("embed.searchEmpty", { defaultValue: "No matches." })}
+        </p>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ from app.core.security import create_access_token, hash_password, verify_passwor
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import LoginRequest, ProfileUpdate, RegisterRequest, TokenResponse, UserOut
+from app.schemas.preferences import UserPreferences, UserPreferencesUpdate
 from app.services.storage import get_storage
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -40,6 +41,23 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
+
+
+@router.get("/me/preferences", response_model=UserPreferences)
+def get_preferences(current_user: User = Depends(get_current_user)) -> UserPreferences:
+    return UserPreferences.from_user(current_user)
+
+
+@router.patch("/me/preferences", response_model=UserPreferences)
+def update_preferences(
+    payload: UserPreferencesUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserPreferences:
+    payload.merge_into(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return UserPreferences.from_user(current_user)
 
 
 MAX_AVATAR_BYTES = 2 * 1024 * 1024  # 2 MiB

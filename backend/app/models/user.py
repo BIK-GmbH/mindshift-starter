@@ -1,7 +1,7 @@
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy import Boolean, ForeignKey, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, new_uuid
@@ -23,3 +23,10 @@ class User(Base, TimestampMixin):
         PG_UUID(as_uuid=True), ForeignKey("files.id", ondelete="SET NULL"), nullable=True
     )
     public_profile: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Per-user preferences blob. Allowlist of keys is enforced at the
+    # Pydantic boundary in `app/schemas/preferences.py` so the JSONB
+    # doesn't drift into a free-for-all.
+    preferences_json: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )

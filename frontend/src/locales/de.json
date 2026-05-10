@@ -327,7 +327,10 @@
       "system": "System",
       "language": "Sprache",
       "sounds": "UI-Sounds",
-      "soundsBody": "Dezente Ticks bei Navigation, Buttons und Quiz-Antworten."
+      "soundsBody": "Dezente Ticks bei Navigation, Buttons und Quiz-Antworten.",
+      "defaultTranslation": "Standard-Übersetzungssprache",
+      "defaultTranslationOff": "Aus — Karten in Originalsprache lassen",
+      "defaultTranslationHint": "Gilt nur für das Side-Panel der Browser-Extension. Die Hauptapp bleibt in der Originalsprache."
     }
   },
   "graph": {
@@ -541,7 +544,8 @@
       "modeHint": "Wechsle zwischen Volltext- und semantischer Suche, um genau das zu finden, was du suchst.",
       "hintNav": "navigieren",
       "hintOpen": "Card öffnen",
-      "hintToggle": "öffnen"
+      "hintToggle": "öffnen",
+      "transcriptHit": "Transkript"
     }
   },
   "common": {

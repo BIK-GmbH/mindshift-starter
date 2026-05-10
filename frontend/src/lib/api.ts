@@ -198,6 +198,12 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<UserOut>("/api/auth/me"),
+  getPreferences: () => request<UserPreferences>("/api/auth/me/preferences"),
+  updatePreferences: (patch: Partial<UserPreferences>) =>
+    request<UserPreferences>("/api/auth/me/preferences", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
 
   listCards: (params: {
     q?: string;
@@ -977,6 +983,11 @@ export interface UserOut {
   public_profile: boolean;
 }
 
+export interface UserPreferences {
+  /** Free-form natural-language name. null = no auto-translate. */
+  default_translation_language: string | null;
+}
+
 export interface PublicProfileTagOut {
   name: string;
   slug: string;
@@ -1161,4 +1172,6 @@ export interface SearchHit {
   chunk_index: number | null;
   score: number;
   created_at: string;
+  timestamp_seconds?: number | null;
+  youtube_video_id?: string | null;
 }

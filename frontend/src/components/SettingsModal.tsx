@@ -426,11 +426,56 @@ function AccountTab() {
   );
 }
 
+const AUTO_TRANSLATE_OPTIONS = [
+  "Deutsch",
+  "English",
+  "Français",
+  "Español",
+  "Italiano",
+  "Português",
+  "Nederlands",
+  "Polski",
+  "日本語",
+  "中文",
+];
+
 function AppearanceTab() {
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useTheme();
   const current = i18n.resolvedLanguage ?? "en";
   const [soundsOn, setSoundsOn] = useState<boolean>(() => getSoundsEnabled());
+  const [defaultLang, setDefaultLang] = useState<string | null>(null);
+  const [defaultLangSaving, setDefaultLangSaving] = useState(false);
+
+  // Load the default-translation-language preference once.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const prefs = await api.getPreferences();
+        if (!cancelled) setDefaultLang(prefs.default_translation_language);
+      } catch {
+        /* preferences endpoint missing — leave the dropdown on "Off" */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setDefault = async (value: string | null) => {
+    setDefaultLangSaving(true);
+    try {
+      const updated = await api.updatePreferences({ default_translation_language: value });
+      setDefaultLang(updated.default_translation_language);
+    } catch {
+      /* surface failure on next reload — toast infrastructure is
+         heavy for a one-shot save and the picker UI re-renders the
+         current state if the save silently fails */
+    } finally {
+      setDefaultLangSaving(false);
+    }
+  };
 
   const toggleSounds = () => {
     const next = !soundsOn;
@@ -498,6 +543,49 @@ function AppearanceTab() {
             );
           })}
         </div>
+      </div>
+
+      {/* Default translation language — auto-translates every newly
+          embedded card to this language on first paint. Dropdown so
+          ten options don't bloat the modal vertically. */}
+      <div>
+        <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-400">
+          {t("settings.appearance.defaultTranslation", {
+            defaultValue: "Default translation language",
+          })}
+        </label>
+        <div className="flex items-center gap-2">
+          <select
+            value={defaultLang ?? ""}
+            onChange={(e) => void setDefault(e.target.value || null)}
+            disabled={defaultLangSaving}
+            className="flex-1 rounded-lg border border-ink-700 bg-ink-900/40 px-3 py-2.5 text-sm text-ink-100 transition focus:border-ink-500 focus:outline-none disabled:opacity-50"
+          >
+            <option value="">
+              {t("settings.appearance.defaultTranslationOff", {
+                defaultValue: "Off — keep cards in their original language",
+              })}
+            </option>
+            {AUTO_TRANSLATE_OPTIONS.map((lang) => (
+              <option key={lang} value={lang}>
+                {lang}
+              </option>
+            ))}
+            {/* Render an extra option when the user has a custom
+                language stored (e.g. set via the side-panel picker
+                with a free-form prompt) so the select renders the
+                current value and doesn't silently revert to "Off". */}
+            {defaultLang && !AUTO_TRANSLATE_OPTIONS.includes(defaultLang) && (
+              <option value={defaultLang}>{defaultLang}</option>
+            )}
+          </select>
+        </div>
+        <p className="mt-1.5 text-[11px] text-ink-500">
+          {t("settings.appearance.defaultTranslationHint", {
+            defaultValue:
+              "Applies to the browser-extension side panel only. The main app keeps the original language.",
+          })}
+        </p>
       </div>
 
       {/* UI sounds toggle */}

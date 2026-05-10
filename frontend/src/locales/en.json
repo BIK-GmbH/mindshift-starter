@@ -327,7 +327,10 @@
       "system": "System",
       "language": "Language",
       "sounds": "UI sounds",
-      "soundsBody": "Subtle ticks on navigation, buttons and quiz answers."
+      "soundsBody": "Subtle ticks on navigation, buttons and quiz answers.",
+      "defaultTranslation": "Default translation language",
+      "defaultTranslationOff": "Off — keep cards in their original language",
+      "defaultTranslationHint": "Applies to the browser-extension side panel only. The main app keeps the original language."
     }
   },
   "graph": {
@@ -541,7 +544,8 @@
       "modeHint": "Switch between full-text and semantic search to find exactly what you need.",
       "hintNav": "navigate",
       "hintOpen": "open card",
-      "hintToggle": "toggle"
+      "hintToggle": "toggle",
+      "transcriptHit": "transcript"
     }
   },
   "common": {

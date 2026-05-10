@@ -10,6 +10,11 @@ interface Props {
   /** Reports the currently-active translation back to the parent so it
    *  can swap title + summary fields. `null` = show original card. */
   onActive: (tr: CardTranslationOut | null) => void;
+  /** When set, the picker auto-selects this language as soon as a
+   *  translation in that language reaches `status="ready"`. Used for
+   *  the "default translation language" preference — fires once per
+   *  mount, after which the user's picker choices win. */
+  initialActiveLanguage?: string | null;
 }
 
 const POLL_MS = 4000;
@@ -26,13 +31,23 @@ const COMMON_LANGUAGES = [
   "中文",
 ];
 
-export default function CardLanguagePicker({ cardId, onActive }: Props) {
+export default function CardLanguagePicker({
+  cardId,
+  onActive,
+  initialActiveLanguage,
+}: Props) {
   const { t } = useTranslation();
   const { confirm, prompt } = useDialog();
   const [translations, setTranslations] = useState<CardTranslationOut[]>([]);
   const [activeLang, setActiveLang] = useState<string | null>(null); // null = original
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  // Track whether we've consumed the initial-active-language hint yet.
+  // Once the user clicks anything in the picker (or once we activate
+  // the requested language), the hint stops applying. Without this
+  // gate the user couldn't switch back to "Original" — the next poll
+  // cycle would auto-flip them back.
+  const initialHintConsumed = useRef(false);
 
   // Initial fetch.
   useEffect(() => {
@@ -60,12 +75,39 @@ export default function CardLanguagePicker({ cardId, onActive }: Props) {
     onActive(tr && tr.status === "ready" ? tr : null);
   }, [activeLang, translations, onActive]);
 
+  // Auto-activate the initial-language hint once a matching translation
+  // is ready. Fires once per mount (initialHintConsumed gate), so a
+  // user who clicks back to "Original" can stay there.
+  useEffect(() => {
+    if (initialHintConsumed.current) return;
+    if (!initialActiveLanguage) return;
+    const tr = translations.find(
+      (x) => x.language === initialActiveLanguage && x.status === "ready",
+    );
+    if (!tr) return;
+    initialHintConsumed.current = true;
+    setActiveLang(initialActiveLanguage);
+  }, [translations, initialActiveLanguage]);
+
   // Poll while any translation is processing. The tick itself reschedules
   // — the effect's dep is just whether ANY processing is happening, not
   // each tick's result, so the loop wouldn't auto-restart otherwise.
+  //
+  // Also poll when an `initialActiveLanguage` hint is set but no matching
+  // ready translation has appeared yet. Without this, an auto-translate
+  // kicked off by the parent AFTER our initial list fetch never gets
+  // surfaced — the parent created the row, but our cache thinks the
+  // translation list is empty so we never re-check.
   const hasProcessing = translations.some((t2) => t2.status === "processing");
+  const awaitingInitialHint =
+    !initialHintConsumed.current &&
+    !!initialActiveLanguage &&
+    !translations.some(
+      (t2) => t2.language === initialActiveLanguage && t2.status === "ready",
+    );
+  const shouldPoll = hasProcessing || awaitingInitialHint;
   useEffect(() => {
-    if (!hasProcessing) return;
+    if (!shouldPoll) return;
     let cancelled = false;
     let timer: number | null = null;
     const tick = async () => {
@@ -74,7 +116,14 @@ export default function CardLanguagePicker({ cardId, onActive }: Props) {
         const rows = await api.listTranslations(cardId);
         if (cancelled) return;
         setTranslations(rows);
-        if (rows.some((r) => r.status === "processing")) {
+        const stillProcessing = rows.some((r) => r.status === "processing");
+        const stillAwaiting =
+          !initialHintConsumed.current &&
+          !!initialActiveLanguage &&
+          !rows.some(
+            (r) => r.language === initialActiveLanguage && r.status === "ready",
+          );
+        if (stillProcessing || stillAwaiting) {
           timer = window.setTimeout(tick, POLL_MS);
         }
       } catch {
@@ -86,7 +135,7 @@ export default function CardLanguagePicker({ cardId, onActive }: Props) {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [hasProcessing, cardId]);
+  }, [shouldPoll, cardId, initialActiveLanguage]);
 
   // Close on outside click.
   useEffect(() => {
@@ -185,6 +234,7 @@ export default function CardLanguagePicker({ cardId, onActive }: Props) {
             <button
               type="button"
               onClick={() => {
+                initialHintConsumed.current = true;
                 setActiveLang(null);
                 setOpen(false);
               }}
