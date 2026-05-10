@@ -110,13 +110,16 @@ def poll_feed(feed_id: UUID) -> dict:
                 summary["skipped_seen"] += 1
                 continue
 
-            card_id = _create_article_card(db, feed.user_id, url, entry["title"])
+            card_id, kind, external_id = _create_card_from_feed_entry(
+                db, feed.user_id, url, entry["title"]
+            )
             db.commit()  # commit so the BackgroundTask can read the row
-            # Schedule ingestion synchronously here is blocking — instead
-            # we hand the work off to a thread the same way ingestion
-            # already does internally. process_article_card opens its own
-            # session, so we don't pass the current one.
-            _schedule_ingest(card_id, url)
+            # Schedule the right ingestion pipeline. YouTube playlist
+            # feeds (one of the main use-cases for this surface) need
+            # process_youtube_card, not process_article_card — the
+            # latter would scrape the watch-page HTML and miss the
+            # transcript entirely.
+            _schedule_ingest(card_id, url, kind=kind, external_id=external_id)
             queued += 1
             summary["queued"] += 1
 
@@ -192,28 +195,85 @@ def _existing_card_urls(db: Session, user_id: UUID, urls: list[str]) -> set[str]
     return seen
 
 
-def _create_article_card(db: Session, user_id: UUID, url: str, title: str) -> UUID:
-    """Insert the source + card + queued job rows. Mirrors the structure
-    of `cards.create_card_from_url` but without HTTP/auth machinery."""
-    source = Source(source_type="article", url=url, canonical_url=url)
+def _classify_url(url: str) -> tuple[str, str | None]:
+    """Decide which ingestion pipeline a feed entry belongs to.
+
+    Mirrors the auto-routing in `/api/cards/from-url`:
+      - YouTube watch / shorts / youtu.be links → ("youtube", video_id)
+      - github.com/owner/repo                   → ("github", "owner/repo")
+      - everything else                         → ("article", None)
+
+    Returns a (kind, external_id) tuple so the caller can build the
+    right Source row + queue the right background task.
+    """
+    from app.services.github import parse_repo_url as parse_github_url
+    from app.services.youtube import extract_video_id
+
+    video_id = extract_video_id(url)
+    if video_id:
+        return ("youtube", video_id)
+    gh = parse_github_url(url)
+    if gh:
+        return ("github", f"{gh[0]}/{gh[1]}")
+    return ("article", None)
+
+
+def _create_card_from_feed_entry(
+    db: Session, user_id: UUID, url: str, title: str
+) -> tuple[UUID, str, str | None]:
+    """Insert source + card + queued job rows for a feed entry.
+
+    Returns (card_id, kind, external_id) so the caller knows which
+    pipeline to dispatch. Mirrors `cards.create_card_from_url`'s
+    auto-routing — without it, a YouTube playlist Atom feed would
+    funnel every video through the article scraper and produce
+    garbage (the watch-page HTML, not the transcript).
+    """
+    kind, external_id = _classify_url(url)
+
+    if kind == "youtube":
+        canonical = f"https://www.youtube.com/watch?v={external_id}"
+        source = Source(
+            source_type="youtube",
+            url=url,
+            canonical_url=canonical,
+            external_id=external_id,
+        )
+    elif kind == "github":
+        canonical = f"https://github.com/{external_id}"
+        source = Source(
+            source_type="github",
+            url=url,
+            canonical_url=canonical,
+            external_id=external_id,
+        )
+    else:
+        source = Source(source_type="article", url=url, canonical_url=url)
+
     db.add(source)
     db.flush()
     card = Card(
         user_id=user_id,
         source_id=source.id,
         title=title or url,
-        source_type="article",
+        source_type=kind,
         status="queued",
     )
     db.add(card)
     db.flush()
-    job = Job(card_id=card.id, job_type="article_ingest", status="queued")
+    job = Job(card_id=card.id, job_type=f"{kind}_ingest", status="queued")
     db.add(job)
-    return card.id
+    return card.id, kind, external_id
 
 
-def _schedule_ingest(card_id: UUID, url: str) -> None:
-    """Run the article ingestion in a background thread.
+# Backwards-compat alias for any caller that still imports the old name.
+def _create_article_card(db: Session, user_id: UUID, url: str, title: str) -> UUID:
+    card_id, _, _ = _create_card_from_feed_entry(db, user_id, url, title)
+    return card_id
+
+
+def _schedule_ingest(card_id: UUID, url: str, kind: str = "article", external_id: str | None = None) -> None:
+    """Run the matching ingestion pipeline in a background thread.
 
     We can't use FastAPI's BackgroundTasks here because the scheduler
     runs outside of a request. A bare thread is enough — ingestion
@@ -221,10 +281,14 @@ def _schedule_ingest(card_id: UUID, url: str) -> None:
     """
     import threading
 
-    from app.services.ingestion import process_article_card
+    from app.services.ingestion import (
+        process_article_card,
+        process_github_card,
+        process_youtube_card,
+    )
 
-    # `process_article_card` looks up the matching Job row by card_id, so
-    # we need the job id we just inserted. Cheapest path: re-query.
+    # The processor looks up the matching Job row by card_id, so we
+    # need the job id we just inserted. Cheapest path: re-query.
     db = SessionLocal()
     try:
         job_id = db.execute(
@@ -236,11 +300,17 @@ def _schedule_ingest(card_id: UUID, url: str) -> None:
     finally:
         db.close()
 
-    threading.Thread(
-        target=process_article_card,
-        args=(card_id, job_id, url),
-        daemon=True,
-    ).start()
+    if kind == "youtube" and external_id:
+        target = process_youtube_card
+        args = (card_id, job_id, external_id)
+    elif kind == "github":
+        target = process_github_card
+        args = (card_id, job_id, url)
+    else:
+        target = process_article_card
+        args = (card_id, job_id, url)
+
+    threading.Thread(target=target, args=args, daemon=True).start()
 
 
 def poll_all_due_feeds() -> int:
