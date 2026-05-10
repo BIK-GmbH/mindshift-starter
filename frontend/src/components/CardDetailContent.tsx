@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileText,
   Globe,
+  Link2,
   Loader2,
   MessageSquare,
   Network,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
 import CardGraph from "./CardGraph";
 import CardLanguagePicker from "./CardLanguagePicker";
@@ -34,6 +36,7 @@ import StatusBadge from "./StatusBadge";
 import ChatTab from "./cardTabs/ChatTab";
 import NotesTab from "./cardTabs/NotesTab";
 import QuizTab from "./cardTabs/QuizTab";
+import RelatedTab from "./cardTabs/RelatedTab";
 import SummaryTab from "./cardTabs/SummaryTab";
 import TranscriptTab from "./cardTabs/TranscriptTab";
 import { useDialog } from "../lib/DialogContext";
@@ -46,6 +49,7 @@ export type CardDetailTab =
   | "notes"
   | "quiz"
   | "chat"
+  | "related"
   | "graph"
   | "podcast";
 
@@ -55,6 +59,7 @@ const TAB_ICONS: Record<CardDetailTab, FC<{ className?: string }>> = {
   notes: StickyNote,
   quiz: Sparkles,
   chat: MessageSquare,
+  related: Link2,
   graph: Network,
   podcast: Headphones,
 };
@@ -90,6 +95,7 @@ export default function CardDetailContent({
 }: Props) {
   const { t } = useTranslation();
   const { confirm } = useDialog();
+  const navigate = useNavigate();
   const [shareOpen, setShareOpen] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
   const [activeTranslation, setActiveTranslation] = useState<CardTranslationOut | null>(null);
@@ -275,7 +281,16 @@ export default function CardDetailContent({
   }
 
   const canRegenerate = card.status === "failed" && card.source_type !== "pdf";
-  const allTabs: CardDetailTab[] = ["summary", "transcript", "notes", "quiz", "chat", "graph", "podcast"];
+  const allTabs: CardDetailTab[] = [
+    "summary",
+    "transcript",
+    "notes",
+    "quiz",
+    "chat",
+    "related",
+    "graph",
+    "podcast",
+  ];
   const tabs = hideChatTab ? allTabs.filter((id) => id !== "chat") : allTabs;
   const horizPad = compact ? "px-5" : "px-8";
   const innerWidth = compact ? "max-w-none" : "max-w-4xl";
@@ -485,6 +500,13 @@ export default function CardDetailContent({
             {tab === "quiz" && <QuizTab quiz={quiz} cardStatus={card.status} />}
 
             {tab === "chat" && <ChatTab card={card} showSourceMedia />}
+
+            {tab === "related" && (
+              <RelatedTab
+                cardId={card.id}
+                onPick={(id) => navigate(`/cards/${id}`)}
+              />
+            )}
 
             {tab === "graph" && (
               <div className="h-[65vh]">
