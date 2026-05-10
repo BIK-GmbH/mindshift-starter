@@ -75,16 +75,33 @@ class TranscriptResult:
     provider: str
 
 
+class TranscriptIpBlocked(Exception):
+    """YouTube is temporarily refusing transcript requests from this IP.
+
+    Distinct from "no captions on this video" so the UI can show a
+    different message and the caller can retry later.
+    """
+
+
 def fetch_transcript(video_id: str, preferred_languages: list[str] | None = None) -> TranscriptResult | None:
-    """Fetch a transcript via youtube-transcript-api (v1.x). Returns None if unavailable."""
+    """Fetch a transcript via youtube-transcript-api (v1.x).
+
+    Returns None when the video genuinely has no captions.
+    Raises TranscriptIpBlocked when YouTube blocks us — the caller
+    should surface a clear "try again later" message rather than
+    misreporting it as "no transcript".
+    """
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
+        from youtube_transcript_api._errors import IpBlocked, RequestBlocked
     except ImportError:
         return None
 
     languages = preferred_languages or ["de", "en"]
     try:
         fetched = YouTubeTranscriptApi().fetch(video_id, languages=languages)
+    except (IpBlocked, RequestBlocked) as exc:
+        raise TranscriptIpBlocked(str(exc)) from exc
     except Exception:
         return None
 

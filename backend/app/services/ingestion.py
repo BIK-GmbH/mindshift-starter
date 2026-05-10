@@ -21,7 +21,7 @@ from app.services.embeddings import chunk_text, embed_texts
 from app.services.github import build_summary_block, fetch_repo
 from app.services.openai_summarizer import summarize_transcript
 from app.services.pdf import extract_pdf
-from app.services.youtube import fetch_metadata, fetch_transcript
+from app.services.youtube import TranscriptIpBlocked, fetch_metadata, fetch_transcript
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,16 @@ def process_youtube_card(card_id: UUID, job_id: UUID, video_id: str) -> None:
         card.thumbnail_url = metadata.thumbnail_url
         db.commit()
 
-        transcript_result = fetch_transcript(video_id)
+        try:
+            transcript_result = fetch_transcript(video_id)
+        except TranscriptIpBlocked:
+            _mark_failed(
+                db,
+                card,
+                job,
+                "YouTube hat unsere IP vorübergehend gesperrt. Bitte in einer Stunde nochmal versuchen.",
+            )
+            return
         if transcript_result is None:
             _mark_failed(db, card, job, "No transcript/captions available for this video.")
             return
@@ -54,7 +63,9 @@ def process_youtube_card(card_id: UUID, job_id: UUID, video_id: str) -> None:
         )
         db.commit()
 
-        _summarize_and_attach(db, card, transcript_result.text)
+        _summarize_and_attach(
+            db, card, transcript_result.text, segments=transcript_result.segments
+        )
         _mark_completed(db, card, job)
 
 
@@ -251,9 +262,16 @@ def _job_context(card_id: UUID, job_id: UUID):
         db.close()
 
 
-def _summarize_and_attach(db: Session, card: Card, text: str) -> None:
+def _summarize_and_attach(
+    db: Session, card: Card, text: str, *, segments: list[dict] | None = None
+) -> None:
     existing_top_tags = _existing_top_level_tag_names(db, card.user_id)
-    summary = summarize_transcript(card.title, text, existing_top_tags=existing_top_tags)
+    summary = summarize_transcript(
+        card.title,
+        text,
+        existing_top_tags=existing_top_tags,
+        segments=segments,
+    )
     card.concise_summary_md = summary.concise_summary_md
     card.detailed_summary_md = summary.detailed_summary_md
     card.key_takeaways_json = summary.key_takeaways
