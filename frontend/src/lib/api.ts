@@ -100,7 +100,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-export type CardStatus = "queued" | "processing" | "completed" | "failed";
+export type CardStatus = "queued" | "processing" | "completed" | "failed" | "paused";
 
 export interface CardListItem {
   id: string;
@@ -276,6 +276,44 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ notes_md: notes }),
     }),
+  /** Trigger ingestion of a paused (read-later) or failed card. */
+  processPausedCard: (id: string) =>
+    request<{ card: Card }>(`/api/cards/${id}/process`, { method: "POST" }),
+  /** Highlights — phase 5 of the extension roadmap. The content
+   *  script writes here on user action and reads back on page load. */
+  listCardHighlights: (cardId: string) =>
+    request<HighlightOut[]>(`/api/cards/${cardId}/highlights`),
+  createCardHighlight: (
+    cardId: string,
+    body: {
+      anchor_text: string;
+      prefix?: string;
+      suffix?: string;
+      color?: string;
+      note?: string;
+    },
+  ) =>
+    request<HighlightOut>(`/api/cards/${cardId}/highlights`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateHighlight: (id: string, patch: { color?: string; note?: string }) =>
+    request<HighlightOut>(`/api/highlights/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  deleteHighlight: (id: string) =>
+    request<void>(`/api/highlights/${id}`, { method: "DELETE" }),
+  listHighlightsByUrl: (sourceUrl: string) =>
+    request<HighlightOut[]>(
+      `/api/highlights?source_url=${encodeURIComponent(sourceUrl)}`,
+    ),
+  /** Bulk-trigger every paused card. Returns the count started. */
+  processAllPausedCards: () =>
+    request<{ started: number; total_paused: number }>(
+      "/api/cards/process-paused",
+      { method: "POST" },
+    ),
   deleteCard: (id: string) =>
     request<void>(`/api/cards/${id}`, { method: "DELETE" }),
   getTranscript: (id: string) =>
@@ -986,6 +1024,19 @@ export interface UserOut {
 export interface UserPreferences {
   /** Free-form natural-language name. null = no auto-translate. */
   default_translation_language: string | null;
+}
+
+export interface HighlightOut {
+  id: string;
+  card_id: string;
+  source_url: string;
+  anchor_text: string;
+  prefix: string;
+  suffix: string;
+  color: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PublicProfileTagOut {

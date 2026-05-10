@@ -177,7 +177,11 @@ function looksLikePdf({ url, mimeType }) {
  *  is garbage.
  */
 async function savePageForUrl(url, { tabId, mimeType } = {}) {
-  const stored = await chrome.storage.local.get(["apiUrl", "token"]);
+  const stored = await chrome.storage.local.get([
+    "apiUrl",
+    "token",
+    "saveAsReadLater",
+  ]);
   const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
   const token = stored.token || "";
   if (!apiUrl || !token) {
@@ -187,13 +191,14 @@ async function savePageForUrl(url, { tabId, mimeType } = {}) {
   const endpoint = looksLikePdf({ url: canon, mimeType })
     ? "/api/cards/from-pdf-url"
     : "/api/cards/from-url";
+  const paused = !!stored.saveAsReadLater;
   const res = await fetch(`${apiUrl}${endpoint}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ url: canon }),
+    body: JSON.stringify({ url: canon, paused }),
   });
   if (res.status === 401 || res.status === 403) {
     return { ok: false, error: "Token expired", code: "auth" };
@@ -419,6 +424,100 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse(result);
       } catch (err) {
         sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
+    return true;
+  }
+
+  // ----------------------------- highlights -----------------------------
+  // The page's highlight content script can't talk to the API
+  // directly (CORS, missing token). It hands the work to us here:
+  // fetch+save flow with auto-save of the parent card if it doesn't
+  // exist yet.
+  if (msg?.type === "saveHighlight") {
+    void (async () => {
+      try {
+        const stored = await chrome.storage.local.get(["apiUrl", "token"]);
+        const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
+        const token = stored.token || "";
+        if (!apiUrl || !token) {
+          sendResponse({ ok: false, error: "Extension not configured", code: "config" });
+          return;
+        }
+        // Make sure a card exists for this URL — backend dedup turns
+        // a re-save into a no-op so we can do this unconditionally.
+        const saveRes = await savePageForUrl(msg.url, {
+          tabId: sender?.tab?.id,
+          mimeType: sender?.tab?.mimeType,
+        });
+        if (!saveRes.ok) {
+          sendResponse(saveRes);
+          return;
+        }
+        const cardId = saveRes.cardId;
+        if (!cardId) {
+          sendResponse({ ok: false, error: "No card id returned" });
+          return;
+        }
+        const res = await fetch(`${apiUrl}/api/cards/${cardId}/highlights`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            anchor_text: msg.anchor_text,
+            prefix: msg.prefix || "",
+            suffix: msg.suffix || "",
+            color: msg.color || "yellow",
+            note: msg.note || "",
+          }),
+        });
+        if (res.status === 401 || res.status === 403) {
+          sendResponse({ ok: false, error: "Token expired", code: "auth" });
+          return;
+        }
+        if (!res.ok) {
+          let detail = res.statusText;
+          try {
+            const d = await res.json();
+            if (typeof d?.detail === "string") detail = d.detail;
+          } catch {}
+          sendResponse({ ok: false, error: detail });
+          return;
+        }
+        const highlight = await res.json();
+        sendResponse({ ok: true, highlight, cardId });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "fetchHighlightsForUrl") {
+    void (async () => {
+      try {
+        const stored = await chrome.storage.local.get(["apiUrl", "token"]);
+        const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
+        const token = stored.token || "";
+        if (!apiUrl || !token) {
+          sendResponse({ ok: false, items: [] });
+          return;
+        }
+        const canon = canonicalizeUrl(msg.url);
+        const res = await fetch(
+          `${apiUrl}/api/highlights?source_url=${encodeURIComponent(canon)}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) {
+          sendResponse({ ok: false, items: [] });
+          return;
+        }
+        const items = await res.json();
+        sendResponse({ ok: true, items });
+      } catch {
+        sendResponse({ ok: false, items: [] });
       }
     })();
     return true;

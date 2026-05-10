@@ -258,10 +258,20 @@
     "related": "Related",
     "graph": "Graph",
     "podcast": "Podcast",
+    "highlights": "Highlights",
     "relatedLoading": "Computing connections…",
     "relatedEmptyTitle": "No connections yet",
     "relatedEmptyBody": "Save more cards on related topics — the edge engine surfaces semantic similarity, shared entities, shared tags and manual relations once the library has neighbours.",
     "relatedLead": "{{count}} cards in your library connect to this one.",
+    "highlightsLoading": "Loading highlights…",
+    "highlightsEmptyTitle": "No highlights yet",
+    "highlightsEmptyBody": "Open the original page with the Mindshift browser extension installed, select text, and click the highlight pill that appears.",
+    "highlightsLead": "{{count}} quotes saved from this page.",
+    "highlightsNotePlaceholder": "Annotate this quote (optional)…",
+    "highlightsOpenSource": "Open original page at this highlight",
+    "highlightsOpenSourceShort": "Source",
+    "highlightsRemoveTitle": "Delete this highlight?",
+    "highlightsRemoveBody": "The highlight is removed everywhere — including on the original page.",
     "retry": "Retry",
     "openSource": "Open original source",
     "openSourceShort": "Open",
@@ -274,8 +284,12 @@
       "queued": "Queued",
       "processing": "Processing",
       "completed": "Completed",
-      "failed": "Failed"
-    }
+      "failed": "Failed",
+      "paused": "Read Later"
+    },
+    "processNow": "Process now",
+    "readLaterFilter": "Read Later",
+    "processAllPaused": "Process all ({{count}})"
   },
   "auth": {
     "signIn": "Sign in",

@@ -65,10 +65,20 @@ class CardUpdate(BaseModel):
 
 class FromYouTubeRequest(BaseModel):
     url: HttpUrl
+    paused: bool = Field(
+        default=False,
+        description=(
+            "If true, create the card in 'paused' status without "
+            "scheduling any background ingestion. The user can later "
+            "trigger /cards/{id}/process to spend AI tokens. Used by "
+            "the read-later flow."
+        ),
+    )
 
 
 class FromUrlRequest(BaseModel):
     url: HttpUrl
+    paused: bool = Field(default=False)
 
 
 class BySourceUrlsRequest(BaseModel):

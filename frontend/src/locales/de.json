@@ -258,10 +258,20 @@
     "related": "Verbunden",
     "graph": "Graph",
     "podcast": "Podcast",
+    "highlights": "Highlights",
     "relatedLoading": "Verbindungen werden berechnet…",
     "relatedEmptyTitle": "Noch keine Verbindungen",
     "relatedEmptyBody": "Speichere mehr Karten zu verwandten Themen — die Edge-Engine zeigt semantische Ähnlichkeit, gemeinsame Entitäten, gemeinsame Tags und manuelle Relationen, sobald die Bibliothek Nachbarn hat.",
     "relatedLead": "{{count}} Karten in deiner Bibliothek hängen mit dieser zusammen.",
+    "highlightsLoading": "Highlights werden geladen…",
+    "highlightsEmptyTitle": "Noch keine Highlights",
+    "highlightsEmptyBody": "Öffne die Originalseite mit der installierten Mindshift-Browser-Extension, markiere Text und klicke auf die Highlight-Pille, die erscheint.",
+    "highlightsLead": "{{count}} Zitate aus dieser Seite gespeichert.",
+    "highlightsNotePlaceholder": "Diese Stelle annotieren (optional)…",
+    "highlightsOpenSource": "Originalseite an dieser Stelle öffnen",
+    "highlightsOpenSourceShort": "Quelle",
+    "highlightsRemoveTitle": "Dieses Highlight löschen?",
+    "highlightsRemoveBody": "Das Highlight wird überall entfernt — auch auf der Originalseite.",
     "retry": "Erneut versuchen",
     "openSource": "Originalquelle öffnen",
     "openSourceShort": "Öffnen",
@@ -274,8 +284,12 @@
       "queued": "Wartet",
       "processing": "Wird verarbeitet",
       "completed": "Fertig",
-      "failed": "Fehlgeschlagen"
-    }
+      "failed": "Fehlgeschlagen",
+      "paused": "Read-Later"
+    },
+    "processNow": "Jetzt verarbeiten",
+    "readLaterFilter": "Read-Later",
+    "processAllPaused": "Alle verarbeiten ({{count}})"
   },
   "auth": {
     "signIn": "Anmelden",

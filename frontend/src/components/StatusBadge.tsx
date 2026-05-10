@@ -8,6 +8,9 @@ const styles: Record<CardStatus, string> = {
   processing: "bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40",
   completed: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30",
   failed: "bg-red-500/15 text-red-300 ring-1 ring-red-500/30",
+  // Paused = read-later. Warm grey so it visually disappears against
+  // the inflight amber and reads as "intentionally not running yet".
+  paused: "bg-ink-600/30 text-ink-300 ring-1 ring-ink-600/50",
 };
 
 export default function StatusBadge({ status }: { status: CardStatus }) {

@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileText,
   Globe,
+  Highlighter,
   Link2,
   Loader2,
   MessageSquare,
@@ -34,6 +35,7 @@ import ShareModal from "./ShareModal";
 import IngestionSkeleton from "./IngestionSkeleton";
 import StatusBadge from "./StatusBadge";
 import ChatTab from "./cardTabs/ChatTab";
+import HighlightsTab from "./cardTabs/HighlightsTab";
 import NotesTab from "./cardTabs/NotesTab";
 import QuizTab from "./cardTabs/QuizTab";
 import RelatedTab from "./cardTabs/RelatedTab";
@@ -47,6 +49,7 @@ export type CardDetailTab =
   | "summary"
   | "transcript"
   | "notes"
+  | "highlights"
   | "quiz"
   | "chat"
   | "related"
@@ -57,6 +60,7 @@ const TAB_ICONS: Record<CardDetailTab, FC<{ className?: string }>> = {
   summary: BookOpen,
   transcript: FileText,
   notes: StickyNote,
+  highlights: Highlighter,
   quiz: Sparkles,
   chat: MessageSquare,
   related: Link2,
@@ -285,6 +289,7 @@ export default function CardDetailContent({
     "summary",
     "transcript",
     "notes",
+    "highlights",
     "quiz",
     "chat",
     "related",
@@ -505,6 +510,13 @@ export default function CardDetailContent({
               <RelatedTab
                 cardId={card.id}
                 onPick={(id) => navigate(`/cards/${id}`)}
+              />
+            )}
+
+            {tab === "highlights" && (
+              <HighlightsTab
+                cardId={card.id}
+                sourceUrl={card.source_url ?? null}
               />
             )}
 

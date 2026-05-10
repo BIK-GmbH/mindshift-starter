@@ -93,6 +93,7 @@ export default function LibraryPage() {
   const untaggedFilter = params.get("untagged") === "1";
   const selectedCardId = params.get("card");
   const sourceFilter = params.get("src") ?? "";
+  const statusFilter = params.get("status") ?? "";
   const sort = (params.get("sort") as "newest" | "oldest" | "title" | null) ?? "newest";
   const view = (params.get("view") === "list" ? "list" : "grid") as "grid" | "list";
   const [rightPaneOpen, setRightPaneOpen] = useState(() => {
@@ -126,6 +127,7 @@ export default function LibraryPage() {
         tag: tag ?? undefined,
         untagged: untaggedFilter || undefined,
         source_type: sourceFilter || undefined,
+        status: statusFilter || undefined,
         sort,
       });
       setCards(list);
@@ -135,7 +137,7 @@ export default function LibraryPage() {
     } finally {
       setLoading(false);
     }
-  }, [tag, untaggedFilter, sourceFilter, sort]);
+  }, [tag, untaggedFilter, sourceFilter, statusFilter, sort]);
 
   useEffect(() => {
     void fetchCards();
@@ -192,9 +194,10 @@ export default function LibraryPage() {
       if (c.status === "completed") acc.completed += 1;
       if (c.status === "failed") acc.failed += 1;
       if (c.status === "processing" || c.status === "queued") acc.inflight += 1;
+      if (c.status === "paused") acc.paused += 1;
       return acc;
     },
-    { total: 0, completed: 0, failed: 0, inflight: 0 },
+    { total: 0, completed: 0, failed: 0, inflight: 0, paused: 0 },
   );
 
   const openCard = (id: string) => {
@@ -416,6 +419,53 @@ export default function LibraryPage() {
                 { value: "title", label: t("library.toolbar.title", { defaultValue: "Title A–Z" }) },
               ]}
             />
+
+            {/* Read-Later filter — only surfaced when there's at least
+                one paused card in the unfiltered set. The button
+                doubles as the "process all" trigger when the filter
+                is active. */}
+            {(statusFilter === "paused" || counts.paused > 0) && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (statusFilter === "paused") {
+                    // Already filtered — clicking again triggers
+                    // the bulk-process action.
+                    try {
+                      const r = await api.processAllPausedCards();
+                      void r;
+                      setSearchParam("status", "");
+                      void fetchCards();
+                    } catch (err) {
+                      setError((err as Error).message);
+                    }
+                  } else {
+                    setSearchParam("status", "paused");
+                  }
+                }}
+                className={[
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium ring-1 transition",
+                  statusFilter === "paused"
+                    ? "bg-ink-100 text-ink-900 ring-ink-100 hover:bg-ink-200"
+                    : "bg-ink-800/60 text-ink-300 ring-ink-700 hover:border-ink-600 hover:bg-ink-800/80 hover:text-ink-100",
+                ].join(" ")}
+                title={
+                  statusFilter === "paused"
+                    ? (t("library.processAllPaused", {
+                        count: counts.paused,
+                        defaultValue: `Process all (${counts.paused})`,
+                      }) ?? "")
+                    : (t("library.readLaterFilter", { defaultValue: "Read Later" }) ?? "")
+                }
+              >
+                {statusFilter === "paused"
+                  ? t("library.processAllPaused", {
+                      count: counts.paused,
+                      defaultValue: `Process all (${counts.paused})`,
+                    })
+                  : `${t("library.readLaterFilter", { defaultValue: "Read Later" })} (${counts.paused})`}
+              </button>
+            )}
 
 
             {(tag || untaggedFilter) && (

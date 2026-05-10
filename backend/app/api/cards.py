@@ -132,23 +132,27 @@ def create_card_from_youtube(
     db.add(source)
     db.flush()
 
+    paused = bool(getattr(payload, "paused", False))
+    initial_status = "paused" if paused else "queued"
+
     card = Card(
         user_id=current_user.id,
         source_id=source.id,
         title=f"YouTube {video_id}",
         source_type="youtube",
-        status="queued",
+        status=initial_status,
     )
     db.add(card)
     db.flush()
 
-    job = Job(card_id=card.id, job_type="youtube_ingest", status="queued")
+    job = Job(card_id=card.id, job_type="youtube_ingest", status=initial_status)
     db.add(job)
     db.commit()
     db.refresh(card)
     db.refresh(job)
 
-    background_tasks.add_task(process_youtube_card, card.id, job.id, video_id)
+    if not paused:
+        background_tasks.add_task(process_youtube_card, card.id, job.id, video_id)
 
     return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
 
@@ -167,10 +171,14 @@ def create_card_from_url(
     # scripts) doesn't need to pick a type. Order matters: YouTube and
     # GitHub URLs would otherwise fall through to the article pipeline
     # and produce a useless "scrape the watch page" result.
+    paused = bool(getattr(payload, "paused", False))
+
     if extract_video_id(url) is not None:
         return create_card_from_youtube(payload, background_tasks, current_user, db)
     if parse_github_url(url):
-        return _create_github_card(url, background_tasks, current_user, db)
+        return _create_github_card(
+            url, background_tasks, current_user, db, paused=paused
+        )
 
     existing = _existing_card_for_user(db, current_user, url=url)
     if existing is not None:
@@ -180,23 +188,26 @@ def create_card_from_url(
     db.add(source)
     db.flush()
 
+    initial_status = "paused" if paused else "queued"
+
     card = Card(
         user_id=current_user.id,
         source_id=source.id,
         title=url,
         source_type="article",
-        status="queued",
+        status=initial_status,
     )
     db.add(card)
     db.flush()
 
-    job = Job(card_id=card.id, job_type="article_ingest", status="queued")
+    job = Job(card_id=card.id, job_type="article_ingest", status=initial_status)
     db.add(job)
     db.commit()
     db.refresh(card)
     db.refresh(job)
 
-    background_tasks.add_task(process_article_card, card.id, job.id, url)
+    if not paused:
+        background_tasks.add_task(process_article_card, card.id, job.id, url)
     return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
 
 
@@ -218,6 +229,7 @@ def _create_github_card(
     background_tasks: BackgroundTasks,
     current_user: User,
     db: Session,
+    paused: bool = False,
 ) -> IngestionResponse:
     url = canonicalize_url(url)
     parsed = parse_github_url(url)
@@ -241,6 +253,7 @@ def _create_github_card(
     db.add(source)
     db.flush()
 
+    initial_status = "paused" if paused else "queued"
     card = Card(
         user_id=current_user.id,
         source_id=source.id,
@@ -248,18 +261,19 @@ def _create_github_card(
         # full_name keeps the queued card identifiable in the library.
         title=full,
         source_type="github",
-        status="queued",
+        status=initial_status,
     )
     db.add(card)
     db.flush()
 
-    job = Job(card_id=card.id, job_type="github_ingest", status="queued")
+    job = Job(card_id=card.id, job_type="github_ingest", status=initial_status)
     db.add(job)
     db.commit()
     db.refresh(card)
     db.refresh(job)
 
-    background_tasks.add_task(process_github_card, card.id, job.id, url)
+    if not paused:
+        background_tasks.add_task(process_github_card, card.id, job.id, url)
     return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
 
 
@@ -416,24 +430,28 @@ def create_card_from_pdf_url(
     db.add(source)
     db.flush()
 
+    paused = bool(getattr(payload, "paused", False))
+    initial_status = "paused" if paused else "queued"
+
     card = Card(
         user_id=current_user.id,
         source_id=source.id,
         title=filename,
         source_type="pdf",
-        status="queued",
+        status=initial_status,
         original_file_id=saved.id,
     )
     db.add(card)
     db.flush()
 
-    job = Job(card_id=card.id, job_type="pdf_ingest", status="queued")
+    job = Job(card_id=card.id, job_type="pdf_ingest", status=initial_status)
     db.add(job)
     db.commit()
     db.refresh(card)
     db.refresh(job)
 
-    background_tasks.add_task(process_pdf_card, card.id, job.id, content, filename)
+    if not paused:
+        background_tasks.add_task(process_pdf_card, card.id, job.id, content, filename)
     return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
 
 
@@ -794,6 +812,58 @@ def regenerate_card(
         raise HTTPException(status_code=400, detail=f"Unknown source type: {card.source_type}")
 
     return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
+
+
+@router.post("/{card_id}/process", response_model=IngestionResponse)
+def process_paused_card(
+    card_id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> IngestionResponse:
+    """Trigger ingestion of a Read-Later (paused) card or a failed one.
+
+    Identical mechanism to /regenerate but rejects cards that are
+    already in flight or completed — guards against accidentally
+    re-spending OpenAI tokens on a card the user is already viewing.
+    """
+    card = _get_owned_card(db, card_id, current_user.id)
+    if card.status not in ("paused", "failed"):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Card status is '{card.status}'. Only paused or failed "
+                "cards can be processed; use /regenerate to force re-run."
+            ),
+        )
+    return regenerate_card(card_id, background_tasks, current_user, db)
+
+
+@router.post("/process-paused", response_model=dict)
+def process_all_paused_cards(
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Bulk-trigger ingestion for every paused card the user owns.
+
+    Returns the count of jobs scheduled. Failed cards are NOT included
+    — those need explicit user retry via /regenerate so an unattended
+    bulk run doesn't loop on a permanently-broken source.
+    """
+    paused = db.execute(
+        select(Card).where(Card.user_id == current_user.id, Card.status == "paused")
+    ).scalars().all()
+    started = 0
+    for card in paused:
+        try:
+            regenerate_card(card.id, background_tasks, current_user, db)
+            started += 1
+        except HTTPException:
+            # Skip cards we can't process (e.g. PDF without original
+            # file). The remaining paused cards still get a chance.
+            continue
+    return {"started": started, "total_paused": len(paused)}
 
 
 @router.get("/{card_id}/transcript")

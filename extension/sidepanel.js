@@ -143,9 +143,11 @@ async function autoAddAndEmbed(url) {
     const endpoint = tabLooksLikePdf(activeTab)
       ? "/api/cards/from-pdf-url"
       : "/api/cards/from-url";
+    const stored = await chrome.storage.local.get(["saveAsReadLater"]);
+    const paused = !!stored?.saveAsReadLater;
     const data = await call(endpoint, {
       method: "POST",
-      body: JSON.stringify({ url: canonicalizeUrl(url) }),
+      body: JSON.stringify({ url: canonicalizeUrl(url), paused }),
     });
     const cardId = data?.card?.id;
     if (cardId) {
@@ -200,9 +202,11 @@ async function saveActivePage() {
     const endpoint = tabLooksLikePdf(activeTab)
       ? "/api/cards/from-pdf-url"
       : "/api/cards/from-url";
+    const stored = await chrome.storage.local.get(["saveAsReadLater"]);
+    const paused = !!stored?.saveAsReadLater;
     const data = await call(endpoint, {
       method: "POST",
-      body: JSON.stringify({ url: canonicalizeUrl(activeTab.url) }),
+      body: JSON.stringify({ url: canonicalizeUrl(activeTab.url), paused }),
     });
     const cardId = data?.card?.id;
     if (cardId) {

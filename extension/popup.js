@@ -21,6 +21,7 @@ const els = {
   cancelSaveAllBtn: document.getElementById("cancelSaveAllBtn"),
   saveAllProgress: document.getElementById("saveAllProgress"),
   autoSaveYTToggle: document.getElementById("autoSaveYTToggle"),
+  readLaterToggle: document.getElementById("readLaterToggle"),
   status: document.getElementById("status"),
   settingsBtn: document.getElementById("settingsBtn"),
   apiUrl: document.getElementById("apiUrl"),
@@ -229,6 +230,7 @@ async function saveAllTabs() {
   saveAllCancel = false;
   els.saveAllBtn.disabled = true;
   els.cancelSaveAllBtn.classList.remove("hidden");
+  const paused = await readReadLaterPref();
   let saved = 0;
   let failed = 0;
   let stopped = 0;
@@ -249,7 +251,7 @@ async function saveAllTabs() {
       const ep = tabLooksLikePdf(tab) ? "/api/cards/from-pdf-url" : "/api/cards/from-url";
       await call(ep, {
         method: "POST",
-        body: JSON.stringify({ url: canonicalizeUrl(tab.url) }),
+        body: JSON.stringify({ url: canonicalizeUrl(tab.url), paused }),
       });
       saved++;
     } catch (err) {
@@ -285,6 +287,15 @@ async function refreshBookmarkCount() {
   }
 }
 
+async function readReadLaterPref() {
+  try {
+    const stored = await chrome.storage.local.get([READ_LATER_KEY]);
+    return !!stored?.[READ_LATER_KEY];
+  } catch {
+    return false;
+  }
+}
+
 async function addCurrentPage() {
   if (!activeTab?.url) return;
   els.addBtn.disabled = true;
@@ -296,9 +307,10 @@ async function addCurrentPage() {
     const endpoint = tabLooksLikePdf(activeTab)
       ? "/api/cards/from-pdf-url"
       : "/api/cards/from-url";
+    const paused = await readReadLaterPref();
     const data = await call(endpoint, {
       method: "POST",
-      body: JSON.stringify({ url: canonicalizeUrl(activeTab.url) }),
+      body: JSON.stringify({ url: canonicalizeUrl(activeTab.url), paused }),
     });
     const cardId = data?.card?.id;
     const title = (data?.card?.title || activeTab.url).slice(0, 60);
@@ -491,6 +503,33 @@ els.sidePanelBtn?.addEventListener("click", async () => {
     setStatus(els.status, res?.error || "Could not open side panel.", "err");
   }
 });
+/** Save-as-Read-Later toggle. When checked, every save triggered from
+ *  the popup or the side-panel POSTs `paused: true` so the backend
+ *  doesn't spend AI tokens. */
+const READ_LATER_KEY = "saveAsReadLater";
+
+async function loadReadLater() {
+  if (!els.readLaterToggle) return;
+  try {
+    const stored = await chrome.storage.local.get([READ_LATER_KEY]);
+    els.readLaterToggle.checked = !!stored?.[READ_LATER_KEY];
+  } catch {
+    els.readLaterToggle.checked = false;
+  }
+}
+
+els.readLaterToggle?.addEventListener("change", async () => {
+  try {
+    await chrome.storage.local.set({
+      [READ_LATER_KEY]: els.readLaterToggle.checked,
+    });
+  } catch (err) {
+    setStatus(els.status, `Could not save toggle: ${err.message}`, "err");
+  }
+});
+
+void loadReadLater();
+
 /** YouTube auto-save-on-end toggle. The flag lives in chrome.storage
  *  so the YouTube content script can read it independently of the
  *  popup's lifetime. */
