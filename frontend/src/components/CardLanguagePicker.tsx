@@ -49,13 +49,26 @@ export default function CardLanguagePicker({
   // cycle would auto-flip them back.
   const initialHintConsumed = useRef(false);
 
+  /** Merge server rows into existing state without nuking optimistic
+   *  entries that haven't reached the server yet. Each entry is keyed
+   *  by `language` (the server enforces uniqueness on (card_id, language)).
+   *  Server rows always win when both sides know about a language —
+   *  they have the authoritative status / timestamps. */
+  const mergeServerRows = (rows: CardTranslationOut[]) => {
+    setTranslations((prev) => {
+      const serverLangs = new Set(rows.map((r) => r.language));
+      const optimisticOnly = prev.filter((p) => !serverLangs.has(p.language));
+      return [...rows, ...optimisticOnly];
+    });
+  };
+
   // Initial fetch.
   useEffect(() => {
     let cancelled = false;
     api
       .listTranslations(cardId)
       .then((rows) => {
-        if (!cancelled) setTranslations(rows);
+        if (!cancelled) mergeServerRows(rows);
       })
       .catch(() => {
         /* card might be too fresh; non-critical */
@@ -115,7 +128,7 @@ export default function CardLanguagePicker({
       try {
         const rows = await api.listTranslations(cardId);
         if (cancelled) return;
-        setTranslations(rows);
+        mergeServerRows(rows);
         const stillProcessing = rows.some((r) => r.status === "processing");
         const stillAwaiting =
           !initialHintConsumed.current &&
@@ -130,7 +143,11 @@ export default function CardLanguagePicker({
         if (!cancelled) timer = window.setTimeout(tick, POLL_MS);
       }
     };
-    timer = window.setTimeout(tick, POLL_MS);
+    // First tick fires fast (1s) so the user sees the server's
+    // initial "processing" → "ready" transition without waiting a
+    // full POLL_MS-second cycle. Subsequent ticks back off to
+    // POLL_MS to avoid burning the API.
+    timer = window.setTimeout(tick, 1000);
     return () => {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
@@ -151,8 +168,11 @@ export default function CardLanguagePicker({
     setOpen(false);
     try {
       const tr = await api.createTranslation(cardId, language);
-      // Optimistically merge into the list — the polling effect will
-      // pick the latest state from the next /list response.
+      // Optimistically merge — the polling effect picks up the latest
+      // state from subsequent /list responses without overwriting this
+      // optimistic row. setActiveLang flips `hasProcessing` true via
+      // the new entry, which kicks the polling effect into life with
+      // a fast (1 s) first tick.
       setTranslations((prev) => {
         const without = prev.filter((p) => p.language !== language);
         return [...without, tr];
@@ -203,7 +223,15 @@ export default function CardLanguagePicker({
   const activeTr = activeLang
     ? translations.find((x) => x.language === activeLang)
     : null;
-  const isLoading = activeTr?.status === "processing";
+  // Show the spinner whenever we know a translation is in flight —
+  // either because the list-entry says status="processing", or
+  // because activeLang has been set but the entry hasn't reached our
+  // state yet (the optimistic-add fired but a concurrent fetch may
+  // have overwritten it before merge logic landed). Without this
+  // fallback the user could see a "Deutsch" label with no progress
+  // indicator while the backend is still working.
+  const isLoading =
+    activeLang !== null && (!activeTr || activeTr.status === "processing");
   const triggerLabel = activeLang ?? t("card.translation.original", { defaultValue: "Original" });
 
   // Suggested languages for the menu = COMMON list minus already-translated.
