@@ -6,8 +6,6 @@ import {
   Copy,
   Download,
   ExternalLink,
-  Eye,
-  EyeOff,
   FileText,
   Globe,
   Loader2,
@@ -28,13 +26,12 @@ import { useTranslation } from "react-i18next";
 import CardGraph from "./CardGraph";
 import CardLanguagePicker from "./CardLanguagePicker";
 import CardPodcastPlayer from "./CardPodcastPlayer";
-import CardSourceMedia from "./CardSourceMedia";
 import CardTagsBar from "./CardTagsBar";
-import ChatPanel from "./ChatPanel";
 import { markdownToPlainText } from "./MarkdownView";
 import ShareModal from "./ShareModal";
 import IngestionSkeleton from "./IngestionSkeleton";
 import StatusBadge from "./StatusBadge";
+import ChatTab from "./cardTabs/ChatTab";
 import NotesTab from "./cardTabs/NotesTab";
 import QuizTab from "./cardTabs/QuizTab";
 import SummaryTab from "./cardTabs/SummaryTab";
@@ -97,10 +94,6 @@ export default function CardDetailContent({
   const [card, setCard] = useState<Card | null>(null);
   const [activeTranslation, setActiveTranslation] = useState<CardTranslationOut | null>(null);
   const [tab, setTab] = useState<CardDetailTab>(initialTab);
-  // Source-media panel toggle. Off by default so the tab strip and
-  // content stay uncluttered; user enables it via the eye button next
-  // to the tabs whenever they want the video / repo card visible.
-  const [showPlayer, setShowPlayer] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
   const [notes, setNotes] = useState("");
@@ -475,52 +468,7 @@ export default function CardDetailContent({
 
             {tab === "quiz" && <QuizTab quiz={quiz} cardStatus={card.status} />}
 
-            {tab === "chat" && (() => {
-              const hasMedia =
-                card.source_type === "youtube" && !!card.external_id;
-              const playerOpen = hasMedia && showPlayer;
-              return (
-                <div
-                  className="flex flex-col gap-3"
-                  style={{ height: "min(80vh, 900px)" }}
-                >
-                  {hasMedia && (
-                    <div className="flex items-center justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setShowPlayer((v) => !v)}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-800/50 px-2 py-1 text-xs text-ink-300 transition hover:bg-ink-700/60 hover:text-ink-100"
-                      >
-                        {playerOpen ? (
-                          <EyeOff className="h-3 w-3" />
-                        ) : (
-                          <Eye className="h-3 w-3" />
-                        )}
-                        {playerOpen
-                          ? t("cardSource.hidePlayer", { defaultValue: "Hide video" })
-                          : t("cardSource.showPlayer", { defaultValue: "Show video" })}
-                      </button>
-                    </div>
-                  )}
-                  {/* Player and chat split the remaining height 50/50
-                      via flex-1 + min-h-0; the player overrides its
-                      default 16:9 ratio with fitHeight so it grows to
-                      match the chat. */}
-                  {playerOpen && (
-                    <div className="min-h-0 flex-1">
-                      <CardSourceMedia card={card} fitHeight />
-                    </div>
-                  )}
-                  <div className="min-h-0 flex-1 overflow-hidden">
-                    <ChatPanel
-                      send={(history) => api.chatCard(cardId, history)}
-                      placeholder={t("chat.placeholderCard") ?? ""}
-                      emptyHint={t("chat.cardEmpty") ?? ""}
-                    />
-                  </div>
-                </div>
-              );
-            })()}
+            {tab === "chat" && <ChatTab card={card} showSourceMedia />}
 
             {tab === "graph" && (
               <div className="h-[65vh]">
