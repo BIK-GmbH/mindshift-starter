@@ -18,6 +18,39 @@ interface Props {
 }
 
 const POLL_MS = 4000;
+
+/**
+ * Per-card last-active-language persistence.
+ *
+ * Stored values:
+ *   - missing key  → user has never made a picker choice for this card.
+ *                    Falls through to `initialActiveLanguage` prop (the
+ *                    global default-translation pref from Phase 3).
+ *   - empty string → user explicitly picked "Original". Auto-activate
+ *                    the global pref is suppressed for this card.
+ *   - non-empty    → user last viewed this language. Auto-activate it
+ *                    when a matching translation is ready.
+ */
+const CARD_LAST_LANGUAGE_PREFIX = "mindshift.cardLastLanguage.";
+
+function readStoredCardLanguage(cardId: string): string | null | undefined {
+  try {
+    const raw = localStorage.getItem(CARD_LAST_LANGUAGE_PREFIX + cardId);
+    if (raw === null) return undefined; // never picked
+    return raw === "" ? null : raw; // null = Original, string = language
+  } catch {
+    return undefined;
+  }
+}
+
+function writeStoredCardLanguage(cardId: string, lang: string | null) {
+  try {
+    localStorage.setItem(CARD_LAST_LANGUAGE_PREFIX + cardId, lang ?? "");
+  } catch {
+    /* private mode / quota — silently degrade to in-memory only */
+  }
+}
+
 const COMMON_LANGUAGES = [
   "Deutsch",
   "English",
@@ -39,7 +72,29 @@ export default function CardLanguagePicker({
   const { t } = useTranslation();
   const { confirm, prompt } = useDialog();
   const [translations, setTranslations] = useState<CardTranslationOut[]>([]);
-  const [activeLang, setActiveLang] = useState<string | null>(null); // null = original
+  // Resolve the effective initial language exactly once per cardId.
+  // Per-card stored choice wins over the global pref; an explicit
+  // "Original" choice ("ORIGINAL" sentinel) suppresses the global
+  // pref so a user who already declined the auto-translate stays on
+  // the source content.
+  const [effectiveInitial] = useState<string | "ORIGINAL" | null>(() => {
+    const stored = readStoredCardLanguage(cardId);
+    if (stored === null) return "ORIGINAL";
+    if (typeof stored === "string") return stored;
+    return initialActiveLanguage ?? null;
+  });
+  const [activeLang, setActiveLang] = useState<string | null>(() => {
+    // If the picker reopens for a card the user already viewed in a
+    // specific language, set activeLang up-front so the trigger label
+    // and onActive flow don't have to wait for a fetch + auto-activate
+    // cycle. The translation might still be "processing" at this
+    // point — onActive's gate (status === "ready") prevents premature
+    // content swap.
+    if (typeof effectiveInitial === "string" && effectiveInitial !== "ORIGINAL") {
+      return effectiveInitial;
+    }
+    return null;
+  });
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   // Track whether we've consumed the initial-active-language hint yet.
@@ -47,7 +102,14 @@ export default function CardLanguagePicker({
   // the requested language), the hint stops applying. Without this
   // gate the user couldn't switch back to "Original" — the next poll
   // cycle would auto-flip them back.
-  const initialHintConsumed = useRef(false);
+  const initialHintConsumed = useRef(effectiveInitial === "ORIGINAL");
+
+  /** Apply a user-driven language switch and persist it for this card. */
+  const setActiveLangAndPersist = (next: string | null) => {
+    initialHintConsumed.current = true;
+    setActiveLang(next);
+    writeStoredCardLanguage(cardId, next);
+  };
 
   /** Merge server rows into existing state without nuking optimistic
    *  entries that haven't reached the server yet. Each entry is keyed
@@ -93,14 +155,14 @@ export default function CardLanguagePicker({
   // user who clicks back to "Original" can stay there.
   useEffect(() => {
     if (initialHintConsumed.current) return;
-    if (!initialActiveLanguage) return;
+    if (!effectiveInitial || effectiveInitial === "ORIGINAL") return;
     const tr = translations.find(
-      (x) => x.language === initialActiveLanguage && x.status === "ready",
+      (x) => x.language === effectiveInitial && x.status === "ready",
     );
     if (!tr) return;
     initialHintConsumed.current = true;
-    setActiveLang(initialActiveLanguage);
-  }, [translations, initialActiveLanguage]);
+    setActiveLang(effectiveInitial);
+  }, [translations, effectiveInitial]);
 
   // Poll while any translation is processing. The tick itself reschedules
   // — the effect's dep is just whether ANY processing is happening, not
@@ -114,9 +176,10 @@ export default function CardLanguagePicker({
   const hasProcessing = translations.some((t2) => t2.status === "processing");
   const awaitingInitialHint =
     !initialHintConsumed.current &&
-    !!initialActiveLanguage &&
+    typeof effectiveInitial === "string" &&
+    effectiveInitial !== "ORIGINAL" &&
     !translations.some(
-      (t2) => t2.language === initialActiveLanguage && t2.status === "ready",
+      (t2) => t2.language === effectiveInitial && t2.status === "ready",
     );
   const shouldPoll = hasProcessing || awaitingInitialHint;
   useEffect(() => {
@@ -132,9 +195,10 @@ export default function CardLanguagePicker({
         const stillProcessing = rows.some((r) => r.status === "processing");
         const stillAwaiting =
           !initialHintConsumed.current &&
-          !!initialActiveLanguage &&
+          typeof effectiveInitial === "string" &&
+          effectiveInitial !== "ORIGINAL" &&
           !rows.some(
-            (r) => r.language === initialActiveLanguage && r.status === "ready",
+            (r) => r.language === effectiveInitial && r.status === "ready",
           );
         if (stillProcessing || stillAwaiting) {
           timer = window.setTimeout(tick, POLL_MS);
@@ -152,7 +216,7 @@ export default function CardLanguagePicker({
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [shouldPoll, cardId, initialActiveLanguage]);
+  }, [shouldPoll, cardId, effectiveInitial]);
 
   // Close on outside click.
   useEffect(() => {
@@ -177,7 +241,7 @@ export default function CardLanguagePicker({
         const without = prev.filter((p) => p.language !== language);
         return [...without, tr];
       });
-      setActiveLang(language);
+      setActiveLangAndPersist(language);
     } catch (err) {
       console.error(err);
     }
@@ -214,7 +278,7 @@ export default function CardLanguagePicker({
     try {
       await api.deleteTranslation(cardId, language);
       setTranslations((prev) => prev.filter((p) => p.language !== language));
-      if (activeLang === language) setActiveLang(null);
+      if (activeLang === language) setActiveLangAndPersist(null);
     } catch (err) {
       console.error(err);
     }
@@ -262,8 +326,7 @@ export default function CardLanguagePicker({
             <button
               type="button"
               onClick={() => {
-                initialHintConsumed.current = true;
-                setActiveLang(null);
+                setActiveLangAndPersist(null);
                 setOpen(false);
               }}
               className={[
@@ -307,7 +370,7 @@ export default function CardLanguagePicker({
                       void startGenerate(tr.language);
                       return;
                     }
-                    setActiveLang(tr.language);
+                    setActiveLangAndPersist(tr.language);
                     setOpen(false);
                   }}
                   className="flex flex-1 items-center gap-2 text-left"
