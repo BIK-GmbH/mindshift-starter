@@ -37,8 +37,8 @@ import RichTextEditor from "./RichTextEditor";
 import ShareModal from "./ShareModal";
 import IngestionSkeleton from "./IngestionSkeleton";
 import StatusBadge from "./StatusBadge";
-import { SkeletonLines } from "./cardTabs/Section";
 import SummaryTab from "./cardTabs/SummaryTab";
+import TranscriptTab from "./cardTabs/TranscriptTab";
 import { useDialog } from "../lib/DialogContext";
 import { api, type Card, type CardTranslationOut, type QuizQuestion } from "../lib/api";
 import { emit } from "../lib/events";
@@ -461,17 +461,7 @@ export default function CardDetailContent({
               <SummaryTab card={card} activeTranslation={activeTranslation} />
             )}
 
-            {tab === "transcript" && (
-              <div className="text-sm leading-relaxed">
-                {transcript === null ? (
-                  <SkeletonLines />
-                ) : (
-                  <pre className="whitespace-pre-wrap font-sans leading-relaxed text-ink-200">
-                    {transcript}
-                  </pre>
-                )}
-              </div>
-            )}
+            {tab === "transcript" && <TranscriptTab transcript={transcript} />}
 
             {tab === "notes" && (
               <div className="space-y-3">
