@@ -7,6 +7,7 @@
  */
 
 import { canonicalizeUrl } from "./lib/url.js";
+import { shouldRefetch } from "./lib/badge.js";
 
 if (chrome.sidePanel?.setPanelBehavior) {
   // Available in Chrome 116+. Keeps the side panel open across tab
@@ -19,23 +20,162 @@ if (chrome.sidePanel?.setPanelBehavior) {
     });
 }
 
+/* ---------------------------- toolbar badge ---------------------------- */
+
+const BADGE_CACHE_KEY = "badgeCache";
+const BADGE_GREEN = "#10b981";
+
+/** Read the per-tab badge cache from session storage. Cache shape:
+ *  `{ [tabId]: { url, cardId, ts } }`. Session-storage so it clears
+ *  when Chrome restarts — we'd rather re-fetch than show stale state
+ *  across browser sessions.
+ */
+async function readBadgeCache() {
+  try {
+    const stored = await chrome.storage.session.get(BADGE_CACHE_KEY);
+    return stored?.[BADGE_CACHE_KEY] || {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeBadgeCache(cache) {
+  try {
+    await chrome.storage.session.set({ [BADGE_CACHE_KEY]: cache });
+  } catch {
+    /* session storage unavailable in old Chrome — badge becomes
+       stateless, lookup runs on every tab event. Acceptable. */
+  }
+}
+
+/** Look up whether the user has a card for `url` in the same way the
+ *  side panel does. Returns the card id or null. Auth/config errors
+ *  are squashed to null — badge stays clear when the extension can't
+ *  talk to the backend. */
+async function lookupCardId(url) {
+  const stored = await chrome.storage.local.get(["apiUrl", "token"]);
+  const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
+  const token = stored.token || "";
+  if (!apiUrl || !token) return null;
+  try {
+    const res = await fetch(
+      `${apiUrl}/api/cards/by-source-url?url=${encodeURIComponent(canonicalizeUrl(url))}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function applyBadge(tabId, cardId) {
+  if (!chrome.action?.setBadgeText) return;
+  try {
+    if (cardId) {
+      await chrome.action.setBadgeBackgroundColor({ tabId, color: BADGE_GREEN });
+      await chrome.action.setBadgeText({ tabId, text: "✓" });
+    } else {
+      await chrome.action.setBadgeText({ tabId, text: "" });
+    }
+  } catch {
+    /* setBadgeText throws if the tab vanished mid-evaluation — ignore. */
+  }
+}
+
+/** Re-evaluate the badge for a given tab. Idempotent — safe to call
+ *  from any of the tab event listeners.
+ *
+ *  @param {number} tabId
+ *  @param {string|undefined} url  raw tab URL (canonicalised here)
+ *  @param {{ force?: boolean }} opts  bypass the cache
+ */
+async function refreshBadgeForTab(tabId, url, opts = {}) {
+  if (typeof tabId !== "number") return;
+  if (!url || !/^https?:\/\//i.test(url)) {
+    await applyBadge(tabId, null);
+    return;
+  }
+  const canon = canonicalizeUrl(url);
+  const cache = await readBadgeCache();
+  const entry = cache[tabId];
+  if (!opts.force && !shouldRefetch(entry, canon, Date.now())) {
+    await applyBadge(tabId, entry.cardId);
+    return;
+  }
+  const cardId = await lookupCardId(canon);
+  cache[tabId] = { url: canon, cardId, ts: Date.now() };
+  await writeBadgeCache(cache);
+  await applyBadge(tabId, cardId);
+}
+
+if (chrome.tabs?.onActivated) {
+  chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      await refreshBadgeForTab(tabId, tab?.url);
+    } catch {
+      /* tab gone */
+    }
+  });
+}
+
+if (chrome.tabs?.onUpdated) {
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    // Only react to "complete" — `loading` fires 3-5× per nav and
+    // would burn ephemeral-port capacity on lookup spam.
+    if (changeInfo.status !== "complete") return;
+    void refreshBadgeForTab(tabId, tab?.url);
+  });
+}
+
+if (chrome.tabs?.onRemoved) {
+  chrome.tabs.onRemoved.addListener(async (tabId) => {
+    const cache = await readBadgeCache();
+    if (cache[tabId]) {
+      delete cache[tabId];
+      await writeBadgeCache(cache);
+    }
+  });
+}
+
+/** Optimistically flip the badge to ✓ for a freshly-saved tab —
+ *  called from `savePageForUrl` so the user sees confirmation at
+ *  popup-close speed, not at next-tab-event speed. */
+async function markTabSaved(tabId, url, cardId) {
+  if (typeof tabId !== "number") return;
+  const canon = canonicalizeUrl(url);
+  const cache = await readBadgeCache();
+  cache[tabId] = { url: canon, cardId: cardId || null, ts: Date.now() };
+  await writeBadgeCache(cache);
+  await applyBadge(tabId, cardId || null);
+}
+
 /** Shared save path used by both the popup's `savePage` message and
  *  the `save-current-page` hotkey. Returns the same shape for both
- *  callers so they can show consistent feedback. */
-async function savePageForUrl(url) {
+ *  callers so they can show consistent feedback.
+ *
+ *  When the caller knows which tab the URL belongs to, pass `tabId`
+ *  so the badge flips to ✓ immediately. Without it the badge will
+ *  catch up on the next tab event (typically <1 s).
+ */
+async function savePageForUrl(url, { tabId } = {}) {
   const stored = await chrome.storage.local.get(["apiUrl", "token"]);
   const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
   const token = stored.token || "";
   if (!apiUrl || !token) {
     return { ok: false, error: "Extension not configured", code: "config" };
   }
+  const canon = canonicalizeUrl(url);
   const res = await fetch(`${apiUrl}/api/cards/from-url`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ url: canonicalizeUrl(url) }),
+    body: JSON.stringify({ url: canon }),
   });
   if (res.status === 401 || res.status === 403) {
     return { ok: false, error: "Token expired", code: "auth" };
@@ -49,7 +189,11 @@ async function savePageForUrl(url) {
     return { ok: false, error: detail };
   }
   const data = await res.json();
-  return { ok: true, cardId: data?.card?.id, title: data?.card?.title };
+  const cardId = data?.card?.id;
+  if (cardId && typeof tabId === "number") {
+    await markTabSaved(tabId, canon, cardId);
+  }
+  return { ok: true, cardId, title: data?.card?.title };
 }
 
 /** Notification helper for the hotkey. We don't want to depend on
@@ -69,6 +213,115 @@ function notify(title, message, kind = "info") {
   });
 }
 
+/** POST a Note card to the backend. Used by the right-click context
+ *  menu to capture a quote with a backlink to the source page. */
+async function saveSelectionAsNote({ text, sourceUrl, sourceTitle }) {
+  const stored = await chrome.storage.local.get(["apiUrl", "token"]);
+  const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
+  const token = stored.token || "";
+  if (!apiUrl || !token) {
+    return { ok: false, error: "Extension not configured", code: "config" };
+  }
+  const trimmed = (text || "").trim();
+  if (!trimmed) return { ok: false, error: "Empty selection" };
+
+  // Title = first non-empty line of the selection, capped. Falls back
+  // to the page title when the selection is multi-paragraph and the
+  // first line happens to be a heading-style fragment.
+  const firstLine = trimmed.split(/\r?\n/, 1)[0].trim();
+  const baseTitle = firstLine || sourceTitle || "Quote";
+  const title = baseTitle.slice(0, 200);
+
+  // Body uses a Markdown blockquote with a footer linking to the
+  // source. Keeps the page context attached to the note so the user
+  // can find their way back even after the card is in the library.
+  const quotedBody = trimmed
+    .split(/\r?\n/)
+    .map((line) => `> ${line}`)
+    .join("\n");
+  const footer = sourceUrl
+    ? `\n\n— [${sourceTitle || sourceUrl}](${sourceUrl})`
+    : "";
+  const body = quotedBody + footer;
+
+  const res = await fetch(`${apiUrl}/api/cards/from-note`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ title, body, summarize: false }),
+  });
+  if (res.status === 401 || res.status === 403) {
+    return { ok: false, error: "Token expired", code: "auth" };
+  }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const data = await res.json();
+      if (typeof data?.detail === "string") detail = data.detail;
+    } catch {}
+    return { ok: false, error: detail };
+  }
+  const data = await res.json();
+  return { ok: true, cardId: data?.card?.id, title: data?.card?.title };
+}
+
+const CONTEXT_MENU_ID = "mindshift-save-selection";
+
+/** Idempotent context-menu setup. Runs on install/update AND on every
+ *  service-worker spin-up (chrome.runtime.onStartup) — without that,
+ *  the menu disappears once Chrome unloads the service worker. */
+function ensureContextMenu() {
+  if (!chrome.contextMenus?.create) return;
+  // remove() before create() so a re-run doesn't throw "duplicate id".
+  chrome.contextMenus.remove(CONTEXT_MENU_ID, () => {
+    // Swallow lastError — the first run has nothing to remove.
+    void chrome.runtime.lastError;
+    chrome.contextMenus.create({
+      id: CONTEXT_MENU_ID,
+      title: "Save selection to Mindshift",
+      contexts: ["selection"],
+    });
+  });
+}
+
+if (chrome.runtime?.onInstalled) {
+  chrome.runtime.onInstalled.addListener(ensureContextMenu);
+}
+if (chrome.runtime?.onStartup) {
+  chrome.runtime.onStartup.addListener(ensureContextMenu);
+}
+// Also on cold service-worker bootstrap — covers the case where the
+// onInstalled / onStartup events fired before this listener registered.
+ensureContextMenu();
+
+if (chrome.contextMenus?.onClicked) {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    if (info.menuItemId !== CONTEXT_MENU_ID) return;
+    const sourceUrl = tab?.url && /^https?:\/\//i.test(tab.url)
+      ? canonicalizeUrl(tab.url)
+      : null;
+    const result = await saveSelectionAsNote({
+      text: info.selectionText || "",
+      sourceUrl,
+      sourceTitle: tab?.title || "",
+    });
+    if (result.ok) {
+      const preview = (result.title || info.selectionText || "")
+        .replace(/\s+/g, " ")
+        .slice(0, 60);
+      notify("Saved to Mindshift", `"${preview}…"`, "ok");
+    } else if (result.code === "config") {
+      notify("Mindshift", "Open the toolbar icon to connect first.", "err");
+    } else if (result.code === "auth") {
+      notify("Mindshift", "Token expired — reconnect in settings.", "err");
+    } else {
+      notify("Mindshift", `Save failed: ${result.error}`, "err");
+    }
+  });
+}
+
 if (chrome.commands?.onCommand) {
   chrome.commands.onCommand.addListener(async (command) => {
     if (command !== "save-current-page") return;
@@ -83,7 +336,7 @@ if (chrome.commands?.onCommand) {
       notify("Mindshift", "Browser pages can't be saved.", "err");
       return;
     }
-    const res = await savePageForUrl(url);
+    const res = await savePageForUrl(url, { tabId: tab?.id });
     if (res.ok) {
       const title = (res.title || tab?.title || url).slice(0, 80);
       notify("Saved to Mindshift", title, "ok");
@@ -121,7 +374,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === "savePage") {
     void (async () => {
       try {
-        const result = await savePageForUrl(msg.url);
+        // sender.tab is set when the message originates from a content
+        // script; the popup uses chrome.runtime.sendMessage from an
+        // extension page so we need to look up the active tab. Either
+        // way the badge gets updated for the right tab.
+        let tabId = sender?.tab?.id;
+        if (typeof tabId !== "number") {
+          try {
+            const [activeTab] = await chrome.tabs.query({
+              active: true,
+              currentWindow: true,
+            });
+            if (activeTab?.url === msg.url) tabId = activeTab.id;
+          } catch {
+            /* keep tabId undefined; badge catches up on next event */
+          }
+        }
+        const result = await savePageForUrl(msg.url, { tabId });
         sendResponse(result);
       } catch (err) {
         sendResponse({ ok: false, error: String(err?.message || err) });

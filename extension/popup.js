@@ -17,6 +17,9 @@ const els = {
   sidePanelBtn: document.getElementById("openSidePanelBtn"),
   importBtn: document.getElementById("importBookmarksBtn"),
   bookmarkCount: document.getElementById("bookmarkCount"),
+  saveAllBtn: document.getElementById("saveAllTabsBtn"),
+  cancelSaveAllBtn: document.getElementById("cancelSaveAllBtn"),
+  saveAllProgress: document.getElementById("saveAllProgress"),
   status: document.getElementById("status"),
   settingsBtn: document.getElementById("settingsBtn"),
   apiUrl: document.getElementById("apiUrl"),
@@ -171,6 +174,82 @@ async function refreshActiveTab() {
   } catch (err) {
     setStatus(els.status, String(err), "err");
   }
+}
+
+async function refreshOpenTabsCount() {
+  try {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const eligible = tabs.filter(
+      (t) => t.url && /^https?:\/\//i.test(t.url),
+    );
+    const n = eligible.length;
+    els.saveAllBtn.textContent = n > 0 ? `Save all tabs (${n})` : "Save all tabs";
+    els.saveAllBtn.disabled = n < 1;
+  } catch {
+    els.saveAllBtn.disabled = true;
+  }
+}
+
+let saveAllCancel = false;
+
+async function saveAllTabs() {
+  let tabs;
+  try {
+    tabs = await chrome.tabs.query({ currentWindow: true });
+  } catch (err) {
+    setStatus(els.status, `Could not read tabs: ${err.message}`, "err");
+    return;
+  }
+  // Drop the about:/chrome:/file: tabs the backend can't ingest.
+  const eligible = tabs.filter(
+    (t) => t.url && /^https?:\/\//i.test(t.url),
+  );
+  if (eligible.length === 0) {
+    setStatus(els.status, "No saveable tabs in this window.", "err");
+    return;
+  }
+
+  saveAllCancel = false;
+  els.saveAllBtn.disabled = true;
+  els.cancelSaveAllBtn.classList.remove("hidden");
+  let saved = 0;
+  let failed = 0;
+  let stopped = 0;
+  for (let i = 0; i < eligible.length; i++) {
+    if (saveAllCancel) {
+      stopped = eligible.length - i;
+      break;
+    }
+    const tab = eligible[i];
+    els.saveAllProgress.textContent = `${i + 1}/${eligible.length}`;
+    try {
+      // Sequential — keeps the backend's BackgroundTask queue from
+      // being slammed and gives us per-item progress feedback. Backend
+      // dedup makes re-runs idempotent so this is safe to abort and
+      // resume later. The dedup hit returns the same shape as a fresh
+      // insert so we count both as "saved" — distinguishing the two
+      // would need an extra GET per tab.
+      await call("/api/cards/from-url", {
+        method: "POST",
+        body: JSON.stringify({ url: canonicalizeUrl(tab.url) }),
+      });
+      saved++;
+    } catch (err) {
+      if (err instanceof AuthExpiredError) {
+        bounceToSettings(err.message);
+        return;
+      }
+      failed++;
+    }
+  }
+  els.saveAllBtn.disabled = false;
+  els.cancelSaveAllBtn.classList.add("hidden");
+  els.saveAllProgress.textContent = "";
+
+  const parts = [`Saved ${saved}`];
+  if (failed) parts.push(`failed ${failed}`);
+  if (stopped) parts.push(`stopped (${stopped} skipped)`);
+  setStatus(els.status, `${parts.join(", ")}.`, failed ? "err" : "ok");
 }
 
 async function refreshBookmarkCount() {
@@ -332,6 +411,7 @@ async function trySave() {
     showPane("connected");
     renderTokenHealth();
     await refreshActiveTab();
+    await refreshOpenTabsCount();
     await refreshBookmarkCount();
   } catch (err) {
     setStatus(els.settingsStatus, `Could not reach API: ${err.message}`, "err");
@@ -350,6 +430,7 @@ async function trySave() {
   showPane("connected");
   renderTokenHealth();
   await refreshActiveTab();
+  await refreshOpenTabsCount();
   await refreshBookmarkCount();
   // Backfill webUrl for installations from before /api/info existed.
   // Best-effort, no UI feedback — the worst case is the open-card link
@@ -388,6 +469,10 @@ els.sidePanelBtn?.addEventListener("click", async () => {
   } else {
     setStatus(els.status, res?.error || "Could not open side panel.", "err");
   }
+});
+els.saveAllBtn?.addEventListener("click", () => void saveAllTabs());
+els.cancelSaveAllBtn?.addEventListener("click", () => {
+  saveAllCancel = true;
 });
 els.importBtn.addEventListener("click", () => void importAllBookmarks());
 els.saveBtn.addEventListener("click", () => void trySave());
