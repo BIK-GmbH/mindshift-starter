@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, Loader2, Moon, Search, StickyNote, Sun, X } from "lucide-react";
+import { ExternalLink, FileText, Loader2, Maximize2, Moon, Search, StickyNote, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -259,18 +259,25 @@ export default function EmbedCardPage() {
   }
 
   const cardLink = `${webOrigin}/?card=${card.id}`;
+  // Pop-out target — same view as the iframe but in a full-width tab
+  // so the user can effectively "scale to maximum" without dragging
+  // the side panel itself. Chrome doesn't expose a programmatic
+  // resize for the side panel, so window.open is the next best.
+  const popOutLink = `${webOrigin}/cards/${card.id}`;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-ink-900 text-ink-100">
+    <div className="embed-shell flex h-full flex-col overflow-hidden bg-ink-900 text-ink-100">
+      <EmbedResponsiveStyle />
       {/* Always-on-top mini bar */}
-      <div className="flex flex-shrink-0 items-center gap-1 border-b border-ink-800 bg-ink-900/95 px-2 py-1.5 backdrop-blur">
+      <div className="embed-bar flex flex-shrink-0 flex-wrap items-center gap-1 border-b border-ink-800 bg-ink-900/95 px-2 py-1.5 backdrop-blur">
         <a
           href={cardLink}
           target="_blank"
           rel="noopener noreferrer"
+          title={t("embed.openTooltip", { defaultValue: "Open this card in Mindshift" }) ?? "Open"}
           className="inline-flex items-center gap-1 rounded-md bg-ink-800/80 px-2 py-1 text-[11px] font-medium text-ink-100 transition hover:bg-ink-800"
         >
-          Open
+          <span className="embed-bar-label">Open</span>
           <ExternalLink className="h-3 w-3" />
         </a>
         <button
@@ -304,7 +311,7 @@ export default function EmbedCardPage() {
             <Loader2 className="h-3 w-3 animate-spin text-fuchsia-300" />
           </span>
         )}
-        <span className="ml-auto rounded-full bg-ink-800/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-400">
+        <span className="embed-bar-source ml-auto rounded-full bg-ink-800/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-400">
           {card.source_type}
         </span>
         <button
@@ -327,6 +334,15 @@ export default function EmbedCardPage() {
             initialActiveLanguage={defaultLang}
           />
         )}
+        <a
+          href={popOutLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={t("embed.popOut", { defaultValue: "Open at full width in a new tab" }) ?? "Open at full width"}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+        </a>
         <button
           type="button"
           onClick={toggleEmbedTheme}
@@ -365,7 +381,7 @@ export default function EmbedCardPage() {
       <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
         {/* Hero — scrolls away */}
         {card.thumbnail_url ? (
-          <div className="relative aspect-video w-full flex-shrink-0 bg-ink-800">
+          <div className="embed-hero relative aspect-video w-full flex-shrink-0 bg-ink-800">
             <img
               src={card.thumbnail_url}
               alt=""
@@ -373,13 +389,13 @@ export default function EmbedCardPage() {
             />
             {/* Gradient + title overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-ink-900 via-ink-900/40 to-transparent" />
-            <h1 className="absolute bottom-0 left-0 right-0 p-3 text-base font-semibold leading-snug text-ink-100">
+            <h1 className="embed-title absolute bottom-0 left-0 right-0 p-3 text-base font-semibold leading-snug text-ink-100">
               {activeTranslation?.title ?? card.title}
             </h1>
           </div>
         ) : (
           <div className="flex-shrink-0 border-b border-ink-800 px-3 py-3">
-            <h1 className="text-base font-semibold leading-snug text-ink-100">
+            <h1 className="embed-title text-base font-semibold leading-snug text-ink-100">
               {activeTranslation?.title ?? card.title}
             </h1>
           </div>
@@ -439,7 +455,7 @@ export default function EmbedCardPage() {
             empty Notes tab). Without it the browser would clamp
             scrollTop back to 0 on tab switch — pulling the hero
             image back into view and forcing the user to re-scroll. */}
-        <div className="flex flex-1 min-h-[120vh] flex-col">
+        <div className="embed-tab-content flex flex-1 min-h-[120vh] flex-col">
           {tab === "summary" && (
             <SummaryTab
               card={card}
@@ -608,7 +624,7 @@ function RelatedCardsStrip({
                 key={c.card_id}
                 type="button"
                 onClick={() => onPick(c)}
-                className="group flex w-32 flex-shrink-0 flex-col gap-1.5 text-left"
+                className="embed-related-tile group flex w-32 flex-shrink-0 flex-col gap-1.5 text-left"
                 title={c.title}
               >
                 {c.thumbnail_url ? (
@@ -1003,5 +1019,62 @@ function EmbedSearchStrip({
         </p>
       )}
     </div>
+  );
+}
+
+/* ----------------------- responsive container queries ----------------------- */
+
+/**
+ * Container-driven responsive rules for the side panel embed. Chrome
+ * lets the user resize the side panel horizontally; we adapt to the
+ * panel's *own* width via @container queries (not viewport queries —
+ * the embed iframe's viewport is the side panel's width, but the
+ * primitive is more accurate when nested under other layouts later).
+ *
+ * Three states:
+ *   - narrow  (<360 px): icon-only mini-bar, tight padding, smaller hero
+ *   - medium  (360–520 px): the historical default
+ *   - wide    (≥520 px): roomier paddings + larger title + bigger
+ *                          related-card tiles
+ *
+ * Tailwind container queries aren't enabled in this project's
+ * tailwind.config — we ship the rules as a small inline <style>
+ * scoped to the `.embed-shell` container. Cheap, no new plugin.
+ */
+function EmbedResponsiveStyle() {
+  return (
+    <style>{`
+      .embed-shell {
+        container-type: inline-size;
+        container-name: embed;
+      }
+
+      /* Narrow: hide the "Open" word, drop the source pill, tighter
+         hero — gives the language picker + theme toggle room to fit
+         on a single line at Chrome's minimum side-panel width. */
+      @container embed (max-width: 359px) {
+        .embed-bar { gap: 4px !important; padding-left: 6px; padding-right: 6px; }
+        .embed-bar .embed-bar-label { display: none; }
+        .embed-bar-source { display: none; }
+        .embed-title { font-size: 13px !important; padding: 8px !important; }
+        .embed-hero { aspect-ratio: 16 / 7; }
+      }
+
+      /* Wide: more breathing room — bigger title, wider related-card
+         tiles, more padding around the tab content. */
+      @container embed (min-width: 520px) {
+        .embed-title { font-size: 18px !important; padding: 16px !important; }
+        .embed-related-tile { width: 168px !important; }
+        .embed-tab-content { padding: 16px !important; }
+      }
+
+      /* Extra-wide: only relevant when the user pop-out'd into a
+         full tab. Centre the content so it doesn't stretch into a
+         300-char-line eyestrain monster. */
+      @container embed (min-width: 720px) {
+        .embed-title { font-size: 22px !important; }
+        .embed-tab-content { padding: 24px !important; max-width: 720px; margin: 0 auto; }
+      }
+    `}</style>
   );
 }
