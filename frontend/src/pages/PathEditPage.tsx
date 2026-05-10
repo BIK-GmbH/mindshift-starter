@@ -263,24 +263,19 @@ export default function PathEditPage() {
                   type="button"
                   onClick={() => void generateCover()}
                   disabled={generatingCover}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-200 transition hover:bg-fuchsia-500/20 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-200 transition hover:bg-fuchsia-500/20 disabled:opacity-60"
                 >
                   {generatingCover ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Sparkles className="h-3.5 w-3.5" />
                   )}
-                  {coverSrc
-                    ? t("paths.regenerateCover", { defaultValue: "Regenerate" })
-                    : t("paths.generateCover", { defaultValue: "Generate cover" })}
+                  {generatingCover
+                    ? t("paths.coverGenerating", { defaultValue: "Generiere…" })
+                    : coverSrc
+                      ? t("paths.regenerateCover", { defaultValue: "Regenerate" })
+                      : t("paths.generateCover", { defaultValue: "Generate cover" })}
                 </button>
-                {generatingCover && (
-                  <p className="mt-2 text-[10px] text-ink-500">
-                    {t("paths.coverPending", {
-                      defaultValue: "Takes 10–30 seconds — gpt-image-2 is rendering.",
-                    })}
-                  </p>
-                )}
               </div>
             </div>
           </section>

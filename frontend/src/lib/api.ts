@@ -45,16 +45,28 @@ async function uploadFile<T>(path: string, file: File, fieldName = "file"): Prom
 // pool). 30 s is generous enough for any synchronous endpoint we have.
 const REQUEST_TIMEOUT_MS = 30_000;
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+interface RequestExtras {
+  /** Override the default 30 s timeout — bump for slow synchronous
+   *  endpoints (path cover, podcast generation, …) so the client
+   *  doesn't abort while the server is still rendering. */
+  timeoutMs?: number;
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  extras: RequestExtras = {},
+): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   const token = tokenStorage.get();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   // Compose an abort signal: caller-supplied signal still wins (cancel
-  // on unmount), and our own timeout aborts after REQUEST_TIMEOUT_MS.
+  // on unmount), and our own timeout aborts after the deadline.
+  const timeoutMs = extras.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   if (options.signal) {
     options.signal.addEventListener("abort", () => controller.abort(), { once: true });
   }
@@ -68,7 +80,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     });
   } catch (err) {
     if (controller.signal.aborted) {
-      throw new ApiError(0, `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`, null);
+      throw new ApiError(0, `Request timed out after ${timeoutMs / 1000}s`, null);
     }
     throw err;
   } finally {
@@ -746,7 +758,12 @@ export const api = {
     request<QuizAttemptOut[]>(`/api/paths/${id}/quiz/attempts`),
   getQuizStats: (id: string) => request<QuizStats>(`/api/paths/${id}/quiz/stats`),
   generatePathCover: (id: string) =>
-    request<PathDetail>(`/api/paths/${id}/generate-cover`, { method: "POST" }),
+    request<PathDetail>(
+      `/api/paths/${id}/generate-cover`,
+      { method: "POST" },
+      // gpt-image-2 routinely takes 25–40 s; 30 s would race the server.
+      { timeoutMs: 90_000 },
+    ),
 
   // RSS / Atom feed subscriptions
   listFeeds: () => request<FeedOut[]>("/api/feeds"),
