@@ -236,13 +236,22 @@ function ListEmptyState() {
 
 /* ----------------------------------------------------------------------
  * Detail screen — single playlist editor + episode list.
+ *
+ * Layout mirrors PathEditPage: a sticky raw `page-header` band carrying
+ * the back-button on the left, the inline-editable playlist name in the
+ * middle, and the delete action on the right. The body below is the
+ * existing PlaylistDetailView with its own internal header stripped.
  * -------------------------------------------------------------------- */
 function PodcastDetailScreen({ playlistId }: { playlistId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { confirm } = useDialog();
   const [detail, setDetail] = useState<PodcastPlaylistDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [savingName, setSavingName] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -252,6 +261,7 @@ function PodcastDetailScreen({ playlistId }: { playlistId: string }) {
       .then((d) => {
         if (!cancelled) {
           setDetail(d);
+          setNameDraft(d.name);
           setError(null);
         }
       })
@@ -293,29 +303,119 @@ function PodcastDetailScreen({ playlistId }: { playlistId: string }) {
   }, [processingKey, detail?.id]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
 
+  const saveName = async () => {
+    if (!detail) return;
+    const next = nameDraft.trim();
+    if (!next || next === detail.name) {
+      setEditingName(false);
+      setNameDraft(detail.name);
+      return;
+    }
+    setSavingName(true);
+    try {
+      await api.updatePlaylist(detail.id, { name: next });
+      setDetail({ ...detail, name: next });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setEditingName(false);
+      setSavingName(false);
+    }
+  };
+
+  const removePlaylist = async () => {
+    if (!detail) return;
+    const ok = await confirm({
+      title:
+        t("podcastPage.confirmDeleteTitle", { defaultValue: "Delete this playlist?" }) ??
+        "Delete this playlist?",
+      body:
+        t("podcastPage.confirmDeleteBody", {
+          defaultValue:
+            "All produced episodes (audio files + cover art) under this playlist will be removed permanently. This cannot be undone.",
+        }) ?? "",
+      confirmLabel: t("common.delete") ?? "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.deletePlaylist(detail.id);
+      navigate("/podcasts");
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
-      <PageHeader
-        icon={Headphones}
-        tone="sky"
-        title={detail?.name ?? t("nav.podcasts")}
-        subtitle={
-          detail
-            ? `${detail.card_count} ${t("podcastPage.cards", { defaultValue: "cards", count: detail.card_count })}`
-            : undefined
-        }
-        action={
+      {/* Sticky title band — same anatomy as PathEditPage so both detail
+          surfaces feel like the same family of screens. */}
+      <div className="page-header">
+        <div className="page-header-inner flex items-center gap-3">
           <button
             type="button"
             onClick={() => navigate("/podcasts")}
-            aria-label={t("common.back", { defaultValue: "Back" }) ?? "Back"}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
-            title={t("podcastPage.backToList", { defaultValue: "Back to playlists" }) ?? ""}
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+            title={t("common.back") ?? ""}
+            aria-label={t("podcastPage.backToList", { defaultValue: "Back to playlists" }) ?? "Back"}
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-        }
-      />
+          <div className="min-w-0 flex-1">
+            {editingName ? (
+              <input
+                autoFocus
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={() => void saveName()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void saveName();
+                  } else if (e.key === "Escape") {
+                    setEditingName(false);
+                    setNameDraft(detail?.name ?? "");
+                  }
+                }}
+                className="w-full border-0 bg-transparent p-0 page-header-title font-semibold text-ink-100 outline-none focus:ring-0"
+              />
+            ) : (
+              <h1
+                onClick={() => detail && setEditingName(true)}
+                className={[
+                  "page-header-title truncate font-semibold text-ink-100 transition",
+                  detail ? "cursor-text hover:text-ink-200" : "",
+                ].join(" ")}
+                title={t("podcastPage.editName", { defaultValue: "Click to rename" }) ?? ""}
+              >
+                {detail?.name ?? t("common.loading")}
+              </h1>
+            )}
+            {detail && (
+              <p className="page-header-subtitle text-ink-500">
+                {detail.card_count}{" "}
+                {t("podcastPage.cards", { defaultValue: "cards", count: detail.card_count })} ·{" "}
+                {detail.episodes.length}{" "}
+                {t("podcastPage.episodes", { defaultValue: "episodes", count: detail.episodes.length })}
+              </p>
+            )}
+          </div>
+          {detail && (
+            <button
+              type="button"
+              onClick={() => void removePlaylist()}
+              disabled={savingName}
+              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md border border-ink-700 px-2.5 py-1.5 text-xs text-ink-300 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+              title={t("common.delete") ?? ""}
+              aria-label={t("common.delete") ?? "Delete"}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t("common.delete")}</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-4xl px-4 pb-12 pt-6 sm:px-8">
@@ -331,7 +431,6 @@ function PodcastDetailScreen({ playlistId }: { playlistId: string }) {
             <PlaylistDetailView
               detail={detail}
               onChange={setDetail}
-              onDeleted={() => navigate("/podcasts")}
               onError={setError}
             />
           ) : null}
@@ -344,12 +443,10 @@ function PodcastDetailScreen({ playlistId }: { playlistId: string }) {
 function PlaylistDetailView({
   detail,
   onChange,
-  onDeleted,
   onError,
 }: {
   detail: PodcastPlaylistDetail;
   onChange: (d: PodcastPlaylistDetail) => void;
-  onDeleted: (id: string) => void;
   onError: (err: string) => void;
 }) {
   const { t } = useTranslation();
@@ -357,27 +454,8 @@ function PlaylistDetailView({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
   const [produceBusy, setProduceBusy] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(detail.name);
   const [editingDescription, setEditingDescription] = useState(false);
   const [descDraft, setDescDraft] = useState(detail.description ?? "");
-
-  const saveName = async () => {
-    const next = nameDraft.trim();
-    if (!next || next === detail.name) {
-      setEditingName(false);
-      setNameDraft(detail.name);
-      return;
-    }
-    try {
-      await api.updatePlaylist(detail.id, { name: next });
-      onChange({ ...detail, name: next });
-    } catch (err) {
-      onError((err as Error).message);
-    } finally {
-      setEditingName(false);
-    }
-  };
 
   const saveDescription = async () => {
     const next = descDraft.trim();
@@ -434,11 +512,9 @@ function PlaylistDetailView({
       title: detail.draft_title ?? "",
       text: detail.draft_narrative_text ?? "",
     };
-    setEditingName(false);
     setEditingDescription(false);
-    setNameDraft(detail.name);
     setDescDraft(detail.description ?? "");
-  }, [detail.id, detail.draft_title, detail.draft_narrative_text, detail.draft_target_minutes, detail.name, detail.description]);
+  }, [detail.id, detail.draft_title, detail.draft_narrative_text, detail.draft_target_minutes, detail.description]);
 
   // Debounced auto-save: 1 s after the user stops typing, push the draft
   // to the server. Skip if nothing actually changed.
@@ -478,28 +554,6 @@ function PlaylistDetailView({
         draft_title: "",
         draft_narrative_text: "",
       });
-    } catch (err) {
-      onError((err as Error).message);
-    }
-  };
-
-  const remove = async () => {
-    const ok = await confirm({
-      title:
-        t("podcastPage.confirmDeleteTitle", { defaultValue: "Delete this playlist?" }) ??
-        "Delete this playlist?",
-      body:
-        t("podcastPage.confirmDeleteBody", {
-          defaultValue:
-            "All produced episodes (audio files + cover art) under this playlist will be removed permanently. This cannot be undone.",
-        }) ?? "",
-      confirmLabel: t("common.delete") ?? "Delete",
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      await api.deletePlaylist(detail.id);
-      onDeleted(detail.id);
     } catch (err) {
       onError((err as Error).message);
     }
@@ -599,80 +653,46 @@ function PlaylistDetailView({
 
   return (
     <div className="space-y-8">
-      <header className="flex items-start justify-between gap-4 border-b border-ink-800 pb-4">
-        <div className="min-w-0 flex-1">
-          {editingName ? (
-            <input
-              autoFocus
-              type="text"
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={() => void saveName()}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void saveName();
-                } else if (e.key === "Escape") {
-                  setEditingName(false);
-                  setNameDraft(detail.name);
-                }
-              }}
-              className="w-full border-0 bg-transparent p-0 text-2xl font-semibold tracking-tight text-ink-100 outline-none focus:ring-0"
-            />
-          ) : (
-            <h2
-              onClick={() => setEditingName(true)}
-              className="cursor-text text-2xl font-semibold tracking-tight text-ink-100 transition hover:text-ink-200"
-              title={t("podcastPage.editName", { defaultValue: "Click to rename" }) ?? ""}
-            >
-              {detail.name}
-            </h2>
-          )}
-          {editingDescription ? (
-            <input
-              autoFocus
-              type="text"
-              value={descDraft}
-              onChange={(e) => setDescDraft(e.target.value)}
-              onBlur={() => void saveDescription()}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void saveDescription();
-                } else if (e.key === "Escape") {
-                  setEditingDescription(false);
-                  setDescDraft(detail.description ?? "");
-                }
-              }}
-              placeholder={t("podcastPage.descriptionPh", { defaultValue: "Description (optional)" }) ?? ""}
-              className="mt-1 w-full border-0 bg-transparent p-0 text-sm text-ink-300 placeholder:text-ink-500 outline-none focus:ring-0"
-            />
-          ) : (
-            <p
-              onClick={() => setEditingDescription(true)}
-              className="mt-1 cursor-text text-sm text-ink-400 transition hover:text-ink-300"
-              title={t("podcastPage.editDescription", { defaultValue: "Click to edit description" }) ?? ""}
-            >
-              {detail.description ||
-                t("podcastPage.addDescription", { defaultValue: "+ add description" })}
-            </p>
-          )}
-          <p className="mt-1 text-[11px] text-ink-500">
-            {detail.card_count}{" "}
-            {t("podcastPage.cards", { defaultValue: "cards", count: detail.card_count })} ·{" "}
-            {detail.episodes.length}{" "}
-            {t("podcastPage.episodes", { defaultValue: "episodes", count: detail.episodes.length })}
+      {/* Description — inline-editable, mirrors PathEditPage's
+          "Description" section. Title + delete + counters live in the
+          sticky page header above. */}
+      <section>
+        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+          {t("paths.description", { defaultValue: "Description" })}
+        </h2>
+        {editingDescription ? (
+          <input
+            autoFocus
+            type="text"
+            value={descDraft}
+            onChange={(e) => setDescDraft(e.target.value)}
+            onBlur={() => void saveDescription()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void saveDescription();
+              } else if (e.key === "Escape") {
+                setEditingDescription(false);
+                setDescDraft(detail.description ?? "");
+              }
+            }}
+            placeholder={t("podcastPage.descriptionPh", { defaultValue: "Description (optional)" }) ?? ""}
+            className="w-full rounded-md border border-ink-700 bg-ink-800/50 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none"
+          />
+        ) : (
+          <p
+            onClick={() => setEditingDescription(true)}
+            className="cursor-text rounded-md border border-dashed border-ink-800 bg-ink-800/30 px-3 py-2 text-sm text-ink-300 transition hover:border-ink-700 hover:text-ink-200"
+            title={t("podcastPage.editDescription", { defaultValue: "Click to edit description" }) ?? ""}
+          >
+            {detail.description || (
+              <span className="text-ink-500">
+                {t("podcastPage.addDescription", { defaultValue: "+ add description" })}
+              </span>
+            )}
           </p>
-        </div>
-        <button
-          type="button"
-          onClick={remove}
-          className="inline-flex flex-shrink-0 items-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[11px] text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
-        >
-          <Trash2 className="h-3 w-3" />
-          {t("common.delete")}
-        </button>
-      </header>
+        )}
+      </section>
 
       {/* Cards */}
       <section>
