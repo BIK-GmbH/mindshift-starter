@@ -9,6 +9,7 @@ import {
   Headphones,
   Image as ImageIcon,
   Link2,
+  ListMusic,
   Loader2,
   Plus,
   RefreshCw,
@@ -46,6 +47,9 @@ export default function PodcastsPage() {
   const [newName, setNewName] = useState("");
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Mobile-only: the playlist sidebar slides in as a drawer. Closed by
+  // default; opens via the header action button on <md screens.
+  const [playlistDrawerOpen, setPlaylistDrawerOpen] = useState(false);
 
   const refreshPlaylists = useCallback(async () => {
     try {
@@ -135,12 +139,25 @@ export default function PodcastsPage() {
     if (activeId === id) setActiveId(null);
   };
 
+  // When the user picks a playlist on mobile, close the drawer so the
+  // detail view becomes visible. On desktop the sidebar is always shown
+  // so this is a no-op.
+  const handlePickPlaylist = (id: string) => {
+    setActiveId(id);
+    setPlaylistDrawerOpen(false);
+  };
+
+  const handleInlineCreate = async () => {
+    await submitCreate();
+    setPlaylistDrawerOpen(false);
+  };
+
   return (
     <div className="flex h-full">
       <PlaylistSidebar
         playlists={playlists}
         activeId={activeId}
-        onPick={setActiveId}
+        onPick={handlePickPlaylist}
         creating={creating}
         newName={newName}
         setNewName={setNewName}
@@ -148,7 +165,7 @@ export default function PodcastsPage() {
           playSound("click");
           setCreating(true);
         }}
-        onSubmitCreate={submitCreate}
+        onSubmitCreate={handleInlineCreate}
         onCancelCreate={() => {
           setCreating(false);
           setNewName("");
@@ -157,6 +174,8 @@ export default function PodcastsPage() {
           playSound("click");
           setTagPickerOpen(true);
         }}
+        mobileOpen={playlistDrawerOpen}
+        onMobileClose={() => setPlaylistDrawerOpen(false)}
       />
       {tagPickerOpen && (
         <TagToPlaylistModal
@@ -165,6 +184,7 @@ export default function PodcastsPage() {
             setPlaylists((prev) => [pl, ...prev]);
             setActiveId(pl.id);
             setTagPickerOpen(false);
+            setPlaylistDrawerOpen(false);
           }}
           onError={setError}
         />
@@ -178,6 +198,22 @@ export default function PodcastsPage() {
           subtitle={t("podcastPage.subtitle", {
             defaultValue: "Build playlists, generate narrated episodes with cover art.",
           })}
+          action={
+            // Mobile-only: opens the playlist drawer (which carries the
+            // New + From-tag create buttons). Desktop has the sidebar
+            // always visible so the trigger is hidden on md+.
+            <button
+              type="button"
+              onClick={() => {
+                playSound("click");
+                setPlaylistDrawerOpen(true);
+              }}
+              aria-label={t("podcastPage.openPlaylists", { defaultValue: "Playlists öffnen" }) ?? "Playlists"}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-sky-500/15 text-sky-200 ring-1 ring-sky-500/30 transition active:bg-sky-500/25 hover:bg-sky-500/25 md:hidden"
+            >
+              <ListMusic className="h-4 w-4" />
+            </button>
+          }
         />
 
         <div className="flex-1 overflow-y-auto">
@@ -232,6 +268,8 @@ function PlaylistSidebar({
   onSubmitCreate,
   onCancelCreate,
   onFromTag,
+  mobileOpen,
+  onMobileClose,
 }: {
   playlists: PodcastPlaylistOut[];
   activeId: string | null;
@@ -243,10 +281,33 @@ function PlaylistSidebar({
   onSubmitCreate: () => void;
   onCancelCreate: () => void;
   onFromTag: () => void;
+  /** Mobile-drawer visibility. Ignored on md+ where the sidebar is
+   *  permanently inline. */
+  mobileOpen: boolean;
+  onMobileClose: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <aside className="panel-elevated hidden md:flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
+    <>
+      {/* Mobile-only backdrop. Tap outside to close the drawer. */}
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label={t("common.close", { defaultValue: "Close" }) ?? "Close"}
+          onClick={onMobileClose}
+          className="fixed inset-0 z-40 bg-ink-900/70 backdrop-blur-sm md:hidden"
+        />
+      )}
+      <aside
+        className={[
+          "panel-elevated flex w-72 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/95 sm:bg-ink-900/60",
+          // Mobile: fixed overlay drawer, slides in from the left.
+          "fixed inset-y-0 left-0 z-50 transform transition-transform duration-200",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          // Desktop md+: inline column, always visible regardless of mobileOpen.
+          "md:static md:z-auto md:w-64 md:translate-x-0",
+        ].join(" ")}
+      >
       <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
           {t("podcastPage.playlists", { defaultValue: "Playlists" })}
@@ -269,6 +330,16 @@ function PlaylistSidebar({
           >
             <Plus className="h-3 w-3" />
             {t("tags.new", { defaultValue: "New" })}
+          </button>
+          {/* Close button on mobile only — small target inside the
+              drawer header in addition to the backdrop tap. */}
+          <button
+            type="button"
+            onClick={onMobileClose}
+            aria-label={t("common.close", { defaultValue: "Close" }) ?? "Close"}
+            className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-400 transition active:bg-ink-800 md:hidden"
+          >
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
@@ -328,7 +399,8 @@ function PlaylistSidebar({
           })
         )}
       </ul>
-    </aside>
+      </aside>
+    </>
   );
 }
 
@@ -345,7 +417,12 @@ function EmptyState() {
         </h2>
         <p className="mt-1 text-sm text-ink-400">
           {t("podcastPage.empty.body", {
-            defaultValue: "Create a new playlist on the left to get started.",
+            defaultValue: "Wähle links eine Playlist oder erstelle eine neue.",
+          })}
+        </p>
+        <p className="mt-1 text-xs text-ink-500 md:hidden">
+          {t("podcastPage.empty.bodyMobile", {
+            defaultValue: "Tippe oben rechts auf das Listen-Symbol, um deine Playlists zu öffnen.",
           })}
         </p>
       </div>
