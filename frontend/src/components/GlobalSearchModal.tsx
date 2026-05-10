@@ -89,44 +89,74 @@ export default function GlobalSearchModal() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, closeModal]);
 
-  // Body scroll lock while the modal is open. Without this iOS lets the
-  // underlying page scroll when the user drags inside the modal, and
-  // the soft keyboard can push the whole fixed sheet out of position.
+  // iOS Safari body-scroll-lock. Setting only body.style.overflow =
+  // "hidden" doesn't actually stop scroll on iOS Safari — the proven
+  // workaround is to fix the body in place and restore the previous
+  // scroll position when the modal closes.
   useEffect(() => {
     if (!open) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prev = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = prevOverflow;
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.left = prev.left;
+      body.style.right = prev.right;
+      body.style.width = prev.width;
+      body.style.overflow = prev.overflow;
+      window.scrollTo(0, scrollY);
     };
   }, [open]);
 
-  // Keep the sheet pinned to the visible viewport when the iOS soft
-  // keyboard opens. Without this the fixed container stays sized to
-  // the layout viewport (= full screen) and the input is shoved under
-  // the keyboard, taking the whole sheet with it on scroll.
+  // Keep the sheet pinned to the visible viewport. The outer fixed
+  // container is anchored to the LAYOUT viewport, which on iOS is taller
+  // than what the user actually sees (URL bar + keyboard area). The
+  // ref'd sheet gets its height synced to window.visualViewport.height
+  // so the input row stays right above the keyboard rather than below
+  // it. Falls back to innerHeight when visualViewport is missing.
   const sheetRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const onResize = () => {
+    const syncHeight = () => {
       const el = sheetRef.current;
       if (!el) return;
-      // Only override on mobile widths — desktop uses the regular
-      // floating-sheet layout where height is content-driven.
       if (window.innerWidth >= 640) {
         el.style.height = "";
         return;
       }
-      el.style.height = `${vv.height}px`;
+      const h = window.visualViewport?.height ?? window.innerHeight;
+      el.style.height = `${h}px`;
     };
-    onResize();
-    vv.addEventListener("resize", onResize);
-    vv.addEventListener("scroll", onResize);
+    syncHeight();
+    // Sync now AND on the next two frames — iOS sometimes reports the
+    // pre-keyboard height on initial open and only updates after the
+    // next layout pass.
+    const r1 = window.requestAnimationFrame(syncHeight);
+    const r2 = window.setTimeout(syncHeight, 60);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", syncHeight);
+    vv?.addEventListener("scroll", syncHeight);
+    window.addEventListener("resize", syncHeight);
     return () => {
-      vv.removeEventListener("resize", onResize);
-      vv.removeEventListener("scroll", onResize);
+      window.cancelAnimationFrame(r1);
+      window.clearTimeout(r2);
+      vv?.removeEventListener("resize", syncHeight);
+      vv?.removeEventListener("scroll", syncHeight);
+      window.removeEventListener("resize", syncHeight);
     };
   }, [open]);
 
@@ -181,12 +211,15 @@ export default function GlobalSearchModal() {
         aria-label="Close"
       />
 
-      {/* Outer card. Mobile: fullscreen, no rounded edges, flex-col so we
-          can reorder so the input ends up at the bottom — within thumb
-          reach on phones. Desktop: floating sheet, original order. */}
+      {/* Outer card. Mobile: fullscreen — height anchored to the dynamic
+          viewport so the URL bar / keyboard don't push the sheet around
+          (the visualViewport effect above fine-tunes it once the
+          keyboard opens). flex-col with reordered children puts the
+          input at the bottom for thumb reach. Desktop: floating sheet,
+          original order. */}
       <div
         ref={sheetRef}
-        className="relative flex h-full w-full flex-col overflow-hidden bg-ink-800 surface-elevated modal-card-enter sm:h-auto sm:max-w-2xl sm:rounded-2xl sm:border sm:border-ink-700"
+        className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-ink-800 surface-elevated modal-card-enter sm:h-auto sm:max-w-2xl sm:rounded-2xl sm:border sm:border-ink-700 [overscroll-behavior:contain]"
       >
         {/* Header — order-1 everywhere. */}
         <div className="order-1 flex flex-shrink-0 items-center justify-between border-b border-ink-700 px-5 py-3">
