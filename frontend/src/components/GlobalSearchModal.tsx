@@ -128,7 +128,7 @@ export default function GlobalSearchModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[10vh] modal-enter"
+      className="fixed inset-0 z-50 flex justify-center modal-enter sm:items-start sm:px-4 sm:pt-[10vh]"
       role="dialog"
       aria-modal="true"
       aria-label={t("search.global.title")}
@@ -140,12 +140,15 @@ export default function GlobalSearchModal() {
         aria-label="Close"
       />
 
-      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-800 surface-elevated modal-card-enter">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">
+      {/* Outer card. Mobile: fullscreen, no rounded edges, flex-col so we
+          can reorder so the input ends up at the bottom — within thumb
+          reach on phones. Desktop: floating sheet, original order. */}
+      <div className="relative flex h-full w-full flex-col overflow-hidden bg-ink-800 surface-elevated modal-card-enter sm:h-auto sm:max-w-2xl sm:rounded-2xl sm:border sm:border-ink-700">
+        {/* Header — order-1 everywhere. */}
+        <div className="order-1 flex flex-shrink-0 items-center justify-between border-b border-ink-700 px-5 py-3">
           <h2 className="text-base font-semibold text-ink-100">{t("search.global.title")}</h2>
           <div className="flex items-center gap-2">
-            <kbd className="rounded border border-ink-700 bg-ink-900/40 px-1.5 py-0.5 text-[10px] font-mono text-ink-400">
+            <kbd className="hidden rounded border border-ink-700 bg-ink-900/40 px-1.5 py-0.5 text-[10px] font-mono text-ink-400 sm:inline">
               ESC
             </kbd>
             <button
@@ -159,38 +162,18 @@ export default function GlobalSearchModal() {
           </div>
         </div>
 
-        {/* Input + mode toggle */}
-        <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-3">
-          <SearchIcon className="h-4 w-4 flex-shrink-0 text-ink-400" />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={placeholder}
-            className="flex-1 bg-transparent text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              className="rounded p-1 text-ink-400 transition hover:bg-ink-700/60 hover:text-ink-100"
-              aria-label="Clear"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <div className="flex flex-shrink-0 gap-0.5 rounded-md bg-ink-900/60 p-0.5 ring-1 ring-ink-700">
-            <ModeButton active={mode === "text"} onClick={() => setMode("text")} icon={SearchIcon} label={t("search.global.text")} />
-            <ModeButton active={mode === "ai"} onClick={() => setMode("ai")} icon={Sparkles} label={t("search.global.ai")} />
-          </div>
-        </div>
-
-        {/* Results */}
-        <div className="flex max-h-[55vh] flex-col overflow-y-auto">
-          {!debounced && (
-            <EmptyHint />
-          )}
+        {/* Results — order-2 on mobile (between header and bottom input),
+            order-2 on desktop too (between top input and footer). The
+            container drives the order; the section itself is unchanged. */}
+        <div
+          className={[
+            "order-2 flex flex-1 flex-col overflow-y-auto",
+            // On desktop the card grows organically; cap the result list
+            // height so the input + footer stay visible without scroll.
+            "sm:max-h-[55vh] sm:flex-none",
+          ].join(" ")}
+        >
+          {!debounced && <EmptyHint />}
           {debounced && busy && hits.length === 0 && (
             <div className="flex items-center gap-2 px-5 py-8 text-sm text-ink-400">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -218,8 +201,43 @@ export default function GlobalSearchModal() {
           )}
         </div>
 
-        {/* Footer with hint */}
-        <div className="flex items-center gap-3 border-t border-ink-700 bg-ink-900/40 px-5 py-2 text-[10px] text-ink-400">
+        {/* Input + mode toggle — order-3 on mobile (bottom, thumb reach
+            + iOS-style), order-2 on desktop (immediately under the title).
+            Mobile gets a top border (it's at the bottom of the sheet);
+            desktop gets a bottom border (original position). */}
+        <div
+          className="order-3 flex flex-shrink-0 items-center gap-2 border-t border-ink-700 px-4 py-3 sm:order-2 sm:border-b sm:border-t-0"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <SearchIcon className="h-4 w-4 flex-shrink-0 text-ink-400" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={placeholder}
+            className="flex-1 bg-transparent text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="rounded p-1 text-ink-400 transition hover:bg-ink-700/60 hover:text-ink-100"
+              aria-label="Clear"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <div className="flex flex-shrink-0 gap-0.5 rounded-md bg-ink-900/60 p-0.5 ring-1 ring-ink-700">
+            <ModeButton active={mode === "text"} onClick={() => setMode("text")} icon={SearchIcon} label={t("search.global.text")} />
+            <ModeButton active={mode === "ai"} onClick={() => setMode("ai")} icon={Sparkles} label={t("search.global.ai")} />
+          </div>
+        </div>
+
+        {/* Footer with kbd hints — desktop only. The ⌘K / ↑↓ / ↵ keys
+            don't exist on touch, and hiding the footer also keeps the
+            mobile input at the very bottom of the sheet. */}
+        <div className="order-4 hidden flex-shrink-0 items-center gap-3 border-t border-ink-700 bg-ink-900/40 px-5 py-2 text-[10px] text-ink-400 sm:flex">
           <span className="inline-flex items-center gap-1">
             <kbd className="rounded border border-ink-700 px-1 font-mono">↑↓</kbd>
             {t("search.global.hintNav")}
