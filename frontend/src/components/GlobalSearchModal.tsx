@@ -89,6 +89,47 @@ export default function GlobalSearchModal() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, closeModal]);
 
+  // Body scroll lock while the modal is open. Without this iOS lets the
+  // underlying page scroll when the user drags inside the modal, and
+  // the soft keyboard can push the whole fixed sheet out of position.
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
+  // Keep the sheet pinned to the visible viewport when the iOS soft
+  // keyboard opens. Without this the fixed container stays sized to
+  // the layout viewport (= full screen) and the input is shoved under
+  // the keyboard, taking the whole sheet with it on scroll.
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      const el = sheetRef.current;
+      if (!el) return;
+      // Only override on mobile widths — desktop uses the regular
+      // floating-sheet layout where height is content-driven.
+      if (window.innerWidth >= 640) {
+        el.style.height = "";
+        return;
+      }
+      el.style.height = `${vv.height}px`;
+    };
+    onResize();
+    vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", onResize);
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", onResize);
+    };
+  }, [open]);
+
   const onPick = useCallback(
     (cardId: string, timestampSeconds?: number | null) => {
       const params = new URLSearchParams({ card: cardId });
@@ -143,7 +184,10 @@ export default function GlobalSearchModal() {
       {/* Outer card. Mobile: fullscreen, no rounded edges, flex-col so we
           can reorder so the input ends up at the bottom — within thumb
           reach on phones. Desktop: floating sheet, original order. */}
-      <div className="relative flex h-full w-full flex-col overflow-hidden bg-ink-800 surface-elevated modal-card-enter sm:h-auto sm:max-w-2xl sm:rounded-2xl sm:border sm:border-ink-700">
+      <div
+        ref={sheetRef}
+        className="relative flex h-full w-full flex-col overflow-hidden bg-ink-800 surface-elevated modal-card-enter sm:h-auto sm:max-w-2xl sm:rounded-2xl sm:border sm:border-ink-700"
+      >
         {/* Header — order-1 everywhere. */}
         <div className="order-1 flex flex-shrink-0 items-center justify-between border-b border-ink-700 px-5 py-3">
           <h2 className="text-base font-semibold text-ink-100">{t("search.global.title")}</h2>
@@ -168,6 +212,9 @@ export default function GlobalSearchModal() {
         <div
           className={[
             "order-2 flex flex-1 flex-col overflow-y-auto",
+            // Trap scroll so dragging the result list past its top/bottom
+            // doesn't bubble up and scroll the underlying page on iOS.
+            "[overscroll-behavior:contain] [-webkit-overflow-scrolling:touch]",
             // On desktop the card grows organically; cap the result list
             // height so the input + footer stay visible without scroll.
             "sm:max-h-[55vh] sm:flex-none",
