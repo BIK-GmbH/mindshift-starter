@@ -359,12 +359,19 @@ export default function CardDetailContent({
     <div className="flex h-full flex-col">
       {/* Sticky top region */}
       <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/85 backdrop-blur-md">
-        <div className={`mx-auto ${innerWidth} ${horizPad} pb-2 pt-5`}>
+        <div className={`mx-auto ${innerWidth} ${horizPad} pb-2 pt-3 sm:pt-5`}>
+          {/* Back affordance — desktop gets the full "← BIBLIOTHEK"
+              text-link row; mobile drops the row entirely (it ate
+              ~32 px of vertical space above the player) and the
+              equivalent action moves into the meta-pills row below
+              as a chevron-icon button. The page-level
+              MobileTopBar's hamburger plus the bottom-nav's Library
+              icon already give the user two redundant ways back. */}
           {backStyle === "link" ? (
             <button
               type="button"
               onClick={onBack}
-              className="group inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-400 transition hover:text-ink-100"
+              className="group hidden items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-400 transition hover:text-ink-100 sm:inline-flex"
             >
               <ArrowLeft className="h-3 w-3 transition group-hover:-translate-x-0.5" />
               {t("nav.library")}
@@ -394,7 +401,7 @@ export default function CardDetailContent({
               mobile path; otherwise the inner content div doesn't
               stretch to the parent's width and the h1 can blow past
               the viewport on long unbroken titles. */}
-          <header className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
+          <header className="mt-0 flex flex-col gap-3 sm:mt-3 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
             <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
               {/* Mobile-only thumbnail block — hidden when the card is
                   pinnable (YouTube/PDF) because the active player
@@ -429,6 +436,21 @@ export default function CardDetailContent({
               )}
               <div className="min-w-0 flex-1">
                 <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                  {/* Mobile-only back-icon — replaces the dropped
+                      "← BIBLIOTHEK" row above. The arrow leads the
+                      meta strip so the user reads it as a navigation
+                      affordance, not a status pill. */}
+                  {backStyle === "link" && (
+                    <button
+                      type="button"
+                      onClick={onBack}
+                      title={t("nav.library") ?? "Back"}
+                      aria-label={t("nav.library") ?? "Back"}
+                      className="-ml-1 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-ink-400 transition active:bg-ink-800 hover:bg-ink-800 hover:text-ink-100 sm:hidden"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </button>
+                  )}
                   <StatusBadge status={card.status} />
                   <span className="rounded-md bg-ink-800 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-300">
                     {card.source_type}
