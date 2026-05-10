@@ -707,6 +707,25 @@ export const api = {
     request<QuizQuestion[]>(
       `/api/public/paths/${username}/${slug}/cards/${cardId}/quiz`,
     ),
+  fetchOriginalFileBlob: async (fileId: string): Promise<Blob> => {
+    const token = localStorage.getItem("mindshift.token");
+    const res = await fetch(`/api/files/${fileId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.blob();
+  },
+  fetchPublicPathCardFileBlob: async (
+    username: string,
+    slug: string,
+    cardId: string,
+  ): Promise<Blob> => {
+    const res = await fetch(
+      `/api/public/paths/${username}/${slug}/cards/${cardId}/file`,
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.blob();
+  },
   getPathProgress: (id: string) =>
     request<PathProgress | null>(`/api/paths/${id}/progress`),
   updatePathProgress: (id: string, currentPosition: number) =>
