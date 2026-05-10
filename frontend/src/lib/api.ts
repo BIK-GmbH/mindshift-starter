@@ -149,6 +149,24 @@ export interface GithubSourceMetadata {
   license?: string | null;
 }
 
+export interface TranscriptSegment {
+  text: string;
+  /** Seconds from the start of the source. */
+  start: number;
+  /** Length of this segment in seconds. */
+  duration: number;
+}
+
+export interface TranscriptOut {
+  card_id: string;
+  language: string | null;
+  provider: string | null;
+  text: string;
+  /** Null for transcripts without per-line timing (PDF, article).
+   *  Populated for YouTube and any future segmented source. */
+  segments: TranscriptSegment[] | null;
+}
+
 export interface JobOut {
   id: string;
   card_id: string | null;
@@ -255,9 +273,7 @@ export const api = {
   deleteCard: (id: string) =>
     request<void>(`/api/cards/${id}`, { method: "DELETE" }),
   getTranscript: (id: string) =>
-    request<{ card_id: string; language: string | null; provider: string | null; text: string }>(
-      `/api/cards/${id}/transcript`,
-    ),
+    request<TranscriptOut>(`/api/cards/${id}/transcript`),
   getQuiz: (id: string) => request<QuizQuestion[]>(`/api/cards/${id}/quiz`),
   getJob: (id: string) => request<JobOut>(`/api/jobs/${id}`),
   searchKeyword: (q: string, limit = 20) => {

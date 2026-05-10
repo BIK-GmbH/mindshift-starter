@@ -113,58 +113,31 @@ export default function IngestionSkeleton({
         <SkeletonBullet width="86%" />
       </SkeletonBlock>
 
-      {/* Status banner — at the bottom now. Keeping it here means the
-          finished-content swap doesn't push everything around when it
-          disappears. Light-mode-friendly: solid fuchsia-50 background
-          with fuchsia-800 ink. */}
-      <div
-        className={[
-          "mt-2 flex items-center gap-3 rounded-xl border bg-fuchsia-50 ring-1 ring-fuchsia-200 dark:bg-fuchsia-500/10 dark:ring-fuchsia-500/30",
-          "border-fuchsia-200 dark:border-fuchsia-500/30",
-          compact ? "px-3 py-2" : "px-4 py-3",
-        ].join(" ")}
-      >
-        <div className="relative flex-shrink-0">
-          <Sparkles
-            className={[
-              "text-fuchsia-700 dark:text-fuchsia-300",
-              compact ? "h-4 w-4" : "h-5 w-5",
-            ].join(" ")}
-          />
-          <Sparkles
-            className={[
-              "absolute inset-0 animate-ping text-fuchsia-700/50 dark:text-fuchsia-300/60",
-              compact ? "h-4 w-4" : "h-5 w-5",
-            ].join(" ")}
-          />
+      {/* Status banner — full variant only. Compact (side-panel embed)
+          surfaces the same status as a small round spinner badge in
+          the always-visible mini-bar instead, which keeps the panel's
+          tight vertical budget for skeleton content. */}
+      {!compact && (
+        <div
+          className="mt-2 flex items-center gap-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-3 ring-1 ring-fuchsia-200 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/10 dark:ring-fuchsia-500/30"
+        >
+          <div className="relative flex-shrink-0">
+            <Sparkles className="h-5 w-5 text-fuchsia-700 dark:text-fuchsia-300" />
+            <Sparkles className="absolute inset-0 h-5 w-5 animate-ping text-fuchsia-700/50 dark:text-fuchsia-300/60" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-fuchsia-900 dark:text-fuchsia-100">
+              {status === "queued"
+                ? t("ingest.queued", { defaultValue: "Queued for processing…" })
+                : t("ingest.processing", { defaultValue: "Generating your card…" })}
+            </p>
+            <p className="truncate text-xs text-fuchsia-700 dark:text-fuchsia-200/80">
+              {phases[phaseIdx]}
+            </p>
+          </div>
+          <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-fuchsia-700 dark:text-fuchsia-300" />
         </div>
-        <div className="min-w-0 flex-1">
-          <p
-            className={[
-              "font-semibold text-fuchsia-900 dark:text-fuchsia-100",
-              compact ? "text-[12px]" : "text-sm",
-            ].join(" ")}
-          >
-            {status === "queued"
-              ? t("ingest.queued", { defaultValue: "Queued for processing…" })
-              : t("ingest.processing", { defaultValue: "Generating your card…" })}
-          </p>
-          <p
-            className={[
-              "truncate text-fuchsia-700 dark:text-fuchsia-200/80",
-              compact ? "text-[10px]" : "text-xs",
-            ].join(" ")}
-          >
-            {phases[phaseIdx]}
-          </p>
-        </div>
-        <Loader2
-          className={[
-            "flex-shrink-0 animate-spin text-fuchsia-700 dark:text-fuchsia-300",
-            compact ? "h-3.5 w-3.5" : "h-4 w-4",
-          ].join(" ")}
-        />
-      </div>
+      )}
     </div>
   );
 }

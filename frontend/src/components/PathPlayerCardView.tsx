@@ -9,7 +9,7 @@ import NotesTab from "./cardTabs/NotesTab";
 import QuizTab from "./cardTabs/QuizTab";
 import SummaryTab from "./cardTabs/SummaryTab";
 import TranscriptTab from "./cardTabs/TranscriptTab";
-import { api, type Card, type QuizQuestion } from "../lib/api";
+import { api, type Card, type QuizQuestion, type TranscriptOut } from "../lib/api";
 
 type PlayerTab = "summary" | "transcript" | "quiz" | "notes" | "chat";
 
@@ -29,7 +29,7 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
   const { t } = useTranslation();
   const [card, setCard] = useState<Card | null>(null);
   const [tab, setTab] = useState<PlayerTab>("summary");
-  const [transcript, setTranscript] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState<TranscriptOut | null>(null);
   const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
@@ -73,8 +73,16 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
     if (tab === "transcript" && transcript === null) {
       void api
         .getTranscript(cardId)
-        .then((res) => setTranscript(res.text))
-        .catch((err) => setTranscript(`${(err as Error).message}`));
+        .then(setTranscript)
+        .catch((err) =>
+          setTranscript({
+            card_id: cardId,
+            language: null,
+            provider: null,
+            text: (err as Error).message,
+            segments: null,
+          }),
+        );
     }
     if (tab === "quiz" && quiz.length === 0) {
       void api.getQuiz(cardId).then(setQuiz).catch(() => undefined);
@@ -171,7 +179,15 @@ export default function PathPlayerCardView({ cardId }: PathPlayerCardViewProps) 
           ) : (
             <div key={tab} className="tab-content-enter">
               {tab === "summary" && <SummaryTab card={card} activeTranslation={null} />}
-              {tab === "transcript" && <TranscriptTab transcript={transcript} />}
+              {tab === "transcript" && (
+                <TranscriptTab
+                  transcript={transcript}
+                  youtubeVideoId={
+                    card.source_type === "youtube" ? card.external_id ?? null : null
+                  }
+                  youtubeUrl={card.source_url ?? null}
+                />
+              )}
               {tab === "quiz" && <QuizTab quiz={quiz} cardStatus={card.status} />}
               {tab === "notes" && (
                 <NotesTab

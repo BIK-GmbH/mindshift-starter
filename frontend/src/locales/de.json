@@ -242,6 +242,10 @@
   "card": {
     "summary": "Zusammenfassung",
     "transcript": "Transkript",
+    "transcriptSearch": "Transkript durchsuchen…",
+    "transcriptHits": "{{count}} Treffer",
+    "transcriptNoMatch": "Keine Segmente passen zur Suche.",
+    "openAtTimestamp": "An dieser Stelle öffnen",
     "notes": "Notizen",
     "notesPlaceholder": "Hier Notizen schreiben — Fett, Listen, Überschriften, Links",
     "tldr": "TL;DR",

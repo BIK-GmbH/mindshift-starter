@@ -3,9 +3,10 @@ import { useEffect, useMemo, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 
+import CardLanguagePicker from "../components/CardLanguagePicker";
 import IngestionSkeleton from "../components/IngestionSkeleton";
 import MarkdownView from "../components/MarkdownView";
-import { api, tokenStorage, type Card } from "../lib/api";
+import { api, tokenStorage, type Card, type CardTranslationOut, type TranscriptOut } from "../lib/api";
 
 /**
  * Side-panel-local theme state, independent of the main app's
@@ -69,10 +70,11 @@ export default function EmbedCardPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<EmbedTab>("summary");
   const [summaryDepth, setSummaryDepth] = useState<SummaryDepth>("concise");
-  const [transcriptText, setTranscriptText] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState<TranscriptOut | null>(null);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [embedTheme, setEmbedTheme] = useState<"dark" | "light">(readEmbedTheme);
+  const [activeTranslation, setActiveTranslation] = useState<CardTranslationOut | null>(null);
 
   // Apply the embed theme to the document root. We're effectively
   // racing the global ThemeProvider for the same classList, but we
@@ -139,19 +141,25 @@ export default function EmbedCardPage() {
 
   // Lazy-load transcript only when the user opens that tab.
   useEffect(() => {
-    if (tab !== "transcript" || transcriptText !== null || !card) return;
+    if (tab !== "transcript" || transcript !== null || !card) return;
     setTranscriptLoading(true);
     void (async () => {
       try {
         const data = await api.getTranscript(cardId);
-        setTranscriptText(data.text ?? "");
+        setTranscript(data);
       } catch {
-        setTranscriptText("");
+        setTranscript({
+          card_id: cardId,
+          language: null,
+          provider: null,
+          text: "",
+          segments: null,
+        });
       } finally {
         setTranscriptLoading(false);
       }
     })();
-  }, [tab, cardId, transcriptText, card]);
+  }, [tab, cardId, transcript, card]);
 
   const webOrigin = window.location.origin;
   const tabs = useMemo<EmbedTab[]>(() => {
@@ -226,9 +234,24 @@ export default function EmbedCardPage() {
         >
           {copied ? "✓" : "🔗"}
         </button>
+        {(card.status === "queued" || card.status === "processing") && (
+          <span
+            title={
+              card.status === "queued"
+                ? t("ingest.queued", { defaultValue: "Queued for processing…" }) ?? ""
+                : t("ingest.processing", { defaultValue: "Generating your card…" }) ?? ""
+            }
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-fuchsia-500/15 ring-1 ring-fuchsia-500/40"
+          >
+            <Loader2 className="h-3 w-3 animate-spin text-fuchsia-300" />
+          </span>
+        )}
         <span className="ml-auto rounded-full bg-ink-800/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-400">
           {card.source_type}
         </span>
+        {card.status === "completed" && (
+          <CardLanguagePicker cardId={card.id} onActive={setActiveTranslation} />
+        )}
         <button
           type="button"
           onClick={toggleEmbedTheme}
@@ -264,12 +287,14 @@ export default function EmbedCardPage() {
             {/* Gradient + title overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-ink-900 via-ink-900/40 to-transparent" />
             <h1 className="absolute bottom-0 left-0 right-0 p-3 text-base font-semibold leading-snug text-ink-100">
-              {card.title}
+              {activeTranslation?.title ?? card.title}
             </h1>
           </div>
         ) : (
           <div className="flex-shrink-0 border-b border-ink-800 px-3 py-3">
-            <h1 className="text-base font-semibold leading-snug text-ink-100">{card.title}</h1>
+            <h1 className="text-base font-semibold leading-snug text-ink-100">
+              {activeTranslation?.title ?? card.title}
+            </h1>
           </div>
         )}
 
@@ -329,10 +354,22 @@ export default function EmbedCardPage() {
             image back into view and forcing the user to re-scroll. */}
         <div className="flex flex-1 min-h-[120vh] flex-col">
           {tab === "summary" && (
-            <SummaryTab card={card} depth={summaryDepth} onDepthChange={setSummaryDepth} />
+            <SummaryTab
+              card={card}
+              translation={activeTranslation}
+              depth={summaryDepth}
+              onDepthChange={setSummaryDepth}
+            />
           )}
           {tab === "transcript" && (
-            <TranscriptTab text={transcriptText} loading={transcriptLoading} />
+            <TranscriptTab
+              transcript={transcript}
+              loading={transcriptLoading}
+              youtubeVideoId={
+                card.source_type === "youtube" ? card.external_id ?? null : null
+              }
+              youtubeUrl={card.source_url ?? null}
+            />
           )}
           {tab === "notes" && <NotesTab card={card} />}
         </div>
@@ -362,15 +399,20 @@ export default function EmbedCardPage() {
 
 function SummaryTab({
   card,
+  translation,
   depth,
   onDepthChange,
 }: {
   card: Card;
+  translation: CardTranslationOut | null;
   depth: SummaryDepth;
   onDepthChange: (d: SummaryDepth) => void;
 }) {
-  const text = depth === "concise" ? card.concise_summary_md : card.detailed_summary_md;
-  const takeaways = card.key_takeaways_json ?? [];
+  const text =
+    depth === "concise"
+      ? translation?.concise_summary_md ?? card.concise_summary_md
+      : translation?.detailed_summary_md ?? card.detailed_summary_md;
+  const takeaways = translation?.key_takeaways_json ?? card.key_takeaways_json ?? [];
   return (
     <div className="space-y-3 p-3">
       <div className="flex gap-1">
@@ -433,13 +475,18 @@ function DepthPill({
 }
 
 function TranscriptTab({
-  text,
+  transcript,
   loading,
+  youtubeVideoId,
+  youtubeUrl,
 }: {
-  text: string | null;
+  transcript: TranscriptOut | null;
   loading: boolean;
+  youtubeVideoId: string | null;
+  youtubeUrl: string | null;
 }) {
-  if (loading) {
+  const [query, setQuery] = useState("");
+  if (loading || transcript === null) {
     return (
       <div className="flex items-center gap-2 p-4 text-xs text-ink-400">
         <Loader2 className="h-3 w-3 animate-spin" />
@@ -447,12 +494,75 @@ function TranscriptTab({
       </div>
     );
   }
-  if (!text) {
-    return <p className="p-4 text-xs text-ink-500">No transcript for this source.</p>;
+  const segments = transcript.segments;
+  if (!segments || segments.length === 0) {
+    if (!transcript.text) {
+      return <p className="p-4 text-xs text-ink-500">No transcript for this source.</p>;
+    }
+    return (
+      <div className="whitespace-pre-wrap p-3 text-[12px] leading-relaxed text-ink-200">
+        {transcript.text}
+      </div>
+    );
   }
+  const q = query.trim().toLowerCase();
+  const filtered = q ? segments.filter((s) => s.text.toLowerCase().includes(q)) : segments;
+  const linkFor = (start: number): string | null => {
+    if (youtubeVideoId) {
+      return `https://www.youtube.com/watch?v=${youtubeVideoId}&t=${Math.floor(start)}s`;
+    }
+    if (youtubeUrl && /youtube\.com|youtu\.be/i.test(youtubeUrl)) {
+      const sep = youtubeUrl.includes("?") ? "&" : "?";
+      return `${youtubeUrl}${sep}t=${Math.floor(start)}s`;
+    }
+    return null;
+  };
+  const fmt = (s: number) => {
+    const tot = Math.floor(s);
+    const h = Math.floor(tot / 3600);
+    const m = Math.floor((tot % 3600) / 60);
+    const ss = tot % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
+      : `${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+  };
   return (
-    <div className="whitespace-pre-wrap p-3 text-[12px] leading-relaxed text-ink-200">
-      {text}
+    <div className="p-3 text-[12px] leading-relaxed text-ink-200">
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search transcript…"
+        className="mb-3 w-full rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1 text-[11px] text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none"
+      />
+      {filtered.length === 0 ? (
+        <p className="text-ink-500">No segments match.</p>
+      ) : (
+        <ol className="space-y-1.5">
+          {filtered.map((s, i) => {
+            const url = linkFor(s.start);
+            return (
+              <li key={`${s.start}-${i}`} className="flex gap-2">
+                {url ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-shrink-0 font-mono text-[10px] tabular-nums text-fuchsia-400 hover:underline dark:text-fuchsia-300"
+                  >
+                    {fmt(s.start)}
+                  </a>
+                ) : (
+                  <span className="flex-shrink-0 font-mono text-[10px] tabular-nums text-ink-500">
+                    {fmt(s.start)}
+                  </span>
+                )}
+                <span className="flex-1">{s.text}</span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </div>
   );
 }

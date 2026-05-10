@@ -242,6 +242,10 @@
   "card": {
     "summary": "Summary",
     "transcript": "Transcript",
+    "transcriptSearch": "Search the transcript…",
+    "transcriptHits": "{{count}} matches",
+    "transcriptNoMatch": "No segments match your search.",
+    "openAtTimestamp": "Open at this timestamp",
     "notes": "Notes",
     "notesPlaceholder": "Write your notes here — bold, lists, headings, links",
     "tldr": "TL;DR",

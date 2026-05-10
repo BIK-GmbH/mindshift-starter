@@ -36,11 +36,72 @@ from app.services.ingestion import (
     process_youtube_card,
 )
 from app.services.storage import get_storage
+from app.services.url_normalize import canonicalize_url
 from app.services.youtube import extract_video_id
 
 MAX_PDF_BYTES = 25 * 1024 * 1024
 
 router = APIRouter(prefix="/cards", tags=["cards"])
+
+
+def _existing_card_for_user(
+    db: Session,
+    user: User,
+    *,
+    url: str | None = None,
+    source_type: str | None = None,
+    external_id: str | None = None,
+) -> Card | None:
+    """Return a card the user already saved that matches the same source.
+
+    Makes the POST /cards/from-* endpoints idempotent so callers like
+    the browser extension, web share-target, and bookmark importer
+    don't accumulate duplicates when the user re-submits the same URL.
+    Match priority:
+      1. (source_type, external_id) when both are provided — strongest
+         signal (YouTube video_id, GitHub owner/repo). Survives URL
+         variants such as tracking parameters.
+      2. Source.url or Source.canonical_url equal to the provided url.
+    """
+    q = select(Card).join(Source, Source.id == Card.source_id).where(
+        Card.user_id == user.id
+    )
+    if source_type and external_id:
+        q = q.where(Source.source_type == source_type, Source.external_id == external_id)
+    elif url:
+        # Match against both raw and canonical form so a search using a
+        # tracking-laden URL still finds a card stored canonically (and
+        # vice-versa for legacy rows).
+        canon = canonicalize_url(url)
+        candidates = {url, canon}
+        q = q.where(
+            or_(Source.url.in_(candidates), Source.canonical_url.in_(candidates))
+        )
+    else:
+        return None
+    return db.execute(q.limit(1)).scalar_one_or_none()
+
+
+def _latest_job_for_card(db: Session, card_id: UUID) -> Job | None:
+    return db.execute(
+        select(Job)
+        .where(Job.card_id == card_id)
+        .order_by(Job.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def _existing_ingestion_response(db: Session, card: Card) -> IngestionResponse:
+    """IngestionResponse for an already-existing card (dedup hit)."""
+    job = _latest_job_for_card(db, card.id)
+    if job is None:
+        # Legacy card predates the jobs table — synthesise a placeholder
+        # so the response schema stays stable. Not persisted.
+        job = Job(card_id=card.id, job_type=f"{card.source_type}_ingest", status=card.status)
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+    return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
 
 
 @router.post("/from-youtube", response_model=IngestionResponse, status_code=status.HTTP_201_CREATED)
@@ -50,10 +111,16 @@ def create_card_from_youtube(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> IngestionResponse:
-    url = str(payload.url)
+    url = canonicalize_url(str(payload.url))
     video_id = extract_video_id(url)
     if video_id is None:
         raise HTTPException(status_code=400, detail="Could not parse YouTube video ID from URL")
+
+    existing = _existing_card_for_user(
+        db, current_user, source_type="youtube", external_id=video_id
+    )
+    if existing is not None:
+        return _existing_ingestion_response(db, existing)
 
     source = Source(
         source_type="youtube",
@@ -92,7 +159,7 @@ def create_card_from_url(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> IngestionResponse:
-    url = str(payload.url)
+    url = canonicalize_url(str(payload.url))
 
     # Auto-route well-known URL shapes to their dedicated importers so
     # the caller (web share-target, browser extension, third-party
@@ -103,6 +170,10 @@ def create_card_from_url(
         return create_card_from_youtube(payload, background_tasks, current_user, db)
     if parse_github_url(url):
         return _create_github_card(url, background_tasks, current_user, db)
+
+    existing = _existing_card_for_user(db, current_user, url=url)
+    if existing is not None:
+        return _existing_ingestion_response(db, existing)
 
     source = Source(source_type="article", url=url, canonical_url=url)
     db.add(source)
@@ -147,11 +218,18 @@ def _create_github_card(
     current_user: User,
     db: Session,
 ) -> IngestionResponse:
+    url = canonicalize_url(url)
     parsed = parse_github_url(url)
     assert parsed is not None  # caller guarantees this
     owner, repo = parsed
     full = f"{owner}/{repo}"
     canonical = f"https://github.com/{full}"
+
+    existing = _existing_card_for_user(
+        db, current_user, source_type="github", external_id=full
+    )
+    if existing is not None:
+        return _existing_ingestion_response(db, existing)
 
     source = Source(
         source_type="github",
@@ -400,15 +478,25 @@ def find_card_by_source_url(
     Source.url OR Source.canonical_url so a YouTube link with extra
     query params still resolves.
     """
-    needle = url.strip()
-    if not needle:
+    raw = url.strip()
+    if not raw:
         raise HTTPException(status_code=400, detail="url is required")
+    # Canonicalise on read so old non-canon callers (older popup builds,
+    # third-party scripts that haven't updated) still hit the right
+    # card. The new write path also stores the canonical form, so a
+    # match against either column works.
+    needle = canonicalize_url(raw)
     card = db.execute(
         select(Card)
         .join(Source, Source.id == Card.source_id)
         .where(
             Card.user_id == current_user.id,
-            (Source.url == needle) | (Source.canonical_url == needle),
+            or_(
+                Source.url == needle,
+                Source.canonical_url == needle,
+                Source.url == raw,
+                Source.canonical_url == raw,
+            ),
         )
         .limit(1)
     ).scalar_one_or_none()
@@ -559,6 +647,10 @@ def get_transcript(
         "language": transcript.language,
         "provider": transcript.provider,
         "text": transcript.text,
+        # Segments carry per-line timestamps for sources that have them
+        # (YouTube, audio later). null for plain-text sources (PDF,
+        # article). Each segment is { text, start, duration } in seconds.
+        "segments": transcript.segments_json,
     }
 
 
