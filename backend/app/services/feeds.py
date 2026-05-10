@@ -102,6 +102,11 @@ def poll_feed(feed_id: UUID) -> dict:
 
         existing_urls = _existing_card_urls(db, feed.user_id, [c["url"] for c in candidates])
         queued = 0
+        # Collect the ingestion jobs we kicked off so a SINGLE background
+        # worker can drain them sequentially. Spawning one thread per
+        # item caused YouTube to IP-block the transcript endpoint when a
+        # fresh playlist feed dumped 15 videos at once.
+        pending: list[tuple[UUID, str, str, str | None]] = []
         for entry in candidates:
             if queued >= MAX_NEW_PER_POLL:
                 break
@@ -114,12 +119,7 @@ def poll_feed(feed_id: UUID) -> dict:
                 db, feed.user_id, url, entry["title"]
             )
             db.commit()  # commit so the BackgroundTask can read the row
-            # Schedule the right ingestion pipeline. YouTube playlist
-            # feeds (one of the main use-cases for this surface) need
-            # process_youtube_card, not process_article_card — the
-            # latter would scrape the watch-page HTML and miss the
-            # transcript entirely.
-            _schedule_ingest(card_id, url, kind=kind, external_id=external_id)
+            pending.append((card_id, url, kind, external_id))
             queued += 1
             summary["queued"] += 1
 
@@ -127,6 +127,13 @@ def poll_feed(feed_id: UUID) -> dict:
         feed.last_success_at = datetime.now(tz=timezone.utc)
         feed.items_ingested += queued
         db.commit()
+
+        # Kick off the sequential drainer (one thread per poll, not one
+        # per item). The drainer walks `pending` in order with a small
+        # pause between YouTube items — generous enough that YouTube's
+        # transcript endpoint doesn't IP-block us on a fresh feed.
+        if pending:
+            _drain_pending_in_background(pending)
         return summary
     finally:
         db.close()
@@ -327,14 +334,25 @@ def _create_article_card(db: Session, user_id: UUID, url: str, title: str) -> UU
     return card_id
 
 
-def _schedule_ingest(card_id: UUID, url: str, kind: str = "article", external_id: str | None = None) -> None:
-    """Run the matching ingestion pipeline in a background thread.
+# Pause between YouTube transcript fetches inside a feed drain. The
+# transcript endpoint IP-blocks fast (under a second per request from a
+# single source) when 15 videos arrive at once; 4 s of jitter is enough
+# to look like an ordinary user adding videos one after another.
+_YT_DRAIN_DELAY_SECONDS = 4.0
 
-    We can't use FastAPI's BackgroundTasks here because the scheduler
-    runs outside of a request. A bare thread is enough — ingestion
-    already opens its own DB session and is idempotent on re-runs.
+
+def _drain_pending_in_background(
+    pending: list[tuple[UUID, str, str, str | None]],
+) -> None:
+    """Walk `pending` items in one background thread, sequentially.
+
+    Each tuple is (card_id, url, kind, external_id). The function looks
+    up the matching Job row and dispatches to the right pipeline. A small
+    delay between YouTube items keeps YouTube from IP-blocking us when a
+    fresh playlist feed delivers many videos at once.
     """
     import threading
+    import time
 
     from app.services.ingestion import (
         process_article_card,
@@ -342,30 +360,41 @@ def _schedule_ingest(card_id: UUID, url: str, kind: str = "article", external_id
         process_youtube_card,
     )
 
-    # The processor looks up the matching Job row by card_id, so we
-    # need the job id we just inserted. Cheapest path: re-query.
-    db = SessionLocal()
-    try:
-        job_id = db.execute(
-            select(Job.id)
-            .where(Job.card_id == card_id, Job.status == "queued")
-            .order_by(Job.created_at.desc())
-            .limit(1)
-        ).scalar_one()
-    finally:
-        db.close()
+    def _run() -> None:
+        for index, (card_id, url, kind, external_id) in enumerate(pending):
+            db = SessionLocal()
+            try:
+                job_id = db.execute(
+                    select(Job.id)
+                    .where(Job.card_id == card_id, Job.status == "queued")
+                    .order_by(Job.created_at.desc())
+                    .limit(1)
+                ).scalar_one_or_none()
+            finally:
+                db.close()
+            if job_id is None:
+                continue
 
-    if kind == "youtube" and external_id:
-        target = process_youtube_card
-        args = (card_id, job_id, external_id)
-    elif kind == "github":
-        target = process_github_card
-        args = (card_id, job_id, url)
-    else:
-        target = process_article_card
-        args = (card_id, job_id, url)
+            try:
+                if kind == "youtube" and external_id:
+                    if index > 0:
+                        time.sleep(_YT_DRAIN_DELAY_SECONDS)
+                    process_youtube_card(card_id, job_id, external_id)
+                elif kind == "github":
+                    process_github_card(card_id, job_id, url)
+                else:
+                    process_article_card(card_id, job_id, url)
+            except Exception as exc:  # noqa: BLE001 — never let one bad item break the drain
+                logger.exception("Feed-drain ingestion failed for %s: %s", card_id, exc)
 
-    threading.Thread(target=target, args=args, daemon=True).start()
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def _schedule_ingest(card_id: UUID, url: str, kind: str = "article", external_id: str | None = None) -> None:
+    """Backwards-compat single-item scheduler. Used only by the legacy
+    `_create_article_card` alias; new code path goes through
+    `_drain_pending_in_background` which serialises ingestion."""
+    _drain_pending_in_background([(card_id, url, kind, external_id)])
 
 
 def poll_all_due_feeds() -> int:
