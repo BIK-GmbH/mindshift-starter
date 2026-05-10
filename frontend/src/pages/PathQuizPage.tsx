@@ -27,10 +27,40 @@ interface AnswerRecord {
  * attempt" entity in the MVP. The card-level review-event flow keeps
  * spaced-repetition state separate from path-mode quizzing.
  */
-export default function PathQuizPage() {
+interface PathQuizPageProps {
+  mode?: "owner" | "public"; // defaults to "owner"
+}
+
+export default function PathQuizPage({ mode = "owner" }: PathQuizPageProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { pathId = "" } = useParams<{ pathId: string }>();
+  const { pathId: pathIdParam, username, slug } = useParams<{
+    pathId?: string;
+    username?: string;
+    slug?: string;
+  }>();
+  const hasToken = !!localStorage.getItem("mindshift.token");
+  const [resolvedPathId, setResolvedPathId] = useState<string | null>(
+    mode === "owner" ? (pathIdParam ?? null) : null,
+  );
+
+  useEffect(() => {
+    if (mode !== "public") return;
+    if (!username || !slug) return;
+    void api
+      .publicPath(username, slug)
+      .then((p) => setResolvedPathId(p.id))
+      .catch(() => setResolvedPathId(null));
+  }, [mode, username, slug]);
+
+  const playPath =
+    mode === "owner"
+      ? `/paths/${resolvedPathId ?? ""}/play`
+      : `/u/${username}/path/${slug}/play`;
+  const editorPath =
+    mode === "owner"
+      ? `/paths/${resolvedPathId ?? ""}`
+      : `/u/${username}/path/${slug}`;
   const [quiz, setQuiz] = useState<PathQuiz | null>(null);
   const [questions, setQuestions] = useState<PathQuizQuestion[]>([]);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -46,11 +76,13 @@ export default function PathQuizPage() {
   const submittedRef = useRef(false);
 
   useEffect(() => {
+    if (!resolvedPathId) return;
+    if (mode === "public" && !hasToken) return;
     void (async () => {
       try {
         const [q, s] = await Promise.all([
-          api.getPathQuiz(pathId),
-          api.getQuizStats(pathId).catch(() => null),
+          api.getPathQuiz(resolvedPathId),
+          api.getQuizStats(resolvedPathId).catch(() => null),
         ]);
         setQuiz(q);
         setStats(s);
@@ -67,7 +99,7 @@ export default function PathQuizPage() {
         setPhase("ready");
       }
     })();
-  }, [pathId]);
+  }, [resolvedPathId, mode, hasToken]);
 
   const current = questions[index] ?? null;
   const isMC = !!(current?.choices_json && current.choices_json.length > 0);
@@ -101,19 +133,20 @@ export default function PathQuizPage() {
   // record the same attempt twice.
   useEffect(() => {
     if (phase !== "done" || submittedRef.current) return;
+    if (!resolvedPathId) return;
     submittedRef.current = true;
     const duration = Math.round((Date.now() - startedAtRef.current) / 1000);
     void (async () => {
       try {
-        await api.recordQuizAttempt(pathId, { score, total, duration_seconds: duration });
+        await api.recordQuizAttempt(resolvedPathId, { score, total, duration_seconds: duration });
         // Re-fetch stats so the next "Try again" sees the updated best-score.
-        const fresh = await api.getQuizStats(pathId);
+        const fresh = await api.getQuizStats(resolvedPathId);
         setStats(fresh);
       } catch {
         /* stats are best-effort; don't block the score screen */
       }
     })();
-  }, [phase, pathId, score, total]);
+  }, [phase, resolvedPathId, score, total]);
 
   const restart = () => {
     setQuestions(shuffle(quiz?.questions ?? []));
@@ -124,6 +157,23 @@ export default function PathQuizPage() {
     submittedRef.current = false;
     setPhase("answering");
   };
+
+  if (mode === "public" && !hasToken) {
+    return (
+      <div className="flex h-full items-center justify-center text-center text-sm text-ink-300">
+        <div className="max-w-md space-y-4 px-6">
+          <p>{t("paths.signInToSaveScore", { defaultValue: "Sign in to save your score" })}</p>
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="inline-flex items-center gap-2 rounded-md bg-ink-100 px-4 py-2 text-sm font-semibold text-ink-900 transition hover:bg-ink-200"
+          >
+            {t("auth.signIn", { defaultValue: "Sign in" })}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (phase === "loading") {
     return (
@@ -146,7 +196,7 @@ export default function PathQuizPage() {
           </p>
           <button
             type="button"
-            onClick={() => navigate(`/paths/${pathId}`)}
+            onClick={() => navigate(editorPath)}
             className="inline-flex items-center gap-1 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-ink-200"
           >
             <ChevronLeft className="h-3 w-3" />
@@ -173,7 +223,7 @@ export default function PathQuizPage() {
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
           <button
             type="button"
-            onClick={() => navigate(`/paths/${pathId}/play`)}
+            onClick={() => navigate(playPath)}
             className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
             title={t("pathQuiz.backToPlayer", { defaultValue: "Back to player" }) ?? ""}
           >
@@ -220,7 +270,7 @@ export default function PathQuizPage() {
               total={total}
               stats={stats}
               onRestart={restart}
-              onBack={() => navigate(`/paths/${pathId}/play`)}
+              onBack={() => navigate(playPath)}
             />
           ) : (
             current && (
