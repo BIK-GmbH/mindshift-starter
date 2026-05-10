@@ -84,3 +84,19 @@ def test_public_quiz_happy_path(client, seeded_public_path_with_quiz):
     r = client.get(f"/api/public/paths/{user.username}/{path.slug}/cards/{card_id}/quiz")
     assert r.status_code == 200
     assert isinstance(r.json(), list)
+
+
+def test_public_file_404_when_no_original(client, seeded_public_path):
+    user = seeded_public_path.user
+    path = seeded_public_path.path
+    card_id = seeded_public_path.cards[0].id
+    r = client.get(f"/api/public/paths/{user.username}/{path.slug}/cards/{card_id}/file")
+    assert r.status_code == 404
+
+
+def test_public_file_404_when_path_private(client, seeded_private_path):
+    user = seeded_private_path.user
+    path = seeded_private_path.path
+    card_id = seeded_private_path.cards[0].id
+    r = client.get(f"/api/public/paths/{user.username}/{path.slug}/cards/{card_id}/file")
+    assert r.status_code == 404

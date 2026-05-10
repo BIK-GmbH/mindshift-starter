@@ -812,3 +812,29 @@ def get_public_card_quiz(
             .order_by(QuizQuestion.created_at)
         ).scalars()
     )
+
+
+@public_router.get("/{username}/{slug}/cards/{card_id}/file")
+def get_public_card_file(
+    username: str,
+    slug: str,
+    card_id: UUID,
+    db: Session = Depends(get_db),
+) -> Response:
+    """Streams the original blob (PDF, etc.) for a card inside a public
+    path. Anonymous-OK; same access guard as the other public endpoints."""
+    _, card = _load_public_card_in_path(db, username, slug, card_id)
+    if card.original_file_id is None:
+        raise HTTPException(status_code=404, detail="No original file")
+    file = db.get(File, card.original_file_id)
+    if file is None:
+        raise HTTPException(status_code=404, detail="No original file")
+    blob = get_storage().read(file)
+    return Response(
+        content=blob,
+        media_type=file.content_type or "application/pdf",
+        headers={
+            "Content-Length": str(len(blob)),
+            "Cache-Control": "public, max-age=86400",
+        },
+    )
