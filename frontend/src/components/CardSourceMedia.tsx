@@ -12,6 +12,7 @@ import {
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 
 import type { Card, GithubSourceMetadata } from "../lib/api";
 import PdfReader, { type PdfReaderMode } from "./PdfReader";
@@ -43,6 +44,15 @@ interface Props {
 export default function CardSourceMedia({ card, fitHeight = false, pdfMode, compact = false }: Props) {
   const { t } = useTranslation();
   const [fullscreen, setFullscreen] = useState(false);
+  // Read `?t=<seconds>` from the URL — set by timestamp pills in the
+  // global search modal, summary `[t=NN]` markers and transcript
+  // segment links. When present and the card is a YouTube source we
+  // append `start=…&autoplay=1` to the embed URL so the player jumps
+  // there. Changing `?t=` later (re-clicking another pill) re-renders
+  // the iframe with the new src and seeks accordingly.
+  const [searchParams] = useSearchParams();
+  const tParamRaw = searchParams.get("t");
+  const seekSeconds = tParamRaw && /^\d+$/.test(tParamRaw) ? parseInt(tParamRaw, 10) : null;
 
   // ESC closes fullscreen.
   useEffect(() => {
@@ -65,7 +75,33 @@ export default function CardSourceMedia({ card, fitHeight = false, pdfMode, comp
   };
 
   if (card.source_type === "youtube" && card.external_id) {
-    const embedSrc = `https://www.youtube.com/embed/${card.external_id}`;
+    // Mobile browsers (iOS Safari, Chrome Android) block autoplay-with-
+    // sound and force fullscreen unless `mute=1` and `playsinline=1` are
+    // set. Without them, a `?t=NN` jump on mobile re-mounts the iframe
+    // but the player sits on frame 0 because the autoplay request was
+    // silently denied. Detect touch-primary devices via the modern
+    // hover/pointer media query — covers iPhone + Android + accepts
+    // desktop-with-touchscreen on its own gesture.
+    const isTouchPrimary =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+    const buildEmbedSrc = (start: number | null) => {
+      const params = new URLSearchParams();
+      if (start !== null) params.set("start", String(start));
+      if (start !== null) {
+        params.set("autoplay", "1");
+        if (isTouchPrimary) {
+          params.set("mute", "1");
+          params.set("playsinline", "1");
+        }
+      }
+      const qs = params.toString();
+      return qs
+        ? `https://www.youtube.com/embed/${card.external_id}?${qs}`
+        : `https://www.youtube.com/embed/${card.external_id}`;
+    };
+    const embedSrc = buildEmbedSrc(seekSeconds);
     const watchUrl = card.source_url || `https://www.youtube.com/watch?v=${card.external_id}`;
     const player = (
       <div
