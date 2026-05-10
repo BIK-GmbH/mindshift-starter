@@ -1,4 +1,4 @@
-import { Brain, FileText, Github, Globe, Hash, Loader2, Youtube, type LucideIcon } from "lucide-react";
+import { Brain, FileText, Github, Globe, Hash, Loader2, Sparkles, Youtube, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
@@ -140,6 +140,51 @@ export default function PublicProfilePage() {
                   )}
                 </div>
               </header>
+
+              {profile.paths.length > 0 && (
+                <section className="mb-8">
+                  <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+                    {t("paths.title", { defaultValue: "Paths" })}
+                  </h2>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {profile.paths.map((p) => (
+                      <Link
+                        key={p.id}
+                        to={`/u/${profile.username}/path/${p.slug}`}
+                        className="card-hover group flex gap-3 rounded-xl border border-ink-800 bg-ink-800/40 p-3 transition hover:border-ink-600"
+                      >
+                        {p.cover_url ? (
+                          <img
+                            src={p.cover_url}
+                            alt=""
+                            className="h-16 w-16 flex-shrink-0 rounded-md object-cover ring-1 ring-ink-700"
+                          />
+                        ) : (
+                          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-md bg-fuchsia-500/10 ring-1 ring-fuchsia-500/30">
+                            <Sparkles className="h-5 w-5 text-fuchsia-300" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-ink-100 group-hover:text-ink-50">
+                            {p.title}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-ink-400">
+                            {p.card_count}{" "}
+                            {p.card_count === 1
+                              ? t("paths.cardSingular", { defaultValue: "card" })
+                              : t("paths.cardPlural", { defaultValue: "cards" })}
+                          </p>
+                          {p.description_md && (
+                            <p className="mt-1 line-clamp-2 text-xs text-ink-300">
+                              {p.description_md}
+                            </p>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               <section>
                 <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">

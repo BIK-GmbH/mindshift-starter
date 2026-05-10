@@ -33,12 +33,14 @@ from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.card import Card
 from app.models.file import File
+from app.models.path import Path, PathCard
 from app.models.reaction import CardReaction
 from app.models.tag import CardTag, Tag
 from app.models.user import User
 from app.schemas.auth import (
     PublicCardSummary,
     PublicProfileOut,
+    PublicProfilePathOut,
     PublicProfileTagOut,
     PublicTagDetail,
 )
@@ -109,6 +111,33 @@ def get_public_profile(
         select(Tag).where(Tag.user_id == user.id, Tag.is_public.is_(True)).order_by(Tag.name)
     ).scalars().all()
 
+    # Public paths the user has published. Path's cover_url, if present,
+    # is rewritten to the public cover endpoint so anonymous browsers can
+    # render it.
+    path_rows = db.execute(
+        select(Path).where(Path.user_id == user.id, Path.is_public.is_(True)).order_by(Path.created_at.desc())
+    ).scalars().all()
+    out_paths: list[PublicProfilePathOut] = []
+    for p in path_rows:
+        count = db.execute(
+            select(func.count(PathCard.card_id)).where(PathCard.path_id == p.id)
+        ).scalar_one()
+        cover = (
+            f"/api/public/paths/{user.username}/{p.slug}/cover.png"
+            if p.cover_url
+            else None
+        )
+        out_paths.append(
+            PublicProfilePathOut(
+                id=p.id,
+                title=p.title,
+                slug=p.slug,
+                description_md=p.description_md,
+                cover_url=cover,
+                card_count=int(count or 0),
+            )
+        )
+
     if not public_tags:
         return PublicProfileOut(
             username=user.username or "",
@@ -116,6 +145,7 @@ def get_public_profile(
             bio=user.bio,
             avatar_file_id=user.avatar_file_id,
             tags=[],
+            paths=out_paths,
         )
 
     # Card counts per public tag tree.
@@ -145,6 +175,7 @@ def get_public_profile(
         bio=user.bio,
         avatar_file_id=user.avatar_file_id,
         tags=out_tags,
+        paths=out_paths,
     )
 
 

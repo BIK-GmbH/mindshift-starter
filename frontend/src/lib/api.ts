@@ -1077,12 +1077,22 @@ export interface PublicProfileTagOut {
   card_count: number;
 }
 
+export interface PublicProfilePathOut {
+  id: string;
+  title: string;
+  slug: string;
+  description_md: string | null;
+  cover_url: string | null;
+  card_count: number;
+}
+
 export interface PublicProfileOut {
   username: string;
   display_name: string | null;
   bio: string | null;
   avatar_file_id: string | null;
   tags: PublicProfileTagOut[];
+  paths: PublicProfilePathOut[];
 }
 
 export interface PublicCardSummary {

@@ -49,11 +49,23 @@ class PublicProfileOut(BaseModel):
     bio: str | None = None
     avatar_file_id: UUID | None = None
     tags: list["PublicProfileTagOut"] = Field(default_factory=list)
+    paths: list["PublicProfilePathOut"] = Field(default_factory=list)
 
 
 class PublicProfileTagOut(BaseModel):
     name: str
     slug: str  # path slug — for nested tags this is e.g. "finance/investment"
+    card_count: int
+
+
+class PublicProfilePathOut(BaseModel):
+    """Public path summary as listed on a user's profile."""
+
+    id: UUID
+    title: str
+    slug: str
+    description_md: str | None = None
+    cover_url: str | None = None
     card_count: int
 
 

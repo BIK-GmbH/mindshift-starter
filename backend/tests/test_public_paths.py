@@ -62,6 +62,21 @@ def test_public_transcript_happy_path(client, seeded_public_path_with_transcript
     assert r.json()["text"]
 
 
+def test_public_profile_includes_paths(client, seeded_public_path):
+    user = seeded_public_path.user
+    r = client.get(f"/api/public/users/{user.username}")
+    assert r.status_code == 200
+    body = r.json()
+    assert "paths" in body
+    titles = [p["title"] for p in body["paths"]]
+    assert seeded_public_path.path.title in titles
+    # Check shape of the path entry
+    p = next(p for p in body["paths"] if p["title"] == seeded_public_path.path.title)
+    assert "id" in p
+    assert "slug" in p
+    assert p["card_count"] == 2  # the seeded fixture creates 2 cards
+
+
 def test_public_quiz_happy_path(client, seeded_public_path_with_quiz):
     user = seeded_public_path_with_quiz.user
     path = seeded_public_path_with_quiz.path
