@@ -1,0 +1,202 @@
+"""Social-media post generator.
+
+Generates LinkedIn / X / Bluesky drafts from a card's summary + key
+takeaways. Each platform has its own system prompt tuned to the
+expected length, hook style, and emoji budget.
+
+Optional gpt-image-2 cover image is generated in the same call when
+the user asked for one — we re-use the podcast cover helper which
+already handles the OpenAI image API + saves through the storage
+layer.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Literal
+
+from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+Platform = Literal["linkedin", "x", "bluesky"]
+Tone = Literal["professional", "casual", "thought_leader", "story", "punchy"]
+
+
+_PLATFORM_GUIDE = {
+    "linkedin": (
+        "LinkedIn post. Aim for 800–1500 characters. Structure: a hook "
+        "line that earns the click (no clickbait), a short body with "
+        "concrete claims, and a CTA / question at the end when "
+        "requested. Sparing emoji at the start of bullet points only. "
+        "Don't address 'LinkedIn' or 'the audience' explicitly."
+    ),
+    "x": (
+        "X (Twitter) post. Aim for 600–1200 characters — the account is "
+        "assumed to be X Premium so longer posts are OK; do NOT add "
+        "thread numbers or 1/n style. Structure: punchy hook in the "
+        "first line, then 3–5 short paragraphs with line breaks "
+        "between. Emoji used sparingly at the start of bullets / "
+        "section breaks. No hashtag spam — at most 3 high-quality "
+        "hashtags, returned as a separate field."
+    ),
+    "bluesky": (
+        "Bluesky post. Hard limit 300 characters per post. Write ONE "
+        "tight post — no threads, no 'continued' markers. Conversational "
+        "tone, no hashtags."
+    ),
+}
+
+_TONE_GUIDE = {
+    "professional": "Crisp, neutral, business-appropriate. No slang, no exclamation marks.",
+    "casual": "Friendly + conversational. First-person voice when it fits.",
+    "thought_leader": "Confident, opinion-forward. Make a non-obvious claim and back it up.",
+    "story": "Open with a brief narrative hook before getting to the takeaway.",
+    "punchy": "Short sentences. Strong verbs. Maximum density.",
+}
+
+
+def _build_system_prompt(
+    platform: Platform,
+    tone: Tone,
+    *,
+    with_hashtags: bool,
+    with_cta: bool,
+    language: str | None,
+) -> str:
+    platform_guide = _PLATFORM_GUIDE[platform]
+    tone_guide = _TONE_GUIDE.get(tone, _TONE_GUIDE["professional"])
+    lang_clause = (
+        f"Write in {language}."
+        if language
+        else "Match the language of the source content."
+    )
+    hashtags_clause = (
+        "Return 2–4 relevant hashtags in `hashtags`."
+        if with_hashtags
+        else "Return an empty `hashtags` array."
+    )
+    cta_clause = (
+        "End with a soft CTA — a question, a follow-up prompt, or "
+        "an invitation to share thoughts."
+        if with_cta
+        else "Don't add a sign-off or CTA."
+    )
+
+    return (
+        "You write polished social-media posts from short knowledge "
+        "summaries. Return ONLY valid JSON in this shape:\n"
+        '  {"text": "<final post body>", "hashtags": ["a", "b"]}\n\n'
+        f"## Platform\n{platform_guide}\n\n"
+        f"## Tone\n{tone_guide}\n\n"
+        f"## Language\n{lang_clause}\n\n"
+        f"## Hashtags\n{hashtags_clause}\n\n"
+        f"## CTA\n{cta_clause}\n\n"
+        "Other rules:\n"
+        " - Don't quote the source verbatim — paraphrase the key idea.\n"
+        " - Avoid generic AI-tells: no 'In conclusion', no 'In today's "
+        "fast-paced world', no 'Let's dive in'.\n"
+        " - Skip the title — the body should hook on its own.\n"
+        " - Don't fabricate numbers or names that aren't in the input.\n"
+    )
+
+
+def _build_user_prompt(
+    *,
+    title: str,
+    concise: str | None,
+    detailed: str | None,
+    key_takeaways: list[str] | None,
+) -> str:
+    parts = [f"# Source\n\nTitle: {title}"]
+    if concise:
+        parts.append(f"\nConcise summary:\n{concise}")
+    if key_takeaways:
+        parts.append("\nKey takeaways:\n" + "\n".join(f"- {k}" for k in key_takeaways))
+    if detailed:
+        # Detailed can be long; keep the user-prompt under control.
+        snippet = detailed.strip()
+        if len(snippet) > 4000:
+            snippet = snippet[:4000] + " …(truncated)"
+        parts.append(f"\nDetailed notes:\n{snippet}")
+    return "\n".join(parts)
+
+
+def generate_post(
+    *,
+    title: str,
+    concise: str | None,
+    detailed: str | None,
+    key_takeaways: list[str] | None,
+    platform: Platform,
+    tone: Tone = "professional",
+    language: str | None = None,
+    with_hashtags: bool = True,
+    with_cta: bool = True,
+) -> tuple[str, list[str]]:
+    """Call OpenAI and return (text, hashtags).
+
+    Raises ValueError if the model returns something that isn't valid
+    JSON in the expected shape — caller surfaces that as a 502.
+    """
+    from openai import OpenAI
+
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise ValueError("OpenAI is not configured")
+    client = OpenAI(api_key=settings.openai_api_key)
+
+    system = _build_system_prompt(
+        platform,
+        tone,
+        with_hashtags=with_hashtags,
+        with_cta=with_cta,
+        language=language,
+    )
+    user = _build_user_prompt(
+        title=title,
+        concise=concise,
+        detailed=detailed,
+        key_takeaways=key_takeaways,
+    )
+
+    response = client.chat.completions.create(
+        model=settings.openai_model,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        response_format={"type": "json_object"},
+    )
+    content = response.choices[0].message.content or "{}"
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as exc:
+        logger.exception("social-post returned invalid JSON: %s", content[:300])
+        raise ValueError("Invalid response from summarizer") from exc
+
+    text = (data.get("text") or "").strip()
+    if not text:
+        raise ValueError("Empty post text from summarizer")
+    hashtags = [
+        str(h).strip().lstrip("#") for h in (data.get("hashtags") or []) if str(h).strip()
+    ]
+    return text, hashtags
+
+
+def generate_post_image(*, title: str, post_text: str) -> bytes:
+    """Generate a cover image (PNG bytes) for the post via gpt-image-2.
+
+    Re-uses the same OpenAI image helper the podcast cover-art pipeline
+    uses so we don't duplicate the call logic.
+    """
+    from app.services.podcast import generate_cover_image
+
+    # Build a short hint for the image generator — title + the first
+    # 600 chars of the post is enough mood-setting without bloating
+    # the prompt.
+    snippet = post_text.strip()
+    if len(snippet) > 600:
+        snippet = snippet[:600] + " …"
+    return generate_cover_image(title=title, summary_hint=snippet)

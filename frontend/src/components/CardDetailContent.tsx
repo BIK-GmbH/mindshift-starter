@@ -14,6 +14,7 @@ import {
   Maximize2,
   MessageSquare,
   Network,
+  Megaphone,
   RefreshCw,
   RotateCw,
   Share2,
@@ -40,6 +41,7 @@ import StatusBadge from "./StatusBadge";
 import ChatTab from "./cardTabs/ChatTab";
 import HighlightsTab from "./cardTabs/HighlightsTab";
 import NotesTab from "./cardTabs/NotesTab";
+import PostsTab from "./cardTabs/PostsTab";
 import QuizTab from "./cardTabs/QuizTab";
 import RelatedTab from "./cardTabs/RelatedTab";
 import SummaryTab from "./cardTabs/SummaryTab";
@@ -57,7 +59,8 @@ export type CardDetailTab =
   | "chat"
   | "related"
   | "graph"
-  | "podcast";
+  | "podcast"
+  | "posts";
 
 const TAB_ICONS: Record<CardDetailTab, FC<{ className?: string }>> = {
   summary: BookOpen,
@@ -69,6 +72,7 @@ const TAB_ICONS: Record<CardDetailTab, FC<{ className?: string }>> = {
   related: Link2,
   graph: Network,
   podcast: Headphones,
+  posts: Megaphone,
 };
 
 interface Props {
@@ -376,6 +380,7 @@ export default function CardDetailContent({
     "notes",
     "highlights",
     "quiz",
+    "posts",
     "chat",
     "related",
     "graph",
@@ -783,6 +788,8 @@ export default function CardDetailContent({
             )}
 
             {tab === "podcast" && <CardPodcastPlayer cardId={card.id} />}
+
+            {tab === "posts" && <PostsTab cardId={card.id} />}
           </div>
           )}
         </div>

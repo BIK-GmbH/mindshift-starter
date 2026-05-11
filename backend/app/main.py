@@ -26,6 +26,7 @@ from app.api.podcasts import router as podcasts_router
 from app.api.review import router as review_router
 from app.api.search import router as search_router
 from app.api.share import router as share_router
+from app.api.social_posts import router as social_posts_router
 from app.api.tags import router as tags_router
 from app.api.highlights import router as highlights_router
 from app.api.translations import router as translations_router
@@ -96,6 +97,7 @@ app.include_router(graph_presets_router, prefix="/api")
 app.include_router(ai_router, prefix="/api")
 app.include_router(audio_router, prefix="/api")
 app.include_router(podcasts_router, prefix="/api")
+app.include_router(social_posts_router, prefix="/api")
 app.include_router(podcasts_public_router, prefix="/api")
 app.include_router(paths_router, prefix="/api")
 app.include_router(paths_public_router, prefix="/api")

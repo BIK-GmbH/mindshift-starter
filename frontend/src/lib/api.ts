@@ -786,6 +786,19 @@ export const api = {
   refreshFeed: (id: string) =>
     request<FeedRefreshResult>(`/api/feeds/${id}/refresh`, { method: "POST" }),
 
+  // --- Social posts (per-card LinkedIn / X / Bluesky drafts) ---
+  listSocialPosts: (cardId: string) =>
+    request<SocialPostOut[]>(`/api/cards/${cardId}/social-posts`),
+  createSocialPost: (cardId: string, body: SocialPostCreate) =>
+    request<SocialPostOut>(`/api/cards/${cardId}/social-posts`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, { timeoutMs: 120_000 }), // image generation can take ~30-40 s
+  deleteSocialPost: (cardId: string, postId: string) =>
+    request<void>(`/api/cards/${cardId}/social-posts/${postId}`, {
+      method: "DELETE",
+    }),
+
   // --- Admin user management ---
   listAdminUsers: () => request<AdminUserRow[]>("/api/admin/users"),
   createAdminUser: (body: AdminUserCreate) =>
@@ -1108,6 +1121,36 @@ export interface UserOut {
   avatar_file_id: string | null;
   public_profile: boolean;
   is_admin: boolean;
+}
+
+export type SocialPostPlatform = "linkedin" | "x" | "bluesky";
+export type SocialPostTone =
+  | "professional"
+  | "casual"
+  | "thought_leader"
+  | "story"
+  | "punchy";
+
+export interface SocialPostCreate {
+  platform: SocialPostPlatform;
+  tone?: SocialPostTone;
+  language?: string | null;
+  with_hashtags?: boolean;
+  with_cta?: boolean;
+  with_image?: boolean;
+}
+
+export interface SocialPostOut {
+  id: string;
+  card_id: string;
+  platform: string;
+  text: string;
+  hashtags: string[];
+  character_count: number;
+  image_url: string | null;
+  tone: string | null;
+  language: string | null;
+  created_at: string;
 }
 
 export interface AdminUserRow extends UserOut {
