@@ -63,43 +63,60 @@ def poll_feed(feed_id: UUID) -> dict:
 
         feed.last_polled_at = datetime.now(tz=timezone.utc)
 
-        try:
-            parsed_data = _fetch(feed)
-        except Exception as exc:  # noqa: BLE001 — fail-soft for one feed
-            feed.last_error = str(exc)[:500]
-            db.commit()
-            summary["error"] = str(exc)
-            return summary
+        # YouTube playlist Atom feeds only expose the 15 most recent
+        # videos AND start returning 304 once we have an etag — useless
+        # for back-filling a 70-video course. For playlist feeds we
+        # bypass the Atom path entirely and enumerate via yt-dlp.
+        playlist_id = _extract_playlist_id_from_atom_url(feed.feed_url)
 
-        if parsed_data is None:
-            # 304 Not Modified — nothing to do.
-            feed.last_error = None
-            feed.last_success_at = datetime.now(tz=timezone.utc)
-            db.commit()
-            return summary
+        candidates: list[dict]
+        if playlist_id:
+            full_list = _enumerate_youtube_playlist(playlist_id)
+            if full_list is None:
+                feed.last_error = "yt-dlp playlist enumeration failed"
+                db.commit()
+                summary["error"] = "yt-dlp playlist enumeration failed"
+                return summary
+            candidates = full_list
+        else:
+            try:
+                parsed_data = _fetch(feed)
+            except Exception as exc:  # noqa: BLE001 — fail-soft for one feed
+                feed.last_error = str(exc)[:500]
+                db.commit()
+                summary["error"] = str(exc)
+                return summary
 
-        parsed, etag, last_modified = parsed_data
+            if parsed_data is None:
+                # 304 Not Modified — nothing to do.
+                feed.last_error = None
+                feed.last_success_at = datetime.now(tz=timezone.utc)
+                db.commit()
+                return summary
 
-        # Update title from feed metadata on first poll, when empty, or
-        # when the feed renamed itself.
-        feed_title = getattr(parsed.feed, "title", "") or ""
-        if not feed.title and feed_title:
-            feed.title = feed_title.strip()[:300]
-        site_link = getattr(parsed.feed, "link", None)
-        if site_link and not feed.site_url:
-            feed.site_url = str(site_link)[:2048]
+            parsed, etag, last_modified = parsed_data
 
-        if etag:
-            feed.last_etag = etag[:255]
-        if last_modified:
-            feed.last_modified = last_modified[:255]
+            # Update title from feed metadata on first poll, when empty,
+            # or when the feed renamed itself.
+            feed_title = getattr(parsed.feed, "title", "") or ""
+            if not feed.title and feed_title:
+                feed.title = feed_title.strip()[:300]
+            site_link = getattr(parsed.feed, "link", None)
+            if site_link and not feed.site_url:
+                feed.site_url = str(site_link)[:2048]
 
-        # Pick out genuinely new entries. Order: feedparser keeps the
-        # feed's order (newest-first by convention) — we walk it and
-        # stop after MAX_NEW_PER_POLL queued items, oldest-first so the
-        # library shows them in chronological order.
-        candidates = list(_normalise_entries(parsed.entries))
-        candidates.reverse()  # oldest first
+            if etag:
+                feed.last_etag = etag[:255]
+            if last_modified:
+                feed.last_modified = last_modified[:255]
+
+            # Pick out genuinely new entries. Order: feedparser keeps
+            # the feed's order (newest-first by convention) — we walk
+            # it and stop after MAX_NEW_PER_POLL queued items,
+            # oldest-first so the library shows them in chronological
+            # order.
+            candidates = list(_normalise_entries(parsed.entries))
+            candidates.reverse()  # oldest first
 
         # Canonicalise every candidate URL upfront. Without this an
         # article feed serving `?utm_source=rss` tracking params would
@@ -437,3 +454,77 @@ def feed_count_for_user(db: Session, user_id: UUID) -> int:
     return int(
         db.execute(select(func.count(Feed.id)).where(Feed.user_id == user_id)).scalar_one() or 0
     )
+
+
+def _extract_playlist_id_from_atom_url(atom_url: str) -> str | None:
+    """Return the playlist_id when `atom_url` is the YouTube playlist
+    Atom feed shape (`youtube.com/feeds/videos.xml?playlist_id=PL...`),
+    else None. Channels return None — their Atom feed is fine as-is."""
+    from urllib.parse import parse_qs, urlparse
+
+    try:
+        u = urlparse(atom_url)
+    except Exception:
+        return None
+    host = (u.hostname or "").lower()
+    if "youtube.com" not in host:
+        return None
+    if u.path != "/feeds/videos.xml":
+        return None
+    pid = (parse_qs(u.query).get("playlist_id") or [None])[0]
+    return pid or None
+
+
+def _enumerate_youtube_playlist(playlist_id: str) -> list[dict] | None:
+    """Use yt-dlp's flat-playlist mode to enumerate every video in the
+    playlist. The Atom feed caps at 15 items so this is the only way
+    to back-fill a longer course / channel-uploads playlist.
+
+    Returns None on failure so the caller falls back to the Atom-only
+    list — never blocks the regular polling path.
+    """
+    try:
+        import yt_dlp  # type: ignore[import-not-found]
+    except ImportError:
+        logger.warning("yt-dlp not installed — cannot enumerate playlist %s", playlist_id)
+        return None
+
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    opts: dict = {
+        "skip_download": True,
+        "quiet": True,
+        "no_warnings": True,
+        # `in_playlist` returns only the playlist entries' video IDs +
+        # titles — no per-video metadata fetch — so it stays fast even
+        # for 500-item playlists.
+        "extract_flat": "in_playlist",
+    }
+    if settings.youtube_proxy_url:
+        opts["proxy"] = settings.youtube_proxy_url
+
+    url = f"https://www.youtube.com/playlist?list={playlist_id}"
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("yt-dlp playlist enumerate failed for %s: %s", playlist_id, exc)
+        return None
+
+    entries_raw = (info or {}).get("entries") or []
+    out: list[dict] = []
+    for e in entries_raw:
+        if not isinstance(e, dict):
+            continue
+        vid = e.get("id")
+        if not vid:
+            continue
+        title = (e.get("title") or "").strip() or f"YouTube {vid}"
+        out.append(
+            {
+                "url": f"https://www.youtube.com/watch?v={vid}",
+                "title": title[:300],
+            }
+        )
+    return out
