@@ -707,6 +707,35 @@
       }
       return true; // async response — keep the message channel open
     }
+    // ---- Permission prompt iframe injection ----
+    // Side panels can't show getUserMedia prompts, but normal web
+    // pages can. Background asks us to inject the extension's
+    // permission page as an invisible iframe; the prompt then appears
+    // in this tab's omnibox. The iframe self-reports back via
+    // chrome.runtime.sendMessage from its own script context.
+    if (msg?.type === "mindshift:injectPermissionIframe") {
+      try {
+        const f = document.createElement("iframe");
+        f.style.cssText = "display:none;width:0;height:0;border:0;";
+        f.setAttribute("allow", "microphone");
+        f.src = chrome.runtime.getURL("permission.html");
+        const cleanup = (e) => {
+          if (e?.data?.type !== "mindshift:permission:done") return;
+          try {
+            f.remove();
+          } catch {
+            /* already gone */
+          }
+          window.removeEventListener("message", cleanup);
+        };
+        window.addEventListener("message", cleanup);
+        document.body.appendChild(f);
+        sendResponse({ ok: true });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+      return false;
+    }
     return false;
   });
 })();

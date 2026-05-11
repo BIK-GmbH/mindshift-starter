@@ -20,6 +20,22 @@ const SUPPORTED =
   typeof window.MediaRecorder !== "undefined" &&
   !!navigator.mediaDevices?.getUserMedia;
 
+// We live inside the Chrome side panel's iframe when we have a parent
+// frame AND the parent loaded us with `?sp=1`. In that case
+// getUserMedia would fail with "Permission dismissed" (Chrome can't
+// anchor the prompt to a side panel), so we route audio capture
+// through background.js → offscreen document and receive the blob
+// back via postMessage.
+function detectSidepanelEmbed(): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.parent === window) return false;
+  try {
+    return new URLSearchParams(window.location.search).get("sp") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function useVoiceRecording({
   onTranscribed,
   onError,
@@ -29,11 +45,14 @@ export function useVoiceRecording({
   const [state, setState] = useState<VoiceState>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
 
+  // Local-recording refs (used in the non-sidepanel path).
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const startTsRef = useRef<number>(0);
   const tickerRef = useRef<number | null>(null);
+
+  const sidepanelMode = useRef(detectSidepanelEmbed());
 
   const onTranscribedRef = useRef(onTranscribed);
   const onErrorRef = useRef(onError);
@@ -42,7 +61,7 @@ export function useVoiceRecording({
     onErrorRef.current = onError;
   }, [onTranscribed, onError]);
 
-  const cleanupStream = useCallback(() => {
+  const cleanupLocalStream = useCallback(() => {
     if (tickerRef.current) {
       window.clearInterval(tickerRef.current);
       tickerRef.current = null;
@@ -55,33 +74,151 @@ export function useVoiceRecording({
     chunksRef.current = [];
   }, []);
 
-  const cancel = useCallback(() => {
-    if (recorderRef.current && recorderRef.current.state !== "inactive") {
-      try {
-        recorderRef.current.stop();
-      } catch {
-        /* ignore */
-      }
-    }
-    cleanupStream();
-    setState("idle");
-    setElapsedMs(0);
-  }, [cleanupStream]);
-
   const handleError = useCallback(
     (message: string) => {
-      cleanupStream();
+      cleanupLocalStream();
       setState("error");
       setElapsedMs(0);
       onErrorRef.current?.(message);
       window.setTimeout(() => {
         setState((s) => (s === "error" ? "idle" : s));
-      }, 3000);
+      }, 4000);
     },
-    [cleanupStream],
+    [cleanupLocalStream],
   );
 
-  const start = useCallback(async () => {
+  // -----------------------------------------------------------------
+  // Shared: transcription upload (used by both local + sidepanel paths)
+  // -----------------------------------------------------------------
+  const uploadAndTranscribe = useCallback(
+    async (blob: Blob) => {
+      if (blob.size === 0) {
+        handleError("No audio captured.");
+        return;
+      }
+      setState("transcribing");
+      const ext = blob.type.includes("mp4")
+        ? "mp4"
+        : blob.type.includes("ogg")
+          ? "ogg"
+          : "webm";
+      const fd = new FormData();
+      fd.append("audio", blob, `recording.${ext}`);
+      const token = getAuthToken();
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: fd,
+        });
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try {
+            detail = (await res.json()).detail || detail;
+          } catch {
+            /* ignore */
+          }
+          handleError(detail);
+          return;
+        }
+        const data = (await res.json()) as { text: string };
+        const text = (data.text || "").trim();
+        if (!text) {
+          handleError("No speech detected — try again.");
+          return;
+        }
+        setState("idle");
+        setElapsedMs(0);
+        onTranscribedRef.current(text);
+      } catch (e) {
+        handleError(e instanceof Error ? e.message : "Transcription failed.");
+      }
+    },
+    [endpoint, getAuthToken, handleError],
+  );
+
+  // -----------------------------------------------------------------
+  // Sidepanel path: control + state are remote, audio comes via postMessage
+  // -----------------------------------------------------------------
+  useEffect(() => {
+    if (!sidepanelMode.current) return;
+    const handler = async (event: MessageEvent) => {
+      const data = event.data as
+        | { origin?: string; type?: string; state?: VoiceState; message?: string; buffer?: ArrayBuffer; mime?: string }
+        | null;
+      if (!data || data.origin !== "background") return;
+
+      if (data.type === "voice:state") {
+        const next = data.state;
+        if (next === "recording") {
+          startTsRef.current = Date.now();
+          setElapsedMs(0);
+          if (tickerRef.current) window.clearInterval(tickerRef.current);
+          tickerRef.current = window.setInterval(() => {
+            setElapsedMs(Date.now() - startTsRef.current);
+          }, 100);
+          setState("recording");
+        } else if (next === "requesting") {
+          setState("requesting");
+        } else if (next === "idle") {
+          if (tickerRef.current) {
+            window.clearInterval(tickerRef.current);
+            tickerRef.current = null;
+          }
+          setState("idle");
+          setElapsedMs(0);
+        } else if (next === "error") {
+          if (tickerRef.current) {
+            window.clearInterval(tickerRef.current);
+            tickerRef.current = null;
+          }
+          handleError(data.message || "Voice recording failed.");
+        }
+        return;
+      }
+
+      if (data.type === "voice:blob") {
+        if (tickerRef.current) {
+          window.clearInterval(tickerRef.current);
+          tickerRef.current = null;
+        }
+        if (!data.buffer) {
+          handleError("Empty audio buffer.");
+          return;
+        }
+        const blob = new Blob([data.buffer], { type: data.mime || "audio/webm" });
+        await uploadAndTranscribe(blob);
+        return;
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [handleError, uploadAndTranscribe]);
+
+  // -----------------------------------------------------------------
+  // start / stop / cancel — branches by mode
+  // -----------------------------------------------------------------
+  const startSidepanel = useCallback(() => {
+    if (state === "recording" || state === "requesting") return;
+    window.parent.postMessage({ type: "mindshift:voice:start" }, "*");
+    setState("requesting");
+  }, [state]);
+
+  const stopSidepanel = useCallback(() => {
+    window.parent.postMessage({ type: "mindshift:voice:stop" }, "*");
+  }, []);
+
+  const cancelSidepanel = useCallback(() => {
+    window.parent.postMessage({ type: "mindshift:voice:cancel" }, "*");
+    if (tickerRef.current) {
+      window.clearInterval(tickerRef.current);
+      tickerRef.current = null;
+    }
+    setState("idle");
+    setElapsedMs(0);
+  }, []);
+
+  const startLocal = useCallback(async () => {
     if (!SUPPORTED) {
       handleError("Voice recording not available in this browser.");
       return;
@@ -109,48 +246,8 @@ export function useVoiceRecording({
       recorder.onstop = async () => {
         const recordedMime = recorder.mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: recordedMime });
-        cleanupStream();
-        if (blob.size === 0) {
-          handleError("No audio captured.");
-          return;
-        }
-        setState("transcribing");
-        try {
-          const ext = recordedMime.includes("mp4")
-            ? "mp4"
-            : recordedMime.includes("ogg")
-              ? "ogg"
-              : "webm";
-          const fd = new FormData();
-          fd.append("audio", blob, `recording.${ext}`);
-          const token = getAuthToken();
-          const res = await fetch(endpoint, {
-            method: "POST",
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: fd,
-          });
-          if (!res.ok) {
-            let detail = `HTTP ${res.status}`;
-            try {
-              detail = (await res.json()).detail || detail;
-            } catch {
-              /* ignore */
-            }
-            handleError(detail);
-            return;
-          }
-          const data = (await res.json()) as { text: string };
-          const text = (data.text || "").trim();
-          if (!text) {
-            handleError("No speech detected — try again.");
-            return;
-          }
-          setState("idle");
-          setElapsedMs(0);
-          onTranscribedRef.current(text);
-        } catch (e) {
-          handleError(e instanceof Error ? e.message : "Transcription failed.");
-        }
+        cleanupLocalStream();
+        await uploadAndTranscribe(blob);
       };
 
       recorder.start();
@@ -167,15 +264,35 @@ export function useVoiceRecording({
           : "Microphone access failed.";
       handleError(msg);
     }
-  }, [cleanupStream, handleError, endpoint, getAuthToken]);
+  }, [cleanupLocalStream, handleError, uploadAndTranscribe]);
 
-  const stop = useCallback(async () => {
+  const stopLocal = useCallback(async () => {
     const recorder = recorderRef.current;
     if (!recorder || recorder.state === "inactive") return;
     recorder.stop();
   }, []);
 
-  useEffect(() => () => cleanupStream(), [cleanupStream]);
+  const cancelLocal = useCallback(() => {
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      try {
+        recorderRef.current.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    cleanupLocalStream();
+    setState("idle");
+    setElapsedMs(0);
+  }, [cleanupLocalStream]);
 
-  return { state, supported: SUPPORTED, elapsedMs, cancel, start, stop };
+  useEffect(() => () => cleanupLocalStream(), [cleanupLocalStream]);
+
+  const start = sidepanelMode.current ? startSidepanel : startLocal;
+  const stop = sidepanelMode.current ? stopSidepanel : stopLocal;
+  const cancel = sidepanelMode.current ? cancelSidepanel : cancelLocal;
+  // In sidepanel mode we always claim "supported" — the actual check
+  // (MediaRecorder + getUserMedia) happens in the offscreen document.
+  const supported = sidepanelMode.current ? true : SUPPORTED;
+
+  return { state, supported, elapsedMs, cancel, start, stop };
 }

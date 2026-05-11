@@ -94,7 +94,11 @@ async function findCardForUrl(url) {
 
 function embedCard(cardId) {
   const webBase = state.webUrl || state.apiUrl;
-  els.cardFrame.src = `${webBase}/embed/cards/${cardId}`;
+  // `sp=1` signals the embed it's living in the side panel, so the
+  // voice button reroutes recording through the background offscreen
+  // document instead of trying (and failing) to call getUserMedia in
+  // the side-panel iframe.
+  els.cardFrame.src = `${webBase}/embed/cards/${cardId}?sp=1`;
   show("card");
 }
 
@@ -357,6 +361,32 @@ window.addEventListener("message", (event) => {
   const theme = data.theme === "light" ? "light" : "dark";
   applyPanelTheme(theme);
   chrome.storage.local.set({ panelTheme: theme }).catch(() => undefined);
+});
+
+// =====================================================================
+// Voice recording bridge — embed iframe ⇄ sidepanel ⇄ background
+// =====================================================================
+// Background does the actual offscreen-recording dance; we just relay
+// control messages from the iframe and the resulting audio buffer
+// back. The iframe handles the upload to /api/transcribe using the
+// user's JWT (which lives in the iframe's localStorage, not ours).
+window.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || typeof data.type !== "string") return;
+  if (!data.type.startsWith("mindshift:voice:")) return;
+  void chrome.runtime.sendMessage(data).catch(() => undefined);
+});
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (!msg || msg.origin !== "background") return;
+  if (msg.type !== "voice:state" && msg.type !== "voice:blob") return;
+  const frame = els.cardFrame?.contentWindow;
+  if (!frame) return;
+  try {
+    frame.postMessage(msg, "*");
+  } catch {
+    /* iframe gone */
+  }
 });
 
 void refresh();

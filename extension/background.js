@@ -687,3 +687,215 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 });
+
+// ======================================================================
+// Voice recording bridge — sidepanel ⇄ background ⇄ offscreen
+// ======================================================================
+// Why this exists: getUserMedia in a side-panel iframe is rejected by
+// Chrome ("Permission dismissed") because the side panel has no UX
+// surface for the prompt. The fix is two-staged:
+//   1. First-time grant: inject permission.html as an invisible
+//      iframe into the active web tab via the content script. That
+//      tab has a real omnibox where Chrome anchors the prompt. Once
+//      the user clicks Allow, the mic permission is persisted for
+//      the extension origin.
+//   2. Actual recording: an offscreen document at the extension
+//      origin runs MediaRecorder. Audio blob is shipped back through
+//      background → sidepanel → embed iframe, which uploads it to
+//      /api/transcribe using the user's web-app JWT.
+//
+// Message flow (origin tags identify the sender so we can route both
+// directions through chrome.runtime.sendMessage without confusion):
+//   sidepanel  → background : { type: "mindshift:voice:<verb>" }
+//   background → offscreen  : { target: "offscreen", type: "<verb>" }
+//   offscreen  → background : { origin: "offscreen", ... }
+//   permission → background : { origin: "permission", type: "result", ok }
+//   background → sidepanel  : { origin: "background", type: "voice:<event>", ... }
+
+let voiceState = "idle"; // idle | requesting | recording | transcribing | error
+let pendingStartAfterPermission = false;
+let permissionFlowInFlight = false;
+
+async function ensureOffscreenDocument() {
+  if (await chrome.offscreen.hasDocument()) return;
+  await chrome.offscreen.createDocument({
+    url: "offscreen.html",
+    reasons: [chrome.offscreen.Reason.USER_MEDIA],
+    justification: "Microphone recording for voice-to-text chat input.",
+  });
+}
+
+async function closeOffscreenDocumentIfIdle() {
+  if (await chrome.offscreen.hasDocument()) {
+    try {
+      await chrome.offscreen.closeDocument();
+    } catch {
+      /* already closed */
+    }
+  }
+}
+
+function setVoiceState(state, extra = {}) {
+  voiceState = state;
+  void chrome.runtime.sendMessage({
+    origin: "background",
+    type: "voice:state",
+    state,
+    ...extra,
+  });
+}
+
+async function startRecording() {
+  setVoiceState("requesting");
+  await ensureOffscreenDocument();
+  // Tiny delay so the offscreen listener is attached before we send
+  // (createDocument resolves before the doc's JS modules run).
+  setTimeout(() => {
+    void chrome.runtime.sendMessage({ target: "offscreen", type: "start" });
+  }, 100);
+}
+
+async function stopRecording() {
+  if (!(await chrome.offscreen.hasDocument())) return;
+  void chrome.runtime.sendMessage({ target: "offscreen", type: "stop" });
+}
+
+async function cancelRecording() {
+  if (await chrome.offscreen.hasDocument()) {
+    void chrome.runtime.sendMessage({ target: "offscreen", type: "cancel" });
+  }
+  setVoiceState("idle");
+}
+
+async function startPermissionFlow() {
+  if (permissionFlowInFlight) return;
+  permissionFlowInFlight = true;
+  pendingStartAfterPermission = true;
+  setVoiceState("requesting", { hint: "permission" });
+
+  // Find a tab where we can inject the permission iframe — must be
+  // http(s) so the content script is loaded there.
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const activeTab = tabs[0];
+  const canInject =
+    activeTab && /^https?:/i.test(activeTab.url || "") && typeof activeTab.id === "number";
+
+  if (!canInject) {
+    // Fall back: try any http(s) tab.
+    const anyTab = (await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }))[0];
+    if (!anyTab || typeof anyTab.id !== "number") {
+      permissionFlowInFlight = false;
+      pendingStartAfterPermission = false;
+      setVoiceState("error", {
+        message:
+          "Microphone permission needs a regular browser tab to confirm. Open any website and try again.",
+      });
+      return;
+    }
+    await injectPermissionIframe(anyTab.id);
+    return;
+  }
+  await injectPermissionIframe(activeTab.id);
+}
+
+async function injectPermissionIframe(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "mindshift:injectPermissionIframe" });
+  } catch (err) {
+    // Content script not loaded in that tab (e.g., chrome:// page).
+    // Try to inject the iframe directly via scripting API.
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (iframeUrl) => {
+          const f = document.createElement("iframe");
+          f.style.cssText = "display:none;width:0;height:0;border:0;";
+          f.setAttribute("allow", "microphone");
+          f.src = iframeUrl;
+          document.body.appendChild(f);
+          const remove = (e) => {
+            if (e.data?.type === "mindshift:permission:done") {
+              try {
+                f.remove();
+              } catch {}
+              window.removeEventListener("message", remove);
+            }
+          };
+          window.addEventListener("message", remove);
+        },
+        args: [chrome.runtime.getURL("permission.html")],
+      });
+    } catch (err2) {
+      permissionFlowInFlight = false;
+      pendingStartAfterPermission = false;
+      setVoiceState("error", {
+        message: `Could not show permission prompt: ${err2?.message || err?.message || "unknown"}`,
+      });
+    }
+  }
+}
+
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (!msg) return;
+
+  // ---- sidepanel → background (voice control) ----
+  if (msg.type === "mindshift:voice:start") {
+    void startRecording();
+    return;
+  }
+  if (msg.type === "mindshift:voice:stop") {
+    void stopRecording();
+    return;
+  }
+  if (msg.type === "mindshift:voice:cancel") {
+    void cancelRecording();
+    return;
+  }
+
+  // ---- offscreen → background ----
+  if (msg.origin === "offscreen") {
+    if (msg.type === "state") {
+      setVoiceState(msg.state);
+      return;
+    }
+    if (msg.type === "error") {
+      setVoiceState("error", { message: `${msg.name}: ${msg.message}` });
+      return;
+    }
+    if (msg.type === "blob") {
+      // Forward the audio buffer to the sidepanel so the embed iframe
+      // can upload it with the user's JWT.
+      void chrome.runtime.sendMessage({
+        origin: "background",
+        type: "voice:blob",
+        buffer: msg.buffer,
+        mime: msg.mime,
+      });
+      setVoiceState("idle");
+      // Close the offscreen doc to free resources; will be recreated
+      // on next start.
+      void closeOffscreenDocumentIfIdle();
+      return;
+    }
+    if (msg.type === "permission-needed") {
+      void startPermissionFlow();
+      return;
+    }
+    return;
+  }
+
+  // ---- permission iframe → background ----
+  if (msg.origin === "permission" && msg.type === "result") {
+    permissionFlowInFlight = false;
+    if (msg.ok && pendingStartAfterPermission) {
+      pendingStartAfterPermission = false;
+      void startRecording();
+    } else if (!msg.ok) {
+      pendingStartAfterPermission = false;
+      setVoiceState("error", {
+        message: `${msg.name || "Error"}: ${msg.message || "Permission denied."}`,
+      });
+    }
+    return;
+  }
+});
