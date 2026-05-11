@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
+import numpy as np
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -167,22 +168,33 @@ def get_global_graph(
         for c in cards
     }
 
+    # Bulk path — pre-fetch every signal's source data once and accumulate
+    # all pairs in Python. Cuts the previous N+1 storm (157 cards × 5
+    # signals × {1-3 SQL queries each} = ~2k roundtrips at 150 cards) down
+    # to a handful of bulk queries.
+    candidates_per_source = _compute_candidates_bulk(
+        db,
+        user_id=user_id,
+        cards=cards,
+        visible_ids=visible_ids,
+        tags_by_card=tags_by_card,
+    )
+
     edges: dict[tuple[str, str], GraphEdge] = {}
-    for card in cards:
-        connections = get_connections(db, user_id, card.id, limit=edges_per_card)
-        for conn in connections:
-            if conn.card_id not in visible_ids:
-                continue
-            if conn.score < min_score:
-                continue
-            a, b = (str(card.id), str(conn.card_id))
+    for source_id, connections in candidates_per_source.items():
+        # Apply edges_per_card cap + min_score per source — matches the
+        # legacy per-card top-N + filter behaviour.
+        connections = [c for c in connections if c.score >= min_score]
+        connections.sort(key=lambda c: c.score, reverse=True)
+        for conn in connections[:edges_per_card]:
+            a, b = (str(source_id), str(conn.card_id))
             key = (a, b) if a < b else (b, a)
             existing = edges.get(key)
             # Keep the stronger of the two directional views — semantic anchor differs
             # depending on which card is the "source", so a→b and b→a may not match.
             if existing is None or conn.score > existing.score:
                 edges[key] = GraphEdge(
-                    source=card.id,
+                    source=source_id,
                     target=conn.card_id,
                     score=conn.score,
                     reasons=conn.reasons,
@@ -305,14 +317,22 @@ def _accumulate_semantic(
     if anchor is None:
         return
 
+    # Cross-card similarity uses summary chunks only — they describe the
+    # whole card in one shot and there's exactly one per card. Scanning
+    # all transcript chunks here was the old hot path (5k+ rows per call,
+    # multiplied by N cards in get_global_graph) and contributed ~60% of
+    # the global-graph latency at 150+ cards. Cards without a summary
+    # chunk (legacy, or still ingesting) silently drop out of the
+    # semantic signal — they'll still appear via tag / entity / manual
+    # relations.
     distance = Embedding.embedding.cosine_distance(anchor.embedding).label("distance")
-    summary_pref = (Embedding.chunk_type == "summary").desc()
     rows = db.execute(
         select(Card, distance)
         .join(Embedding, Embedding.card_id == Card.id)
         .where(Card.user_id == user_id)
         .where(Card.id != source.id)
-        .order_by(Card.id, summary_pref, distance)
+        .where(Embedding.chunk_type == "summary")
+        .order_by(Card.id, distance)
         .distinct(Card.id)
     ).all()
 
@@ -556,3 +576,236 @@ def _accumulate_manual_relations(
         conn.reasons.append(
             Reason(kind="relation", label=relation.relation_type, weight=contribution)
         )
+
+
+# ============================================================================
+# Bulk-compute path — used by get_global_graph.
+# ============================================================================
+# The per-card _accumulate_* path is kept for /api/connections (single source
+# card). The global graph reuses the same scoring rules but pre-fetches every
+# data source once and runs pure-Python loops over the result, dropping ~2k
+# DB roundtrips down to ~6 bulk queries.
+
+
+def _compute_candidates_bulk(
+    db: Session,
+    *,
+    user_id: UUID,
+    cards: list[Card],
+    visible_ids: set[UUID],
+    tags_by_card: dict[UUID, list[str]],
+) -> dict[UUID, list[Connection]]:
+    """Compute every source-card's candidate list in one pass.
+
+    Returns dict[source_card_id -> list[Connection]], one entry per visible
+    card. Connections are not yet sorted/capped — caller applies edges_per_card
+    + min_score.
+    """
+    card_ids = [c.id for c in cards]
+    cards_by_id = {c.id: c for c in cards}
+
+    # Skeleton: every visible card gets an empty candidate map.
+    out_per_source: dict[UUID, dict[UUID, Connection]] = {cid: {} for cid in card_ids}
+
+    def ensure(source_id: UUID, target_card: Card) -> Connection:
+        bucket = out_per_source[source_id]
+        existing = bucket.get(target_card.id)
+        if existing is None:
+            existing = Connection(
+                card_id=target_card.id,
+                title=target_card.title,
+                source_type=target_card.source_type,
+                thumbnail_url=target_card.thumbnail_url,
+                score=0.0,
+                reasons=[],
+                tags=tags_by_card.get(target_card.id, []),
+            )
+            bucket[target_card.id] = existing
+        return existing
+
+    # --- 1. Semantic similarity via summary embeddings ----------------------
+    # Single SELECT for every card's summary embedding; the cosine-similarity
+    # matrix is then a numpy dot product. 5097-row legacy scan → 1 query.
+    sum_rows = db.execute(
+        select(Embedding.card_id, Embedding.embedding)
+        .where(Embedding.chunk_type == "summary")
+        .where(Embedding.card_id.in_(card_ids))
+    ).all()
+    if sum_rows:
+        ordered_ids = [cid for cid, _ in sum_rows]
+        # pgvector returns embeddings as plain lists; numpy-normalize once.
+        matrix = np.asarray([emb for _, emb in sum_rows], dtype=np.float32)
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        normed = matrix / norms
+        # Full pairwise cosine similarity. 157×157 fits comfortably in RAM
+        # at any realistic card count — 1000 cards is still 4 MB.
+        sim_matrix = normed @ normed.T
+        for i, source_id in enumerate(ordered_ids):
+            if source_id not in out_per_source:
+                continue
+            row = sim_matrix[i]
+            for j, target_id in enumerate(ordered_ids):
+                if i == j:
+                    continue
+                sim = float(row[j])
+                if sim <= 0.0:
+                    continue
+                target_card = cards_by_id.get(target_id)
+                if target_card is None or target_id not in visible_ids:
+                    continue
+                conn = ensure(source_id, target_card)
+                contribution = sim * W_SEMANTIC
+                conn.score += contribution
+                conn.reasons.append(
+                    Reason(
+                        kind="semantic",
+                        label=f"{int(sim * 100)}% similar",
+                        weight=contribution,
+                    )
+                )
+
+    # --- 2. Shared tags + 3. Shared tag ancestors ---------------------------
+    # Both share the same source data (CardTag rows + ancestors map), so we
+    # pre-fetch once and compute both signals in one nested loop.
+    tag_id_rows = db.execute(
+        select(CardTag.card_id, CardTag.tag_id)
+        .join(Card, Card.id == CardTag.card_id)
+        .where(Card.user_id == user_id)
+    ).all()
+    tag_ids_by_card: dict[UUID, set[UUID]] = {}
+    for cid, tid in tag_id_rows:
+        tag_ids_by_card.setdefault(cid, set()).add(tid)
+
+    tag_name_by_id: dict[UUID, str] = dict(
+        db.execute(select(Tag.id, Tag.name).where(Tag.user_id == user_id)).all()
+    )
+    ancestors_map = _build_ancestors_map(db, user_id)
+
+    for source_id in card_ids:
+        source_tags = tag_ids_by_card.get(source_id, set())
+        if not source_tags:
+            continue
+        source_ancestors: set[UUID] = set()
+        for tid in source_tags:
+            source_ancestors |= ancestors_map.get(tid, set())
+        source_ancestors -= source_tags
+        source_full = source_tags | source_ancestors
+
+        for target_id, target_tags in tag_ids_by_card.items():
+            if target_id == source_id:
+                continue
+            if target_id not in visible_ids:
+                continue
+            target_card = cards_by_id.get(target_id)
+            if target_card is None:
+                continue
+
+            direct = source_tags & target_tags
+            if direct:
+                count = len(direct)
+                contribution = math.tanh(count / 3.0) * W_TAG
+                conn = ensure(source_id, target_card)
+                conn.score += contribution
+                names = sorted(
+                    tag_name_by_id.get(tid, "?") for tid in direct
+                )
+                sample = ", ".join(names[:3])
+                suffix = "" if count <= 3 else f" +{count - 3}"
+                conn.reasons.append(
+                    Reason(kind="tag", label=f"tags: {sample}{suffix}", weight=contribution)
+                )
+                continue  # direct overlap — skip the ancestor bonus
+
+            # Tag-ancestor bonus only fires when no direct tag overlap.
+            target_ancestors: set[UUID] = set()
+            for tid in target_tags:
+                target_ancestors |= ancestors_map.get(tid, set())
+            target_full = target_tags | target_ancestors
+            shared = source_full & target_full
+            if not shared:
+                continue
+            contribution = math.tanh(len(shared) / 2) * W_TAG_ANCESTOR
+            if contribution < 0.005:
+                continue
+            conn = ensure(source_id, target_card)
+            conn.score += contribution
+            sample_names = sorted(
+                tag_name_by_id.get(tid, "?") for tid in list(shared)[:2]
+            )
+            conn.reasons.append(
+                Reason(
+                    kind="hierarchy",
+                    label=f"shares parent: {', '.join(sample_names)}",
+                    weight=contribution,
+                )
+            )
+
+    # --- 4. Shared entities -------------------------------------------------
+    entity_rows = db.execute(
+        select(CardEntity.card_id, CardEntity.entity_id, CardEntity.relevance_score, Entity.name)
+        .join(Entity, Entity.id == CardEntity.entity_id)
+        .join(Card, Card.id == CardEntity.card_id)
+        .where(Card.user_id == user_id)
+    ).all()
+    # Build per-card and per-entity indexes from the same rowset.
+    entities_by_card: dict[UUID, dict[UUID, float]] = {}
+    cards_by_entity: dict[UUID, list[tuple[UUID, float]]] = {}
+    entity_name_by_id: dict[UUID, str] = {}
+    for cid, eid, rel, name in entity_rows:
+        entities_by_card.setdefault(cid, {})[eid] = float(rel or 0.5)
+        cards_by_entity.setdefault(eid, []).append((cid, float(rel or 0.5)))
+        entity_name_by_id[eid] = name
+
+    for source_id in card_ids:
+        src_entities = entities_by_card.get(source_id, {})
+        if not src_entities:
+            continue
+        # Aggregate hits per candidate card across all shared entities.
+        per_target: dict[UUID, list[tuple[str, float]]] = {}
+        for eid, src_score in src_entities.items():
+            for cid, target_score in cards_by_entity.get(eid, []):
+                if cid == source_id or cid not in visible_ids:
+                    continue
+                weight = (target_score or 0.5) * (src_score or 0.5)
+                per_target.setdefault(cid, []).append(
+                    (entity_name_by_id.get(eid, "?"), float(weight))
+                )
+        for target_id, hits in per_target.items():
+            target_card = cards_by_id.get(target_id)
+            if target_card is None:
+                continue
+            total = min(1.0, sum(w for _, w in hits))
+            contribution = total * W_ENTITY
+            conn = ensure(source_id, target_card)
+            conn.score += contribution
+            top = sorted(hits, key=lambda h: h[1], reverse=True)[:2]
+            conn.reasons.append(
+                Reason(
+                    kind="entity",
+                    label=f"shares: {', '.join(name for name, _ in top)}",
+                    weight=contribution,
+                )
+            )
+
+    # --- 5. Manual relations ------------------------------------------------
+    relation_rows = db.execute(
+        select(CardRelation.from_card_id, CardRelation.to_card_id,
+               CardRelation.relation_type, CardRelation.confidence)
+    ).all()
+    for from_id, to_id, rtype, confidence in relation_rows:
+        confidence_val = float(confidence) if confidence is not None else 1.0
+        contribution = confidence_val * W_RELATION
+        for a, b in ((from_id, to_id), (to_id, from_id)):
+            if a not in out_per_source or b not in visible_ids:
+                continue
+            target_card = cards_by_id.get(b)
+            if target_card is None or a == b:
+                continue
+            conn = ensure(a, target_card)
+            conn.score += contribution
+            conn.reasons.append(
+                Reason(kind="relation", label=rtype, weight=contribution)
+            )
+
+    return {sid: list(bucket.values()) for sid, bucket in out_per_source.items()}
