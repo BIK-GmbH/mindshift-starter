@@ -380,6 +380,25 @@ export default function EmbedCardPage() {
             variant="compact"
           />
         </div>
+      ) : tab === "chat" ? (
+        /* Chat layout: nav + chat fill the remaining height. Hero and
+           tags are intentionally hidden so the chat surface stays
+           focused, and crucially this path has NO outer scroll
+           container — eliminating the scrollHeight collapse that
+           used to clamp scrollTop and pop the hero back into view
+           when switching from a text tab to chat. */
+        <div className="flex flex-1 min-h-0 flex-col">
+          <TabStrip
+            tabs={tabs}
+            tab={tab}
+            setTab={setTab}
+            t={t}
+            sticky={false}
+          />
+          <div className="embed-tab-content flex flex-1 min-h-0 flex-col p-3">
+            <ChatTab card={card} showSourceMedia={false} fitParent />
+          </div>
+        </div>
       ) : (
       <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
         {/* Hero — scrolls away */}
@@ -419,53 +438,17 @@ export default function EmbedCardPage() {
         )}
 
         {/* Sticky tab strip */}
-        <nav className="sticky top-0 z-10 flex flex-shrink-0 gap-0.5 border-b border-ink-800 bg-ink-900/95 px-2 backdrop-blur">
-          {tabs.map((id) => {
-            const Icon = TAB_ICONS[id];
-            const active = tab === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                className={[
-                  "relative inline-flex items-center gap-1 px-2 py-2 text-[11px] font-medium transition-colors",
-                  active ? "text-ink-100" : "text-ink-400 hover:text-ink-200",
-                ].join(" ")}
-              >
-                <Icon className="h-3 w-3" />
-                <span>
-                  {t(`embed.tab.${id}`, {
-                    defaultValue:
-                      id === "summary"
-                        ? "Summary"
-                        : id === "transcript"
-                          ? "Transcript"
-                          : id === "notes"
-                            ? "Notes"
-                            : "Chat",
-                  })}
-                </span>
-                {active && (
-                  <span className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-ink-100" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
+        <TabStrip tabs={tabs} tab={tab} setTab={setTab} t={t} sticky />
 
         {/* Tab content. The `min-h-[120vh]` guarantees the scroll
             container stays scrollable taller than the viewport even
             when the active tab has very little content (e.g. an
             empty Notes tab). Without it the browser would clamp
             scrollTop back to 0 on tab switch — pulling the hero
-            image back into view and forcing the user to re-scroll. */}
-        <div
-          className={[
-            "embed-tab-content flex flex-1 flex-col",
-            tab === "chat" ? "" : "min-h-[120vh]",
-          ].join(" ")}
-        >
+            image back into view and forcing the user to re-scroll.
+            Always-on for the text-tab path; chat uses its own
+            non-scrolling layout above. */}
+        <div className="embed-tab-content flex flex-1 min-h-[120vh] flex-col">
           {tab === "summary" && (
             <SummaryTab
               card={card}
@@ -486,11 +469,6 @@ export default function EmbedCardPage() {
             />
           )}
           {tab === "notes" && <NotesTab card={card} />}
-          {tab === "chat" && (
-            <div className="flex flex-1 min-h-0 flex-col p-3">
-              <ChatTab card={card} showSourceMedia={false} fitParent />
-            </div>
-          )}
         </div>
       </div>
       )}
@@ -511,6 +489,72 @@ export default function EmbedCardPage() {
         </a>
       </div>
     </div>
+  );
+}
+
+/* ------------------------- tab strip ------------------------- */
+
+/**
+ * Shared tab strip rendered in both layout paths (scroll-container
+ * with hero/tags for text tabs, and chat's dedicated fill-height
+ * layout). `sticky` only applies in the scroll-container variant
+ * where the nav needs to pin to the top of the scrollable area;
+ * in the chat path the nav is already at the top of the flex
+ * column and doesn't need stickiness.
+ */
+function TabStrip({
+  tabs,
+  tab,
+  setTab,
+  t,
+  sticky,
+}: {
+  tabs: EmbedTab[];
+  tab: EmbedTab;
+  setTab: (id: EmbedTab) => void;
+  t: ReturnType<typeof useTranslation>["t"];
+  sticky: boolean;
+}) {
+  return (
+    <nav
+      className={[
+        "flex flex-shrink-0 gap-0.5 border-b border-ink-800 bg-ink-900/95 px-2 backdrop-blur",
+        sticky ? "sticky top-0 z-10" : "",
+      ].join(" ")}
+    >
+      {tabs.map((id) => {
+        const Icon = TAB_ICONS[id];
+        const active = tab === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={[
+              "relative inline-flex items-center gap-1 px-2 py-2 text-[11px] font-medium transition-colors",
+              active ? "text-ink-100" : "text-ink-400 hover:text-ink-200",
+            ].join(" ")}
+          >
+            <Icon className="h-3 w-3" />
+            <span>
+              {t(`embed.tab.${id}`, {
+                defaultValue:
+                  id === "summary"
+                    ? "Summary"
+                    : id === "transcript"
+                      ? "Transcript"
+                      : id === "notes"
+                        ? "Notes"
+                        : "Chat",
+              })}
+            </span>
+            {active && (
+              <span className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-ink-100" />
+            )}
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
