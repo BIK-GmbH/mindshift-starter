@@ -800,7 +800,7 @@ async function startPermissionFlow() {
   pendingStartAfterPermission = true;
   setVoiceState("requesting", {
     hint: "permission",
-    message: "Bitte „Zulassen" im geöffneten Tab klicken.",
+    message: "Bitte im geöffneten Tab auf 'Zulassen' klicken.",
   });
   await openPermissionTab();
 }

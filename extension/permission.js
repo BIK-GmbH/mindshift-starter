@@ -16,7 +16,7 @@
   document.body.style.cssText =
     "font:14px/1.5 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding:24px;color:#1a1a1f;background:#fff;";
   document.body.innerHTML =
-    "<p>Mikrofon-Zugriff für Mindshift wird angefordert.<br>Bitte oben auf <strong>„Zulassen"</strong> klicken — dieses Fenster schließt sich danach automatisch.</p>";
+    '<p>Mikrofon-Zugriff für Mindshift wird angefordert.<br>Bitte oben auf <strong>Zulassen</strong> klicken — dieses Fenster schließt sich danach automatisch.</p>';
 
   let result;
   try {
