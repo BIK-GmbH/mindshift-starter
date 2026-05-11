@@ -429,7 +429,7 @@
       "body": "Add more cards on related topics (shared tags or similar content) — connections form automatically."
     },
     "global": {
-      "title": "Knowledge Graph",
+      "title": "Graph",
       "subtitle": "Your full library as a network.",
       "hint": "Click a node to open the card. Lines reflect shared concepts, tags, or semantic similarity.",
       "hint2": "Click = card preview · Shift-click = focus on node + neighbours · Search supports ↑↓ and Enter."

@@ -429,7 +429,7 @@
       "body": "Füge weitere Cards zum gleichen Thema hinzu (gleiche Tags, ähnlicher Inhalt) — die Verbindungen entstehen automatisch."
     },
     "global": {
-      "title": "Knowledge Graph",
+      "title": "Graph",
       "subtitle": "Deine gesamte Bibliothek als Netzwerk.",
       "hint": "Klick auf einen Node öffnet die Card. Linien zeigen geteilte Konzepte, Tags oder semantische Nähe.",
       "hint2": "Klick = Card-Vorschau · Shift-Klick = Focus auf Knoten + Nachbarn · Suchfeld unterstützt ↑↓ und Enter."

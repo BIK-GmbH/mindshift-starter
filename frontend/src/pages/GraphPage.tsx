@@ -1250,16 +1250,29 @@ export default function GraphPage() {
                 ctx.arc(n.x, n.y, radius, 0, 2 * Math.PI);
                 ctx.fillStyle = baseColor;
                 ctx.fill();
+                // Ring colour adapts to the canvas background — a pure
+                // white ring on a near-white light theme is invisible.
+                // The "selected" state also gets a soft glow so the
+                // user can spot it even when the page is busy.
+                const isLight = theme === "light";
+                const ringColor = isLight ? "#7c3aed" : "#ffffff";
+                const ringSoft = isLight ? "rgba(124,58,237,0.75)" : "rgba(255,255,255,0.7)";
                 if (isPathEndpoint) {
-                  ctx.strokeStyle = "#ffffff";
+                  ctx.strokeStyle = ringColor;
                   ctx.lineWidth = 3 / globalScale;
+                  ctx.shadowColor = ringColor;
+                  ctx.shadowBlur = 10 / globalScale;
                   ctx.stroke();
+                  ctx.shadowBlur = 0;
                 } else if (isCurrent || drawerCardId === n.id || focusedNodeId === n.id) {
-                  ctx.strokeStyle = "#ffffff";
+                  ctx.strokeStyle = ringColor;
                   ctx.lineWidth = 2.5 / globalScale;
+                  ctx.shadowColor = ringColor;
+                  ctx.shadowBlur = 9 / globalScale;
                   ctx.stroke();
+                  ctx.shadowBlur = 0;
                 } else if (isMatch) {
-                  ctx.strokeStyle = "rgba(255,255,255,0.7)";
+                  ctx.strokeStyle = ringSoft;
                   ctx.lineWidth = 1.8 / globalScale;
                   ctx.stroke();
                 }
