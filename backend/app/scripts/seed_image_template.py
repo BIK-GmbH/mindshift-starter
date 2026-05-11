@@ -1,6 +1,21 @@
-"""One-off seed: insert the user's sci-fi-tech image template as their
-first row + mark is_default. Re-running is idempotent (no-op when the
-template already exists by name)."""
+"""Seed the user's Sci-fi Tech default image template.
+
+Idempotent: a row matching the name + user is left alone unless
+`--update` is passed, in which case the `content` is refreshed
+(`is_default` is never demoted).
+
+Aspect: 4:5 portrait (1024x1280). The LinkedIn engagement research
+(Hootsuite / Sendible / Postiv 2025–26) lines up around 4:5 as the
+mobile-feed winner, and this template is used as the default for the
+Posts tab. Podcast / path covers are also rendered through this same
+template path; gpt-image-2 obeys the explicit `size` parameter, and
+podcast platforms (Apple, Spotify) accept non-square covers without
+breakage even if the canonical thumbnail is 1:1.
+"""
+
+from __future__ import annotations
+
+import argparse
 
 from sqlalchemy import select
 
@@ -11,11 +26,11 @@ from app.models.user import User
 TEMPLATE_NAME = "Sci-fi Tech (LinkedIn)"
 
 TEMPLATE_CONTENT = """\
-Du baust ein einzelnes quadratisches Bild im Sci-fi-Tech-Stil für einen LinkedIn-Post. Output: ein Text-Prompt für ein Text-zu-Bild-Modell (z.B. OpenAI gpt-image-2). Kein Referenzbild verfügbar — der Look muss komplett aus dem Prompt kommen.
+Du baust ein einzelnes Bild im Sci-fi-Tech-Stil für einen LinkedIn-Post. Output: ein Text-Prompt für ein Text-zu-Bild-Modell (z.B. OpenAI gpt-image-2). Kein Referenzbild verfügbar — der Look muss komplett aus dem Prompt kommen.
 
 # Format
 
-- Quadratisch 1:1, 1024×1024 Pixel. Niemals Landscape oder Portrait.
+- 4:5 portrait, 1024×1280 Pixel. Mobile-first, optimal für LinkedIn-Feed (mehr vertikale Screen-Real-Estate). Niemals 1:1 oder 16:9.
 
 # Look-and-Feel (in einem Satz)
 
@@ -53,11 +68,11 @@ Premium Tech-Company-Ästhetik mit dunkelblauem Hintergrund, schwebenden "Glas"-
 - Generic Business-Stockphoto-Look (gestellte Leute mit Laptops etc.)
 - Serifenschriften, Schreibschriften, Pixel-Fonts
 
-# Bild-Anatomie (1:1)
+# Bild-Anatomie (4:5 portrait)
 
-- TOP: Bold white headline (1–6 Worte, das Topic)
-- TOP-RIGHT: optional ein kurzer orangener Subtitle (der Winkel)
-- CENTER: 3–4 Glassmorphism-Stat-Cards (gestapelt oder als 2×2 Grid) ODER eine abstrakte Metapher (Diagramm, Daten-Viz)
+- TOP (oberes Drittel): Bold white headline (4–9 Worte, sentence case, das Topic)
+- Direkt darunter: optional ein kurzer orangener Subtitle (der Winkel)
+- CENTER (mittleres Drittel, dominant): 3–4 Glassmorphism-Stat-Cards vertikal gestapelt ODER eine abstrakte Metapher (Diagramm, Daten-Viz)
 - BOTTOM: Source-Line in kleinem hell-grauem Text, exakt: "Source: <Names> | <Date>" (z.B. "Source: CNBC, Reuters | Q4 2025"). Wenn keine Zahlen im Bild → BOTTOM bleibt leer.
 
 # Stat-Card-Anatomie
@@ -65,7 +80,7 @@ Premium Tech-Company-Ästhetik mit dunkelblauem Hintergrund, schwebenden "Glas"-
 Jede Card zeigt eine Zahl + ein Label:
 - Zahl: sehr groß, orange #ffaa3a
 - Label: weiß, deutlich kleiner
-Drei oder vier solcher Cards vertikal gestapelt oder in einem 2×2-Grid = das bewährte Muster.
+Drei oder vier solcher Cards vertikal gestapelt = das bewährte Muster bei 4:5 portrait.
 
 # Source-Policy (Pflicht, wenn Zahlen abgebildet werden)
 
@@ -75,7 +90,7 @@ Am unteren Bildrand, klein, hell-grau, eine Zeile, exaktes Format:
 # Style-Block (wörtlich ans Ende jedes Prompts hängen)
 
 Image style:
-- 1:1 SQUARE (1024x1024). NEVER 16:9.
+- 4:5 PORTRAIT (1024x1280). NEVER 1:1 or 16:9.
 - Dark navy background hex 000e22.
 - Electric blue glows hex 00aaff. Orange/gold accents hex ffaa3a.
 - Glassmorphism stat cards with glowing borders. Big bold numbers in orange, white labels.
@@ -89,31 +104,41 @@ Image style:
 """
 
 
-def seed():
+def seed(email: str, *, update: bool = False) -> None:
     db = SessionLocal()
     try:
         user = db.execute(
-            select(User).where(User.email == "chris@example.com")
+            select(User).where(User.email == email)
         ).scalar_one_or_none()
         if user is None:
-            print("user not found")
+            print(f"user not found: {email}")
             return
+
         existing = db.execute(
             select(ImageTemplate).where(
                 ImageTemplate.user_id == user.id,
                 ImageTemplate.name == TEMPLATE_NAME,
             )
         ).scalar_one_or_none()
+
         if existing:
             print(f"template already exists: {existing.id}")
-            # Make sure it's the default.
+            changed = False
             if not existing.is_default:
                 from app.api.image_templates import _clear_default
 
                 _clear_default(db, user.id, except_id=existing.id)
                 existing.is_default = True
-                db.commit()
+                changed = True
                 print("  promoted to default")
+            if update and existing.content != TEMPLATE_CONTENT:
+                existing.content = TEMPLATE_CONTENT
+                changed = True
+                print("  content refreshed")
+            elif update:
+                print("  content unchanged")
+            if changed:
+                db.commit()
             return
 
         from app.api.image_templates import _clear_default
@@ -133,5 +158,17 @@ def seed():
         db.close()
 
 
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--email", default="chris@example.com")
+    parser.add_argument(
+        "--update",
+        action="store_true",
+        help="Refresh the template content if it has changed.",
+    )
+    args = parser.parse_args()
+    seed(args.email, update=args.update)
+
+
 if __name__ == "__main__":
-    seed()
+    main()

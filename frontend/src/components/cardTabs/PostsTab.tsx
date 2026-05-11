@@ -413,7 +413,7 @@ export default function PostsTab({ cardId }: Props) {
                     "Generate caption only, then open the variable editor for the image",
                 }) ?? ""
               }
-              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-violet-400 hover:bg-violet-500/10 hover:text-violet-100 disabled:opacity-50"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-violet-400 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-50"
             >
               <ImageIcon className="h-3.5 w-3.5" />
               {t("posts.generatePreview", {
