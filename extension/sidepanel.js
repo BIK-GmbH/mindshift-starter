@@ -333,4 +333,30 @@ window.addEventListener("message", (event) => {
   });
 });
 
+// =====================================================================
+// Theme sync: embed iframe drives the side-panel chrome theme too.
+// =====================================================================
+function applyPanelTheme(theme) {
+  const t = theme === "light" ? "light" : "dark";
+  document.documentElement.classList.toggle("light", t === "light");
+  document.documentElement.classList.toggle("dark", t === "dark");
+}
+
+// Initial load: read the theme the embed last applied.
+chrome.storage.local.get(["panelTheme"]).then((res) => {
+  applyPanelTheme(res?.panelTheme || "dark");
+});
+
+// The embed (iframe) posts `mindshift:themeChange` whenever it toggles
+// theme. We mirror the class on the side panel's documentElement so
+// the chrome around the iframe (mindshift-logo strip + cardFrame
+// background) follows along.
+window.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || data.type !== "mindshift:themeChange") return;
+  const theme = data.theme === "light" ? "light" : "dark";
+  applyPanelTheme(theme);
+  chrome.storage.local.set({ panelTheme: theme }).catch(() => undefined);
+});
+
 void refresh();

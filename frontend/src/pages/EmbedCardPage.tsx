@@ -97,6 +97,13 @@ export default function EmbedCardPage() {
     const root = document.documentElement;
     root.classList.toggle("light", embedTheme === "light");
     root.classList.toggle("dark", embedTheme === "dark");
+    // Sync the side-panel chrome (parent window) to the same theme.
+    if (typeof window !== "undefined" && window.parent !== window) {
+      window.parent.postMessage(
+        { type: "mindshift:themeChange", theme: embedTheme },
+        "*",
+      );
+    }
   }, [embedTheme]);
 
   // Follow OS toggle until the user makes an explicit panel choice.
@@ -618,8 +625,11 @@ function SummaryTab({
           </h3>
           <ul className="space-y-1.5 text-[12px] leading-relaxed text-ink-200">
             {takeaways.map((tk, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="flex-shrink-0 text-ink-600">•</span>
+              <li
+                key={i}
+                className="flex gap-2 rounded-md border border-ink-700/60 bg-ink-900/30 px-3 py-2"
+              >
+                <span className="flex-shrink-0 text-ink-500">•</span>
                 <span className="flex-1">
                   <MarkdownView
                     source={typeof tk === "string" ? tk : ""}
