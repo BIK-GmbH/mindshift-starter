@@ -856,42 +856,42 @@ async function startPermissionFlow() {
 
 async function injectPermissionIframe(tabId) {
   console.warn("[mindshift voice] injectPermissionIframe → tab", tabId);
+  // Always use scripting.executeScript — independent of which (if any)
+  // content script is registered for the URL. Some pages (YouTube
+  // watch URLs) match the dedicated youtube.js content script which
+  // synchronously replies undefined to unknown messages, defeating
+  // the tabs.sendMessage path silently.
   try {
-    const reply = await chrome.tabs.sendMessage(tabId, {
-      type: "mindshift:injectPermissionIframe",
-    });
-    console.warn("[mindshift voice] content-script reply:", reply);
-  } catch (err) {
-    // Content script not loaded in that tab (e.g., chrome:// page).
-    // Try to inject the iframe directly via scripting API.
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId },
-        func: (iframeUrl) => {
-          const f = document.createElement("iframe");
-          f.style.cssText = "display:none;width:0;height:0;border:0;";
-          f.setAttribute("allow", "microphone");
-          f.src = iframeUrl;
-          document.body.appendChild(f);
-          const remove = (e) => {
-            if (e.data?.type === "mindshift:permission:done") {
-              try {
-                f.remove();
-              } catch {}
-              window.removeEventListener("message", remove);
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (iframeUrl) => {
+        const f = document.createElement("iframe");
+        f.style.cssText = "display:none;width:0;height:0;border:0;";
+        f.setAttribute("allow", "microphone");
+        f.src = iframeUrl;
+        const remove = (e) => {
+          if (e?.data?.type === "mindshift:permission:done") {
+            try {
+              f.remove();
+            } catch {
+              /* already gone */
             }
-          };
-          window.addEventListener("message", remove);
-        },
-        args: [chrome.runtime.getURL("permission.html")],
-      });
-    } catch (err2) {
-      permissionFlowInFlight = false;
-      pendingStartAfterPermission = false;
-      setVoiceState("error", {
-        message: `Could not show permission prompt: ${err2?.message || err?.message || "unknown"}`,
-      });
-    }
+            window.removeEventListener("message", remove);
+          }
+        };
+        window.addEventListener("message", remove);
+        document.body.appendChild(f);
+      },
+      args: [chrome.runtime.getURL("permission.html")],
+    });
+    console.warn("[mindshift voice] scripting.executeScript ok");
+  } catch (err) {
+    console.warn("[mindshift voice] scripting.executeScript failed:", err?.message);
+    permissionFlowInFlight = false;
+    pendingStartAfterPermission = false;
+    setVoiceState("error", {
+      message: `Could not show permission prompt: ${err?.message || "unknown"}`,
+    });
   }
 }
 
