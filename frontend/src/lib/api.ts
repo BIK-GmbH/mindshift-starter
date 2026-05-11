@@ -848,6 +848,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  recommendImageTemplate: (cardId: string) =>
+    request<ImageTemplateRecommendation>(
+      `/api/cards/${cardId}/image-template-recommendation`,
+    ),
 
   // --- Posts (per-card draft) edit + rewrite ---
   updateSocialPost: (cardId: string, postId: string, text: string) =>
@@ -1306,6 +1310,12 @@ export interface ImageTemplatePreview {
   extracted: Record<string, string>;
   resolved: string;
   card_title: string | null;
+}
+
+export interface ImageTemplateRecommendation {
+  template_id: string | null;
+  template_name: string | null;
+  reasoning: string;
 }
 
 export interface PostImagePreview {

@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -703,6 +704,41 @@ def get_card(
 ) -> CardOut:
     card = _get_owned_card(db, card_id, current_user.id)
     return _card_response(db, card)
+
+
+class ImageTemplateRecommendation(BaseModel):
+    template_id: str | None
+    template_name: str | None
+    reasoning: str
+
+
+@router.get(
+    "/{card_id}/image-template-recommendation",
+    response_model=ImageTemplateRecommendation,
+)
+def recommend_image_template_for_card(
+    card_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ImageTemplateRecommendation:
+    """Pick the user's best-fit image template for this card. Computed
+    lazily on each call (no persistence) — cheap GPT-mini call, the
+    frontend caches the result for the lifetime of the open Posts tab."""
+    from app.models.image_template import ImageTemplate
+    from app.services.template_recommender import recommend_image_template
+
+    card = _get_owned_card(db, card_id, current_user.id)
+    templates = (
+        db.execute(
+            select(ImageTemplate)
+            .where(ImageTemplate.user_id == current_user.id)
+            .order_by(ImageTemplate.is_default.desc(), ImageTemplate.name)
+        )
+        .scalars()
+        .all()
+    )
+    result = recommend_image_template(card, templates)
+    return ImageTemplateRecommendation(**result)
 
 
 @router.patch("/{card_id}", response_model=CardOut)

@@ -21,6 +21,7 @@ import VoiceRecordButton from "../VoiceRecordButton";
 import {
   api,
   type ImageTemplateOut,
+  type ImageTemplateRecommendation,
   type MCPServerOut,
   type MCPToolOut,
   type SocialPostCreate,
@@ -108,6 +109,11 @@ export default function PostsTab({ cardId }: Props) {
   // is on, the Template select lets the user override the default.
   const [imageTemplates, setImageTemplates] = useState<ImageTemplateOut[]>([]);
   const [imageTemplateId, setImageTemplateId] = useState<string>("");  // "" = use default
+  // LLM-picked recommendation for this card. Fetched once on tab mount,
+  // applied as the default template selection if the user hasn't picked
+  // anything yet. The badge surfaces the model's one-line reasoning.
+  const [imageTemplateRec, setImageTemplateRec] =
+    useState<ImageTemplateRecommendation | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,6 +167,30 @@ export default function PostsTab({ cardId }: Props) {
       cancelled = true;
     };
   }, []);
+
+  // Ask the backend which template fits this card best. Runs once per
+  // mount (cheap GPT-mini call ~500ms). When the user hasn't picked a
+  // template yet, we apply the recommendation as the active selection
+  // so a single click on "Generate" already uses the right layout.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .recommendImageTemplate(cardId)
+      .then((rec) => {
+        if (cancelled) return;
+        setImageTemplateRec(rec);
+        // Apply only if the user hasn't touched the picker.
+        if (rec.template_id) {
+          setImageTemplateId((current) => (current === "" ? rec.template_id! : current));
+        }
+      })
+      .catch(() => {
+        /* recommendation is a hint, not load-bearing */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId]);
 
   const generate = async () => {
     setGenerating(true);
@@ -331,12 +361,28 @@ export default function PostsTab({ cardId }: Props) {
                       (imageTemplates.find((tt) => tt.is_default) ? "" : " (none)"),
                   })}
                 </option>
-                {imageTemplates.map((tt) => (
-                  <option key={tt.id} value={tt.id}>
-                    {tt.is_default ? "★ " : ""}{tt.name}
-                  </option>
-                ))}
+                {imageTemplates.map((tt) => {
+                  const star = tt.is_default ? "★ " : "";
+                  const rec = imageTemplateRec?.template_id === tt.id ? " ✨" : "";
+                  return (
+                    <option key={tt.id} value={tt.id}>
+                      {star}{tt.name}{rec}
+                    </option>
+                  );
+                })}
               </select>
+              {imageTemplateRec?.template_name && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-200"
+                  title={imageTemplateRec.reasoning || undefined}
+                >
+                  <Sparkles className="h-2.5 w-2.5" />
+                  {t("posts.templateRecommended", {
+                    defaultValue: "Recommended: {{name}}",
+                    name: imageTemplateRec.template_name,
+                  })}
+                </span>
+              )}
             </label>
           )}
           <button
