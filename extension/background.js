@@ -717,12 +717,22 @@ let pendingStartAfterPermission = false;
 let permissionFlowInFlight = false;
 
 async function ensureOffscreenDocument() {
-  if (await chrome.offscreen.hasDocument()) return;
-  await chrome.offscreen.createDocument({
-    url: "offscreen.html",
-    reasons: [chrome.offscreen.Reason.USER_MEDIA],
-    justification: "Microphone recording for voice-to-text chat input.",
-  });
+  if (await chrome.offscreen.hasDocument()) {
+    console.warn("[mindshift voice] offscreen already exists");
+    return;
+  }
+  console.warn("[mindshift voice] creating offscreen document");
+  try {
+    await chrome.offscreen.createDocument({
+      url: "offscreen.html",
+      reasons: [chrome.offscreen.Reason.USER_MEDIA],
+      justification: "Microphone recording for voice-to-text chat input.",
+    });
+    console.warn("[mindshift voice] offscreen document created");
+  } catch (err) {
+    console.warn("[mindshift voice] offscreen create FAILED:", err?.message || err);
+    throw err;
+  }
 }
 
 async function closeOffscreenDocumentIfIdle() {
@@ -746,13 +756,26 @@ function setVoiceState(state, extra = {}) {
 }
 
 async function startRecording() {
+  console.warn("[mindshift voice] startRecording");
   setVoiceState("requesting");
-  await ensureOffscreenDocument();
+  try {
+    await ensureOffscreenDocument();
+  } catch (err) {
+    setVoiceState("error", {
+      message: `Offscreen create failed: ${err?.message || err}`,
+    });
+    return;
+  }
   // Tiny delay so the offscreen listener is attached before we send
   // (createDocument resolves before the doc's JS modules run).
   setTimeout(() => {
-    void chrome.runtime.sendMessage({ target: "offscreen", type: "start" });
-  }, 100);
+    console.warn("[mindshift voice] sending start to offscreen");
+    void chrome.runtime
+      .sendMessage({ target: "offscreen", type: "start" })
+      .catch((err) =>
+        console.warn("[mindshift voice] send-to-offscreen failed:", err?.message),
+      );
+  }, 150);
 }
 
 async function stopRecording() {
@@ -768,10 +791,17 @@ async function cancelRecording() {
 }
 
 async function startPermissionFlow() {
-  if (permissionFlowInFlight) return;
+  console.warn("[mindshift voice] startPermissionFlow");
+  if (permissionFlowInFlight) {
+    console.warn("[mindshift voice] permission flow already in flight");
+    return;
+  }
   permissionFlowInFlight = true;
   pendingStartAfterPermission = true;
-  setVoiceState("requesting", { hint: "permission" });
+  setVoiceState("requesting", {
+    hint: "permission",
+    message: "Bitte erlaube den Mikrofon-Zugriff im aktiven Tab oben.",
+  });
 
   // Find a tab where we can inject the permission iframe — must be
   // http(s) so the content script is loaded there.
@@ -779,8 +809,29 @@ async function startPermissionFlow() {
   const activeTab = tabs[0];
   const canInject =
     activeTab && /^https?:/i.test(activeTab.url || "") && typeof activeTab.id === "number";
+  console.warn(
+    "[mindshift voice] active tab:",
+    activeTab?.url,
+    "canInject:",
+    canInject,
+  );
 
-  if (!canInject) {
+  if (canInject) {
+    // Make sure the user is actually looking at the tab where the
+    // prompt will appear. The side panel keeps focus by default,
+    // so if we don't switch they'll miss the omnibox bubble.
+    try {
+      await chrome.tabs.update(activeTab.id, { active: true });
+      if (activeTab.windowId !== undefined) {
+        await chrome.windows.update(activeTab.windowId, { focused: true });
+      }
+    } catch {
+      /* ignore */
+    }
+    await injectPermissionIframe(activeTab.id);
+    return;
+  }
+  {
     // Fall back: try any http(s) tab.
     const anyTab = (await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }))[0];
     if (!anyTab || typeof anyTab.id !== "number") {
@@ -792,15 +843,24 @@ async function startPermissionFlow() {
       });
       return;
     }
+    console.warn("[mindshift voice] no active http tab — focusing fallback tab", anyTab.id);
+    try {
+      await chrome.tabs.update(anyTab.id, { active: true });
+    } catch {
+      /* ignore */
+    }
     await injectPermissionIframe(anyTab.id);
     return;
   }
-  await injectPermissionIframe(activeTab.id);
 }
 
 async function injectPermissionIframe(tabId) {
+  console.warn("[mindshift voice] injectPermissionIframe → tab", tabId);
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "mindshift:injectPermissionIframe" });
+    const reply = await chrome.tabs.sendMessage(tabId, {
+      type: "mindshift:injectPermissionIframe",
+    });
+    console.warn("[mindshift voice] content-script reply:", reply);
   } catch (err) {
     // Content script not loaded in that tab (e.g., chrome:// page).
     // Try to inject the iframe directly via scripting API.

@@ -44,6 +44,7 @@ export function useVoiceRecording({
 }: UseVoiceRecordingOptions) {
   const [state, setState] = useState<VoiceState>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   // Local-recording refs (used in the non-sidepanel path).
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -150,6 +151,8 @@ export function useVoiceRecording({
 
       if (data.type === "voice:state") {
         const next = data.state;
+        setStatusMessage(data.message ?? null);
+        if (next !== "requesting") clearRequestingTimer();
         if (next === "recording") {
           startTsRef.current = Date.now();
           setElapsedMs(0);
@@ -198,11 +201,30 @@ export function useVoiceRecording({
   // -----------------------------------------------------------------
   // start / stop / cancel — branches by mode
   // -----------------------------------------------------------------
+  const requestingTimerRef = useRef<number | null>(null);
+  const clearRequestingTimer = useCallback(() => {
+    if (requestingTimerRef.current !== null) {
+      window.clearTimeout(requestingTimerRef.current);
+      requestingTimerRef.current = null;
+    }
+  }, []);
+
   const startSidepanel = useCallback(() => {
     if (state === "recording" || state === "requesting") return;
     window.parent.postMessage({ type: "mindshift:voice:start" }, "*");
     setState("requesting");
-  }, [state]);
+    setStatusMessage(null);
+    clearRequestingTimer();
+    requestingTimerRef.current = window.setTimeout(() => {
+      setState((s) => {
+        if (s !== "requesting") return s;
+        onErrorRef.current?.(
+          "Voice recording timed out — no response from extension background.",
+        );
+        return "error";
+      });
+    }, 25_000);
+  }, [state, clearRequestingTimer]);
 
   const stopSidepanel = useCallback(() => {
     window.parent.postMessage({ type: "mindshift:voice:stop" }, "*");
@@ -214,9 +236,11 @@ export function useVoiceRecording({
       window.clearInterval(tickerRef.current);
       tickerRef.current = null;
     }
+    clearRequestingTimer();
     setState("idle");
     setElapsedMs(0);
-  }, []);
+    setStatusMessage(null);
+  }, [clearRequestingTimer]);
 
   const startLocal = useCallback(async () => {
     if (!SUPPORTED) {
@@ -294,5 +318,5 @@ export function useVoiceRecording({
   // (MediaRecorder + getUserMedia) happens in the offscreen document.
   const supported = sidepanelMode.current ? true : SUPPORTED;
 
-  return { state, supported, elapsedMs, cancel, start, stop };
+  return { state, supported, elapsedMs, cancel, start, stop, statusMessage };
 }

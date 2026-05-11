@@ -101,6 +101,12 @@ export default function VoiceRecordButton({
               {t("voice.transcribing", { defaultValue: "Transcribing…" })}
             </>
           )}
+          {voice.state === "requesting" && voice.statusMessage && (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span className="text-amber-300">{voice.statusMessage}</span>
+            </>
+          )}
           {voice.state === "error" && (
             <span className="text-red-400">
               {lastError ?? t("voice.errorGeneric", { defaultValue: "Voice recording failed. Try again." })}
