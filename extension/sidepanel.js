@@ -1,8 +1,17 @@
 /* Side-panel logic.
  *
- * Lifecycle:
+ * The side panel is the single UI surface for the extension since the
+ * toolbar icon now opens it directly (chrome.sidePanel.setPanelBehavior
+ * in background.js). The popup has been retired — every power feature
+ * it used to host now lives behind the gear icon in this panel:
+ *   - API URL + token (Connection)
+ *   - Save all tabs (bulk)
+ *   - Read Later + auto-save YouTube toggles
+ *   - Bookmarks import
+ *
+ * Lifecycle for the default (card) flow:
  *   1. Read storage (apiUrl, token, webUrl).
- *      - if missing → show "open settings" pane
+ *      - if missing → switch to Settings pane (with connection card open)
  *   2. Read the active tab's URL.
  *   3. Ask the backend if a card already exists for that URL.
  *      - hit  → embed /embed/cards/<id> in an iframe
@@ -12,43 +21,57 @@
 
 import { canonicalizeUrl } from "./lib/url.js";
 
-// Note: ./lib/voice.js and ./lib/insertAtCaret.js are intentionally
-// kept in the repo even though they're no longer imported here. The
-// in-iframe Chat tab (EmbedCardPage) handles voice + caret insertion
-// via the React `VoiceRecordButton` component instead. These modules
-// remain available for future side-panel features that need them.
-
 const els = {
   loading: document.getElementById("loadingPane"),
-  notConnected: document.getElementById("notConnectedPane"),
   save: document.getElementById("savePane"),
   card: document.getElementById("cardPane"),
+  settings: document.getElementById("settingsPane"),
 
   reloadBtn: document.getElementById("reloadBtn"),
-  openPopupBtn: document.getElementById("openPopupBtn"),
+  settingsBtn: document.getElementById("settingsBtn"),
   saveBtn: document.getElementById("saveBtn"),
   saveStatus: document.getElementById("saveStatus"),
   savePageTitle: document.getElementById("savePageTitle"),
   savePageUrl: document.getElementById("savePageUrl"),
   cardFrame: document.getElementById("cardFrame"),
+
+  // Settings pane refs
+  tokenHealth: document.getElementById("tokenHealth"),
+  apiUrl: document.getElementById("apiUrl"),
+  apiToken: document.getElementById("apiToken"),
+  saveBtn2: document.getElementById("saveBtn2"),
+  settingsStatus: document.getElementById("settingsStatus"),
+  saveAllBtn: document.getElementById("saveAllTabsBtn"),
+  cancelSaveAllBtn: document.getElementById("cancelSaveAllBtn"),
+  saveAllProgress: document.getElementById("saveAllProgress"),
+  readLaterToggle: document.getElementById("readLaterToggle"),
+  autoSaveYTToggle: document.getElementById("autoSaveYTToggle"),
+  importBtn: document.getElementById("importBookmarksBtn"),
+  bookmarkCount: document.getElementById("bookmarkCount"),
+  settingsActionStatus: document.getElementById("settingsActionStatus"),
 };
 
 let state = { apiUrl: "", token: "", webUrl: "" };
 let activeTab = null;
+// Remember which pane we were on before the user opened settings so the
+// gear button toggles back to the right place.
+let lastNonSettingsPane = "loading";
 
 function show(name) {
-  for (const el of [els.loading, els.notConnected, els.save, els.card]) {
+  for (const el of [els.loading, els.save, els.card, els.settings]) {
     el.classList.add("hidden");
   }
   ({
     loading: els.loading,
-    notConnected: els.notConnected,
     save: els.save,
     card: els.card,
+    settings: els.settings,
   })[name]?.classList.remove("hidden");
+  if (name !== "settings") lastNonSettingsPane = name;
 }
 
 function setStatus(node, msg, kind) {
+  if (!node) return;
   node.textContent = msg ?? "";
   node.classList.toggle("ok", kind === "ok");
   node.classList.toggle("err", kind === "err");
@@ -61,11 +84,29 @@ async function loadState() {
   state.webUrl = (stored.webUrl || "").replace(/\/$/, "");
 }
 
+async function saveStateToStorage() {
+  await chrome.storage.local.set({
+    apiUrl: state.apiUrl,
+    token: state.token,
+    webUrl: state.webUrl,
+  });
+}
+
+class AuthExpiredError extends Error {
+  constructor() {
+    super("Your token expired. Reconnect from the settings pane.");
+    this.name = "AuthExpiredError";
+  }
+}
+
 async function call(path, options = {}) {
   const headers = new Headers(options.headers || {});
   headers.set("Content-Type", "application/json");
   headers.set("Authorization", `Bearer ${state.token}`);
   const res = await fetch(`${state.apiUrl}${path}`, { ...options, headers });
+  if (res.status === 401 || res.status === 403) {
+    throw new AuthExpiredError();
+  }
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status}`);
     err.status = res.status;
@@ -80,9 +121,6 @@ async function detectActiveTab() {
 }
 
 async function findCardForUrl(url) {
-  // Canonicalise so a tab on `?utm_source=…` resolves to the same card
-  // a clean share-link does. Backend also canonicalises on read, but
-  // doing it here saves a round-trip on URLs that are obviously equal.
   const needle = canonicalizeUrl(url);
   try {
     return await call(`/api/cards/by-source-url?url=${encodeURIComponent(needle)}`);
@@ -108,20 +146,12 @@ function showSaveCta(tab) {
   show("save");
 }
 
-/** Read & clear the transient "auto-add this URL on next open" flag the
- *  popup sets when the user clicks "Open side panel". Returns the URL
- *  if the flag is fresh and matches the active tab, else null. */
 async function consumeAutoAddIntent(url) {
   try {
     const stored = await chrome.storage.session.get("autoAddOnOpen");
     const intent = stored?.autoAddOnOpen;
     if (!intent) return null;
-    // The popup stored a canonicalised URL — compare canon vs canon so
-    // tracking-param differences between the popup snapshot and the
-    // panel's read of the same tab don't cause a false miss.
     if (intent.url !== canonicalizeUrl(url)) return null;
-    // Stale guard — protects against a flag that was set but never
-    // consumed because the user closed the popup without confirming.
     if (Date.now() - (intent.ts || 0) > 30_000) {
       await chrome.storage.session.remove("autoAddOnOpen");
       return null;
@@ -142,9 +172,6 @@ function tabLooksLikePdf(tab) {
 }
 
 async function autoAddAndEmbed(url) {
-  // Show the save pane in "saving…" state while the POST is in flight
-  // so the user gets immediate feedback. Backend dedup means a repeat
-  // submission of an already-saved URL just returns the existing card.
   showSaveCta({ title: activeTab?.title || "", url });
   els.saveBtn.disabled = true;
   setStatus(els.saveStatus, "Saving…");
@@ -160,9 +187,6 @@ async function autoAddAndEmbed(url) {
     });
     const cardId = data?.card?.id;
     if (cardId) {
-      // Let the background sync the toolbar badge + notify the
-      // content script on the current tab so its in-page "Save" CTA
-      // (the YouTube button etc.) flips to "Saved" without a reload.
       try {
         chrome.runtime.sendMessage({
           type: "notifyCardSaved",
@@ -188,7 +212,10 @@ async function refresh() {
   show("loading");
   await loadState();
   if (!state.apiUrl || !state.token) {
-    show("notConnected");
+    // Skip the legacy notConnectedPane entirely — go straight to the
+    // settings pane so the user can paste their token without an
+    // extra click.
+    openSettings();
     return;
   }
   await detectActiveTab();
@@ -209,8 +236,6 @@ async function refresh() {
       showSaveCta(activeTab);
     }
   } catch (err) {
-    // Auth errors etc. — fall back to the save CTA so the user can
-    // at least try, or open settings to reconnect.
     showSaveCta(activeTab);
     setStatus(els.saveStatus, `Lookup failed: ${err.message}`, "err");
   }
@@ -243,34 +268,336 @@ async function saveActivePage() {
   }
 }
 
-// React to tab changes — when the user navigates, re-detect.
-chrome.tabs.onActivated.addListener(() => void refresh());
+// =====================================================================
+// Settings pane — connection, bulk save, toggles, bookmarks
+// =====================================================================
+
+function openSettings() {
+  show("settings");
+  renderTokenHealth();
+  els.apiUrl.value = state.apiUrl || "http://localhost:8001";
+  els.apiToken.value = state.token || "";
+  setStatus(els.settingsStatus, "");
+  setStatus(els.settingsActionStatus, "");
+  void refreshOpenTabsCount();
+  void refreshBookmarkCount();
+  void loadReadLaterToggle();
+  void loadAutoSaveYTToggle();
+}
+
+function toggleSettings() {
+  if (els.settings.classList.contains("hidden")) {
+    openSettings();
+  } else {
+    // Close settings → re-run the standard detection so we land on the
+    // right pane (saved card / save CTA) based on the current tab.
+    void refresh();
+  }
+}
+
+function decodeJwtExp(token) {
+  if (!token || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const padded = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = JSON.parse(atob(padded));
+    return typeof json.exp === "number" ? json.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+const TOKEN_WARN_DAYS = 7;
+
+function renderTokenHealth() {
+  const node = els.tokenHealth;
+  if (!node) return;
+  node.classList.add("hidden");
+  node.classList.remove("warn", "expired");
+  node.textContent = "";
+  const exp = decodeJwtExp(state.token);
+  if (!exp) return;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const remaining = exp - nowSec;
+  if (remaining <= 0) {
+    node.classList.remove("hidden");
+    node.classList.add("expired");
+    node.innerHTML =
+      '<span class="token-health-dot"></span>' +
+      "<span>Token expired — paste a fresh one below.</span>";
+    return;
+  }
+  const days = Math.ceil(remaining / 86_400);
+  if (days > TOKEN_WARN_DAYS) return;
+  node.classList.remove("hidden");
+  node.classList.add("warn");
+  const dayLabel = days === 1 ? "day" : "days";
+  node.innerHTML =
+    '<span class="token-health-dot"></span>' +
+    `<span>Token expires in ${days} ${dayLabel} — refresh it below.</span>`;
+}
+
+async function discoverWebUrl() {
+  try {
+    const res = await fetch(`${state.apiUrl}/api/info`);
+    if (!res.ok) return state.apiUrl;
+    const data = await res.json();
+    const url = (data?.web_url || "").replace(/\/$/, "");
+    return url || state.apiUrl;
+  } catch {
+    return state.apiUrl;
+  }
+}
+
+async function trySave() {
+  const url = els.apiUrl.value.trim().replace(/\/$/, "");
+  const token = els.apiToken.value.trim();
+  if (!url || !token) {
+    setStatus(els.settingsStatus, "Both fields are required.", "err");
+    return;
+  }
+  setStatus(els.settingsStatus, "Testing connection…");
+  try {
+    const res = await fetch(`${url}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    state = { apiUrl: url, token, webUrl: "" };
+    state.webUrl = await discoverWebUrl();
+    await saveStateToStorage();
+    setStatus(els.settingsStatus, "Connected.", "ok");
+    renderTokenHealth();
+    await refreshOpenTabsCount();
+    await refreshBookmarkCount();
+  } catch (err) {
+    setStatus(els.settingsStatus, `Could not reach API: ${err.message}`, "err");
+  }
+}
+
+// ---------- Bulk save all tabs ----------
+let saveAllCancel = false;
+
+async function refreshOpenTabsCount() {
+  try {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const eligible = tabs.filter(
+      (t) => t.url && /^https?:\/\//i.test(t.url),
+    );
+    const n = eligible.length;
+    els.saveAllBtn.textContent = n > 0 ? `Save all tabs (${n})` : "Save all tabs";
+    els.saveAllBtn.disabled = n < 1 || !state.token;
+  } catch {
+    els.saveAllBtn.disabled = true;
+  }
+}
+
+async function saveAllTabs() {
+  let tabs;
+  try {
+    tabs = await chrome.tabs.query({ currentWindow: true });
+  } catch (err) {
+    setStatus(els.settingsActionStatus, `Could not read tabs: ${err.message}`, "err");
+    return;
+  }
+  const eligible = tabs.filter((t) => t.url && /^https?:\/\//i.test(t.url));
+  if (eligible.length === 0) {
+    setStatus(els.settingsActionStatus, "No saveable tabs in this window.", "err");
+    return;
+  }
+
+  saveAllCancel = false;
+  els.saveAllBtn.disabled = true;
+  els.cancelSaveAllBtn.classList.remove("hidden");
+  const stored = await chrome.storage.local.get(["saveAsReadLater"]);
+  const paused = !!stored?.saveAsReadLater;
+  let saved = 0;
+  let failed = 0;
+  let stopped = 0;
+  for (let i = 0; i < eligible.length; i++) {
+    if (saveAllCancel) {
+      stopped = eligible.length - i;
+      break;
+    }
+    const tab = eligible[i];
+    els.saveAllProgress.textContent = `${i + 1}/${eligible.length}`;
+    try {
+      const ep = tabLooksLikePdf(tab) ? "/api/cards/from-pdf-url" : "/api/cards/from-url";
+      await call(ep, {
+        method: "POST",
+        body: JSON.stringify({ url: canonicalizeUrl(tab.url), paused }),
+      });
+      saved++;
+    } catch (err) {
+      if (err instanceof AuthExpiredError) {
+        setStatus(els.settingsActionStatus, err.message, "err");
+        break;
+      }
+      failed++;
+    }
+  }
+  els.saveAllBtn.disabled = false;
+  els.cancelSaveAllBtn.classList.add("hidden");
+  els.saveAllProgress.textContent = "";
+  const parts = [`Saved ${saved}`];
+  if (failed) parts.push(`failed ${failed}`);
+  if (stopped) parts.push(`stopped (${stopped} skipped)`);
+  setStatus(els.settingsActionStatus, `${parts.join(", ")}.`, failed ? "err" : "ok");
+}
+
+// ---------- Bookmarks ----------
+
+async function refreshBookmarkCount() {
+  try {
+    const tree = await chrome.bookmarks.getTree();
+    let count = 0;
+    const walk = (n) => {
+      if (n.url) count++;
+      if (n.children) for (const c of n.children) walk(c);
+    };
+    for (const node of tree) walk(node);
+    els.bookmarkCount.textContent = `${count} link${count === 1 ? "" : "s"}`;
+  } catch {
+    els.bookmarkCount.textContent = "";
+  }
+}
+
+function collectBookmarkUrls(tree) {
+  const out = [];
+  const seen = new Set();
+  const walk = (n) => {
+    if (n.url && !seen.has(n.url) && /^https?:\/\//i.test(n.url)) {
+      seen.add(n.url);
+      out.push({ url: n.url, title: n.title || n.url });
+    }
+    if (n.children) for (const c of n.children) walk(c);
+  };
+  for (const node of tree) walk(node);
+  return out;
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+function escapeText(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function importAllBookmarks() {
+  els.importBtn.disabled = true;
+  setStatus(els.settingsActionStatus, "Reading bookmarks…");
+  try {
+    const tree = await chrome.bookmarks.getTree();
+    const items = collectBookmarkUrls(tree);
+    if (items.length === 0) {
+      setStatus(els.settingsActionStatus, "No http(s) bookmarks found.", "err");
+      return;
+    }
+    const html = [
+      "<!DOCTYPE NETSCAPE-Bookmark-file-1>",
+      "<TITLE>Bookmarks</TITLE>",
+      "<H1>Bookmarks</H1>",
+      "<DL><p>",
+      ...items.map(
+        (it) => `<DT><A HREF="${escapeAttr(it.url)}">${escapeText(it.title)}</A>`,
+      ),
+      "</DL><p>",
+    ].join("\n");
+    const form = new FormData();
+    form.append("file", new Blob([html], { type: "text/html" }), "bookmarks.html");
+    const res = await fetch(`${state.apiUrl}/api/import/bookmarks`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${state.token}` },
+      body: form,
+    });
+    if (res.status === 401 || res.status === 403) {
+      setStatus(els.settingsActionStatus, "Token expired. Reconnect above.", "err");
+      return;
+    }
+    if (!res.ok) throw new Error((await res.text()).slice(0, 120));
+    const data = await res.json();
+    setStatus(
+      els.settingsActionStatus,
+      `Queued ${data.queued} bookmark${data.queued === 1 ? "" : "s"} for ingestion.`,
+      "ok",
+    );
+  } catch (err) {
+    setStatus(els.settingsActionStatus, `Failed: ${err.message}`, "err");
+  } finally {
+    els.importBtn.disabled = false;
+  }
+}
+
+// ---------- Toggles ----------
+
+const READ_LATER_KEY = "saveAsReadLater";
+const AUTO_SAVE_YT_KEY = "autoSaveYouTubeOnEnd";
+
+async function loadReadLaterToggle() {
+  try {
+    const stored = await chrome.storage.local.get([READ_LATER_KEY]);
+    els.readLaterToggle.checked = !!stored?.[READ_LATER_KEY];
+  } catch {
+    els.readLaterToggle.checked = false;
+  }
+}
+
+async function loadAutoSaveYTToggle() {
+  try {
+    const stored = await chrome.storage.local.get([AUTO_SAVE_YT_KEY]);
+    els.autoSaveYTToggle.checked = !!stored?.[AUTO_SAVE_YT_KEY];
+  } catch {
+    els.autoSaveYTToggle.checked = false;
+  }
+}
+
+// =====================================================================
+// Wire-up
+// =====================================================================
+
+chrome.tabs.onActivated.addListener(() => {
+  // Only re-detect if we're not on the settings pane — tab changes
+  // there shouldn't blow away the user's typed-but-unsaved input.
+  if (els.settings.classList.contains("hidden")) void refresh();
+});
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Only re-run when the page actually finishes loading a new URL.
-  if (changeInfo.status === "complete" && tab.active) void refresh();
+  if (changeInfo.status === "complete" && tab.active) {
+    if (els.settings.classList.contains("hidden")) void refresh();
+  }
 });
 
 els.reloadBtn.addEventListener("click", () => void refresh());
+els.settingsBtn.addEventListener("click", () => toggleSettings());
 els.saveBtn.addEventListener("click", () => void saveActivePage());
-els.openPopupBtn.addEventListener("click", () => {
-  // No programmatic way to open the action popup from the side panel,
-  // so we point the user there with a hint.
-  setStatus(els.saveStatus, "Click the toolbar icon to open settings.", "err");
+els.saveBtn2.addEventListener("click", () => void trySave());
+els.saveAllBtn.addEventListener("click", () => void saveAllTabs());
+els.cancelSaveAllBtn.addEventListener("click", () => {
+  saveAllCancel = true;
+});
+els.importBtn.addEventListener("click", () => void importAllBookmarks());
+els.readLaterToggle.addEventListener("change", async () => {
+  try {
+    await chrome.storage.local.set({
+      [READ_LATER_KEY]: els.readLaterToggle.checked,
+    });
+  } catch (err) {
+    setStatus(els.settingsActionStatus, `Could not save toggle: ${err.message}`, "err");
+  }
+});
+els.autoSaveYTToggle.addEventListener("change", async () => {
+  try {
+    await chrome.storage.local.set({
+      [AUTO_SAVE_YT_KEY]: els.autoSaveYTToggle.checked,
+    });
+  } catch (err) {
+    setStatus(els.settingsActionStatus, `Could not save toggle: ${err.message}`, "err");
+  }
 });
 
 // =====================================================================
 // Pill bridge: embed iframe → side panel → YouTube tab
 // =====================================================================
-// The embed iframe lives at the web-app origin; it can't talk to
-// chrome.* APIs directly. When the user clicks a timestamp pill in the
-// summary/transcript, the iframe posts to us via window.parent. We
-// look up the active YouTube tab matching the video ID and send a
-// seek message to its content script.
 window.addEventListener("message", (event) => {
-  // Origin check: only accept from the embed iframe (web-app origin).
-  // We can't pin it tight because dev uses localhost:5173 and prod
-  // uses some other domain — accept any origin but validate the
-  // message shape.
   const data = event.data;
   console.warn("[mindshift sidepanel] message received:", data, "origin:", event.origin);
   if (!data || data.type !== "mindshift:seekVideo") return;
@@ -279,7 +606,6 @@ window.addEventListener("message", (event) => {
     console.warn("[mindshift sidepanel] bad shape, ignoring");
     return;
   }
-  // Helper — extract `v=...` ID from a YouTube watch URL.
   const videoIdFromTabUrl = (urlStr) => {
     try {
       const u = new URL(urlStr);
@@ -294,7 +620,6 @@ window.addEventListener("message", (event) => {
 
   void chrome.tabs.query({ url: "*://*.youtube.com/watch*" }, async (tabs) => {
     console.warn("[mindshift sidepanel] tabs found:", tabs?.length);
-    // Find a tab already showing the target video.
     const matchingTab = (tabs || []).find(
       (tab) => videoIdFromTabUrl(tab.url || "") === videoId,
     );
@@ -303,7 +628,6 @@ window.addEventListener("message", (event) => {
         "[mindshift sidepanel] matching tab found, focusing + seeking:",
         matchingTab.id,
       );
-      // Focus that tab so the user actually sees the seek happen.
       try {
         await chrome.tabs.update(matchingTab.id, { active: true });
         if (matchingTab.windowId !== undefined) {
@@ -324,8 +648,6 @@ window.addEventListener("message", (event) => {
         );
       return;
     }
-
-    // No matching tab — open a new YouTube tab at the timestamp.
     const url = `https://www.youtube.com/watch?v=${videoId}&t=${seconds}s`;
     console.warn("[mindshift sidepanel] no matching tab — opening new:", url);
     try {
@@ -345,15 +667,10 @@ function applyPanelTheme(theme) {
   document.documentElement.classList.toggle("dark", t === "dark");
 }
 
-// Initial load: read the theme the embed last applied.
 chrome.storage.local.get(["panelTheme"]).then((res) => {
   applyPanelTheme(res?.panelTheme || "dark");
 });
 
-// The embed (iframe) posts `mindshift:themeChange` whenever it toggles
-// theme. We mirror the class on the side panel's documentElement so
-// the chrome around the iframe (mindshift-logo strip + cardFrame
-// background) follows along.
 window.addEventListener("message", (event) => {
   const data = event.data;
   if (!data || data.type !== "mindshift:themeChange") return;

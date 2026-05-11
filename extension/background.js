@@ -423,9 +423,10 @@ if (chrome.commands?.onCommand) {
   });
 }
 
-/** Open the side panel for a specific tab. Called from popup.js via
- *  chrome.runtime.sendMessage so the popup can offer an "Open side
- *  panel" affordance without needing the sidePanel permission itself. */
+/** Open the side panel for a specific tab. Called from the YouTube
+ *  content script's in-page "Open" button (on already-saved videos)
+ *  via chrome.runtime.sendMessage — content scripts don't have the
+ *  sidePanel permission directly. */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === "openSidePanel") {
     const tabId = msg.tabId ?? sender?.tab?.id;

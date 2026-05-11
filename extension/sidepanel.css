@@ -98,3 +98,79 @@ html, body { height: 100%; width: 100%; min-width: 100%; max-width: none; }
   border: 0;
   background: var(--sp-bg);
 }
+
+/* Header action group — gear + reload sit side-by-side, right-aligned. */
+.sp-hdr-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Settings pane: full-width, scrollable list of cards. Overrides
+   popup.css's 400 px body width since the side panel can be any width. */
+.sp-settings .sp-settings-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+.sp-settings .card {
+  /* popup.css already styles .card but at 400 px width; in the side panel
+     we want the cards to span the full available width. */
+  width: auto;
+  min-width: 0;
+}
+.sp-settings .field input {
+  /* Make the input span the whole card width — popup.css doesn't set
+     a width so it defaults to auto = tight content width. */
+  width: 100%;
+}
+
+/* Light-theme overrides for the cards/inputs/text colors that popup.css
+   hardcodes for the dark popup. Without these the settings pane stays
+   dark even when the user toggled the embed theme to light. */
+:root.light .sp-settings .card {
+  border-color: var(--sp-border);
+  background: rgba(255, 255, 255, 0.6);
+}
+:root.light .sp-settings .subhead {
+  color: var(--sp-text);
+}
+:root.light .sp-settings .muted,
+:root.light .sp-settings .field span {
+  color: var(--sp-url-muted);
+}
+:root.light .sp-settings .field input {
+  background: #ffffff;
+  border-color: var(--sp-border);
+  color: var(--sp-text);
+}
+:root.light .sp-settings .secondary {
+  color: var(--sp-text);
+  border-color: var(--sp-border);
+  background: transparent;
+}
+:root.light .sp-settings .secondary:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+:root.light .sp-settings .primary {
+  background: #1a1a1f;
+  color: #fff;
+  border-color: #1a1a1f;
+}
+:root.light .sp-settings .primary:hover {
+  background: #2a2a30;
+}
+:root.light .sp-settings .howto {
+  border-color: var(--sp-border);
+  background: rgba(0, 0, 0, 0.02);
+}
+:root.light .sp-settings .howto summary,
+:root.light .sp-settings .howto strong {
+  color: var(--sp-text);
+}
+:root.light .sp-settings .howto ol {
+  color: var(--sp-url-muted);
+}

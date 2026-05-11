@@ -770,21 +770,42 @@ function DraftCard({
         </div>
       )}
 
-      {/* Add-image CTA — only when the post has no image yet. The
-          present-image branch is rendered as a float inside the editor
-          above, so prose wraps around it. */}
-      {!imageSrc && (
-        <button
-          type="button"
-          onClick={() => setPregenOpen(true)}
-          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-ink-700 px-3 py-3 text-xs text-ink-300 transition hover:border-violet-400 hover:bg-violet-500/5 hover:text-violet-200"
-        >
-          <ImageIcon className="h-4 w-4" />
-          {t("posts.image.addImage", {
-            defaultValue: "Add an image with editable variables",
-          })}
-        </button>
-      )}
+      {/* Image slot below the editor.
+          - If we have an image: rendered as a float inside the editor above.
+          - If a job is in flight (processing version, no file yet): a
+            loading state so the user knows it's coming.
+          - Otherwise: the "Add image" CTA opens the prompt-builder modal. */}
+      {(() => {
+        if (imageSrc) return null;
+        const pendingVersion = versions.find(
+          (v) => v.status === "processing" && v.kind === "generate",
+        );
+        if (pendingVersion) {
+          return (
+            <div className="mt-3 flex items-center justify-center gap-3 rounded-md border border-violet-500/30 bg-violet-500/5 px-3 py-3 text-xs text-violet-200">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>
+                {t("posts.image.rendering", {
+                  defaultValue:
+                    "Image is rendering in the background — this can take 2–3 min.",
+                })}
+              </span>
+            </div>
+          );
+        }
+        return (
+          <button
+            type="button"
+            onClick={() => setPregenOpen(true)}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-ink-700 px-3 py-3 text-xs text-ink-300 transition hover:border-violet-400 hover:bg-violet-500/5 hover:text-violet-200"
+          >
+            <ImageIcon className="h-4 w-4" />
+            {t("posts.image.addImage", {
+              defaultValue: "Add an image with editable variables",
+            })}
+          </button>
+        );
+      })()}
 
       {pregenOpen && (
         <PostImagePregenModal

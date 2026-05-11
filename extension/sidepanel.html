@@ -16,9 +16,14 @@
         </svg>
         <span>Mindshift</span>
       </div>
-      <button id="reloadBtn" type="button" class="icon-btn" title="Re-detect this page" aria-label="Reload">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-      </button>
+      <div class="sp-hdr-actions">
+        <button id="settingsBtn" type="button" class="icon-btn" title="Settings" aria-label="Settings">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <button id="reloadBtn" type="button" class="icon-btn" title="Re-detect this page" aria-label="Reload">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+        </button>
+      </div>
     </header>
 
     <!-- Empty state — shown before we know what tab the user is on -->
@@ -26,14 +31,6 @@
       <div class="sp-center">
         <div class="sp-spinner"></div>
         <p class="muted">Detecting page…</p>
-      </div>
-    </main>
-
-    <!-- "Not configured" state -->
-    <main id="notConnectedPane" class="sp-pane hidden">
-      <div class="sp-center">
-        <p>Connect the extension first.</p>
-        <button id="openPopupBtn" type="button" class="primary">Open settings</button>
       </div>
     </main>
 
@@ -48,10 +45,85 @@
       </div>
     </main>
 
-    <!-- "Card already saved" state — embed it via iframe. Chat now lives
-         inside the iframe as a tab in EmbedCardPage. -->
+    <!-- "Card already saved" state — embed it via iframe. -->
     <main id="cardPane" class="sp-pane hidden">
       <iframe id="cardFrame" title="Card" sandbox="allow-same-origin allow-scripts allow-forms allow-popups" allow="clipboard-write"></iframe>
+    </main>
+
+    <!-- Settings pane — power features that used to live in the popup.
+         Gear icon in the header toggles it. -->
+    <main id="settingsPane" class="sp-pane sp-settings hidden">
+      <div class="sp-settings-scroll">
+        <div id="tokenHealth" class="token-health hidden"></div>
+
+        <!-- Connection (API URL + token) -->
+        <section class="card">
+          <p class="subhead">Connection</p>
+          <label class="field">
+            <span>API URL</span>
+            <input id="apiUrl" type="url" placeholder="http://localhost:8001" />
+          </label>
+          <label class="field">
+            <span>Token</span>
+            <input id="apiToken" type="password" placeholder="Paste token from Settings → API & Extension" />
+          </label>
+          <button id="saveBtn2" type="button" class="primary full">Save &amp; test</button>
+          <p id="settingsStatus" class="status"></p>
+          <details class="howto">
+            <summary>Where do I get the token?</summary>
+            <ol>
+              <li>Open Mindshift in your browser and sign in.</li>
+              <li>Click the gear icon (lower-left) → <strong>API &amp; Extension</strong>.</li>
+              <li>Click <strong>Reveal token</strong> and copy it here.</li>
+            </ol>
+          </details>
+        </section>
+
+        <!-- Bulk: save every open tab -->
+        <section class="card">
+          <div>
+            <p class="subhead">Open tabs</p>
+            <p class="muted">Save every saveable tab in this window. Duplicates are skipped.</p>
+          </div>
+          <div class="row">
+            <button id="saveAllTabsBtn" type="button" class="secondary" disabled>Save all tabs</button>
+            <button id="cancelSaveAllBtn" type="button" class="ghost hidden">Stop</button>
+            <span id="saveAllProgress" class="count"></span>
+          </div>
+        </section>
+
+        <!-- Toggles -->
+        <section class="card">
+          <label class="autosave-row">
+            <input id="readLaterToggle" type="checkbox" />
+            <span>
+              <span class="subhead">Save as Read Later (skip AI for now)</span>
+              <span class="muted">Save to the library without spending AI tokens. Process selected cards later from the main app.</span>
+            </span>
+          </label>
+          <label class="autosave-row">
+            <input id="autoSaveYTToggle" type="checkbox" />
+            <span>
+              <span class="subhead">Auto-save fully-watched YouTube videos</span>
+              <span class="muted">When the video reaches the end, save it to Mindshift. Backend dedup makes replays safe.</span>
+            </span>
+          </label>
+        </section>
+
+        <!-- Bookmarks -->
+        <section class="card">
+          <div>
+            <p class="subhead">Bookmarks</p>
+            <p class="muted">Import every link from your browser's bookmarks tree.</p>
+          </div>
+          <div class="row">
+            <button id="importBookmarksBtn" type="button" class="secondary">Import all bookmarks</button>
+            <span id="bookmarkCount" class="count"></span>
+          </div>
+        </section>
+
+        <p id="settingsActionStatus" class="status"></p>
+      </div>
     </main>
 
     <script type="module" src="sidepanel.js"></script>
