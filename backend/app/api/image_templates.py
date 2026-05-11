@@ -29,52 +29,10 @@ from app.schemas.image_template import (
 router = APIRouter(prefix="/image-templates", tags=["image-templates"])
 
 
-# Canonical placeholder vocabulary. The variable-extraction prompt in
-# services/podcast.py knows how to fill exactly these — anything else
-# is rendered as-is or returned empty. Surface this list to the UI so
-# users see what's available while editing a template.
-KNOWN_VARIABLES: list[dict[str, str]] = [
-    {
-        "name": "HEADLINE",
-        "description": "1–6 words, ALL CAPS, the punchiest topic framing.",
-    },
-    {
-        "name": "SUBTITLE",
-        "description": "≤ 8 words, sentence case, optional supporting line.",
-    },
-    {
-        "name": "NUMBER_1",
-        "description": "Most striking numeric claim from the source (\"70%\", \"$1.2B\").",
-    },
-    {
-        "name": "LABEL_1",
-        "description": "≤ 6 words; what NUMBER_1 measures.",
-    },
-    {
-        "name": "NUMBER_2",
-        "description": "Second numeric claim. Empty string if none.",
-    },
-    {
-        "name": "LABEL_2",
-        "description": "≤ 6 words; what NUMBER_2 measures.",
-    },
-    {
-        "name": "NUMBER_3",
-        "description": "Third numeric claim. Empty string if none.",
-    },
-    {
-        "name": "LABEL_3",
-        "description": "≤ 6 words; what NUMBER_3 measures.",
-    },
-    {
-        "name": "SOURCES",
-        "description": "Comma-separated names of cited orgs / channels.",
-    },
-    {
-        "name": "DATE",
-        "description": 'Short period label like "Q2 2026" or "May 2026".',
-    },
-]
+# Canonical placeholder vocabulary lives in services/image_generation
+# (the module that owns the LLM extractor consuming it). Re-export the
+# name here so existing import sites keep working.
+from app.services.image_generation import KNOWN_VARIABLES  # noqa: E402
 
 
 def _ensure_owned(db: Session, template_id: UUID, user_id: UUID) -> ImageTemplate:

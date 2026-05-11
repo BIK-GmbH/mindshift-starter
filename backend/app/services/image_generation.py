@@ -116,24 +116,185 @@ def _extract_template_vars(template: str) -> list[str]:
     return list(dict.fromkeys(_TEMPLATE_VAR_RE.findall(template)))
 
 
-_TEMPLATE_FILL_PROMPT = """You fill placeholder variables for a 1:1 social-media
+# Canonical placeholder vocabulary. Each entry's `description` doubles
+# as the LLM rule for that variable AND the palette hint surfaced in the
+# UI via the /image-templates/variables endpoint. Adding a new
+# placeholder here is enough to make it both fillable and visible.
+KNOWN_VARIABLES: list[dict[str, str]] = [
+    # --- General-purpose (used by most templates) ---
+    {
+        "name": "HEADLINE",
+        "description": "1–6 words, ALL CAPS, the punchiest framing of the topic.",
+    },
+    {
+        "name": "SUBTITLE",
+        "description": "≤ 8 words, sentence case, optional supporting line.",
+    },
+    {
+        "name": "SOURCES",
+        "description": (
+            "Comma-separated names of cited orgs / publications / channels "
+            'in the source (e.g. "CNBC, Reuters"). Empty string if none.'
+        ),
+    },
+    {
+        "name": "DATE",
+        "description": (
+            'Short period label like "Q2 2026" or "May 2026". Default to '
+            "the current month if nothing is stated in the source."
+        ),
+    },
+    # --- Stats template ---
+    {
+        "name": "NUMBER_1",
+        "description": (
+            "Most striking numeric claim from the source (percentage, count, "
+            'score, dollar amount). Keep original form ("70%", "$1.2B", "62"). '
+            'Empty string if none.'
+        ),
+    },
+    {"name": "LABEL_1", "description": "≤ 6 words, the concrete thing NUMBER_1 measures."},
+    {"name": "NUMBER_2", "description": "Second striking numeric claim. Same rules as NUMBER_1."},
+    {"name": "LABEL_2", "description": "≤ 6 words, the concrete thing NUMBER_2 measures."},
+    {"name": "NUMBER_3", "description": "Third striking numeric claim. Same rules as NUMBER_1."},
+    {"name": "LABEL_3", "description": "≤ 6 words, the concrete thing NUMBER_3 measures."},
+    # --- Before / After Split ---
+    {"name": "BEFORE_LABEL", "description": '≤ 4 words, ALL CAPS, the name of the "before" state.'},
+    {
+        "name": "BEFORE_DESCRIPTION",
+        "description": '≤ 8 words, sentence case, what the "before" state feels like.',
+    },
+    {"name": "AFTER_LABEL", "description": '≤ 4 words, ALL CAPS, the name of the "after" state.'},
+    {
+        "name": "AFTER_DESCRIPTION",
+        "description": '≤ 8 words, sentence case, what the "after" state feels like.',
+    },
+    # --- News Recap Cover ---
+    {
+        "name": "DATE_RANGE",
+        "description": 'Week / period label, ALL CAPS (e.g. "WEEK 19 · MAY 2026").',
+    },
+    {
+        "name": "STORY_1_ICON",
+        "description": (
+            "Single lowercase word naming a simple line-icon for story 1 "
+            '(e.g. "chip", "rocket", "gavel"). No emoji.'
+        ),
+    },
+    {"name": "STORY_1_HEADLINE", "description": "≤ 8 words, the story-1 headline."},
+    {"name": "STORY_2_ICON", "description": 'Line-icon word for story 2 (same rules as STORY_1_ICON).'},
+    {"name": "STORY_2_HEADLINE", "description": "≤ 8 words, the story-2 headline."},
+    {"name": "STORY_3_ICON", "description": 'Line-icon word for story 3 (same rules as STORY_1_ICON).'},
+    {"name": "STORY_3_HEADLINE", "description": "≤ 8 words, the story-3 headline."},
+    # --- Concept Morph ---
+    {
+        "name": "LEFT_OBJECT",
+        "description": (
+            "A concrete physical object as a metaphor for the source's "
+            '"before" state (e.g. "a paper backlog card with handwritten notes").'
+        ),
+    },
+    {
+        "name": "RIGHT_OBJECT",
+        "description": (
+            "A concrete physical object as a metaphor for the source's "
+            '"after" state (e.g. "a glowing cube of running code").'
+        ),
+    },
+    # --- Anatomy Diagram ---
+    {
+        "name": "SUBJECT",
+        "description": (
+            "Short noun phrase naming the thing being dissected "
+            '(e.g. "an agentic workflow").'
+        ),
+    },
+    {"name": "COMPONENT_1_NAME", "description": "1–3 words, ALL CAPS, name of component 1."},
+    {"name": "COMPONENT_1_DESC", "description": "≤ 8 words, sentence case, what component 1 does."},
+    {"name": "COMPONENT_2_NAME", "description": "1–3 words, ALL CAPS, name of component 2."},
+    {"name": "COMPONENT_2_DESC", "description": "≤ 8 words, sentence case, what component 2 does."},
+    {"name": "COMPONENT_3_NAME", "description": "1–3 words, ALL CAPS, name of component 3."},
+    {"name": "COMPONENT_3_DESC", "description": "≤ 8 words, sentence case, what component 3 does."},
+    {"name": "COMPONENT_4_NAME", "description": "1–3 words, ALL CAPS, name of component 4."},
+    {"name": "COMPONENT_4_DESC", "description": "≤ 8 words, sentence case, what component 4 does."},
+    {"name": "COMPONENT_5_NAME", "description": "1–3 words, ALL CAPS, name of component 5."},
+    {"name": "COMPONENT_5_DESC", "description": "≤ 8 words, sentence case, what component 5 does."},
+    # --- Vintage Newspaper Page ---
+    {
+        "name": "NEWSPAPER_NAME",
+        "description": 'Fictional newspaper masthead, ALL CAPS (e.g. "THE DIGITAL HERALD").',
+    },
+    {"name": "EDITION", "description": 'Edition label, ALL CAPS (e.g. "MORNING EDITION").'},
+    {"name": "KICKER", "description": "≤ 5 words, italicised pre-line above the main headline."},
+    {
+        "name": "MAIN_HEADLINE",
+        "description": "≤ 8 words, ALL CAPS, plakative news-style headline.",
+    },
+    {
+        "name": "SUBHEAD",
+        "description": "≤ 15 words, sentence case, subhead expanding the headline.",
+    },
+    # --- Landscape Map ---
+    {
+        "name": "DOMAIN",
+        "description": (
+            "Short noun phrase naming the ecosystem being mapped "
+            '(e.g. "AI agent tools 2026").'
+        ),
+    },
+    {"name": "CLUSTER_1_NAME", "description": "1–3 words, ALL CAPS, name of region 1."},
+    {
+        "name": "CLUSTER_1_ITEMS",
+        "description": (
+            "3–6 concrete items (tools, products, names) inside region 1, "
+            'separated by " · " (space dot space).'
+        ),
+    },
+    {"name": "CLUSTER_2_NAME", "description": "1–3 words, ALL CAPS, name of region 2."},
+    {"name": "CLUSTER_2_ITEMS", "description": "3–6 items inside region 2, same separator rule."},
+    {"name": "CLUSTER_3_NAME", "description": "1–3 words, ALL CAPS, name of region 3."},
+    {"name": "CLUSTER_3_ITEMS", "description": "3–6 items inside region 3, same separator rule."},
+    {"name": "CLUSTER_4_NAME", "description": "1–3 words, ALL CAPS, name of region 4."},
+    {"name": "CLUSTER_4_ITEMS", "description": "3–6 items inside region 4, same separator rule."},
+    {"name": "CLUSTER_5_NAME", "description": "1–3 words, ALL CAPS, name of region 5."},
+    {"name": "CLUSTER_5_ITEMS", "description": "3–6 items inside region 5, same separator rule."},
+]
+
+_KNOWN_VARIABLES_BY_NAME: dict[str, dict[str, str]] = {
+    v["name"]: v for v in KNOWN_VARIABLES
+}
+
+
+def _render_variable_rules(variables: list[str]) -> str:
+    """Render the LLM rule block from KNOWN_VARIABLES for the subset of
+    variables actually present in the template. Variables unknown to
+    KNOWN_VARIABLES are still listed so the LLM tries to fill them, but
+    with a generic fallback rule."""
+    lines: list[str] = []
+    for var in variables:
+        entry = _KNOWN_VARIABLES_BY_NAME.get(var)
+        if entry is not None:
+            lines.append(f"- {var}: {entry['description']}")
+        else:
+            lines.append(
+                f"- {var}: Fill from the source content; keep it short and "
+                "literally renderable as text on the image."
+            )
+    return "\n".join(lines)
+
+
+_TEMPLATE_FILL_PROMPT_BASE = """You fill placeholder variables for a 1:1 social-media
 image. The values you return will be rendered LITERALLY on the image, so
 they must be short, punchy, and grounded in the supplied source content.
 
-Rules:
+Global rules:
 - Detect the source language; respond in the SAME language.
-- HEADLINE: 1–6 words, ALL CAPS, the punchiest framing of the topic.
-- SUBTITLE: ≤ 8 words, sentence case, optional context line.
-- NUMBER_n: a striking numeric claim from the source (percentage, count,
-  score, dollar amount). Keep original form ("70%", "$1.2B", "62").
-  If fewer than n numbers are in the source, return "" for the missing ones.
-- LABEL_n: ≤ 6 words, the concrete thing NUMBER_n measures.
-- SOURCES: comma-separated names of cited orgs / publications / channels
-  in the source. Empty string if none.
-- DATE: a short period label like "Q2 2026" or "May 2026". Default to
-  the current month if nothing is stated in the source: {current_month}.
 - Never invent stats. If you cannot fill a value honestly, return "".
-- Return ONLY valid JSON with the requested keys."""
+- For any DATE-like variable, default to {current_month} if nothing is stated.
+- Return ONLY valid JSON with the requested keys.
+
+Per-variable rules (only the keys requested below apply):
+{variable_rules}"""
 
 
 def extract_template_values(
@@ -150,8 +311,9 @@ def extract_template_values(
     from openai import OpenAI
 
     client = OpenAI(api_key=settings.openai_api_key)
-    system = _TEMPLATE_FILL_PROMPT.format(
-        current_month=datetime.now().strftime("%B %Y")
+    system = _TEMPLATE_FILL_PROMPT_BASE.format(
+        current_month=datetime.now().strftime("%B %Y"),
+        variable_rules=_render_variable_rules(variables),
     )
     user_msg = (
         f"SOURCE TITLE:\n{title}\n\n"
