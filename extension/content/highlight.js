@@ -19,6 +19,12 @@
 (function () {
   "use strict";
 
+  // Version marker — visible in the page's console (filter "[mindshift]")
+  // so we can verify which build is actually running on a given tab. The
+  // page caches content scripts until the tab is hard-reloaded, so an
+  // extension reload alone won't update what's executing here.
+  console.log("[mindshift] highlight.js v0.9.5 loaded on", location.hostname);
+
   // Bail on iframes / non-http schemes / our own pages — running on
   // every iframe would multiply the lookups by N and the toolbar
   // would only confuse the user inside an embed.
