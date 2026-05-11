@@ -11,6 +11,8 @@
  */
 
 import { canonicalizeUrl } from "./lib/url.js";
+import { createVoiceRecorder } from "./lib/voice.js";
+import { insertAtCaret } from "./lib/insertAtCaret.js";
 
 const els = {
   loading: document.getElementById("loadingPane"),
@@ -86,10 +88,15 @@ async function findCardForUrl(url) {
   }
 }
 
-function embedCard(cardId) {
+function embedCard(cardId, card) {
   const webBase = state.webUrl || state.apiUrl;
   els.cardFrame.src = `${webBase}/embed/cards/${cardId}`;
   show("card");
+  // Mount the side-panel chat for this card. We pass the full card
+  // object when we have it (resolves the title for the chat header);
+  // when only the id is known (post-save flow), pass a minimal stub
+  // and let mountChat keep its default "Chat" title.
+  globalThis.chatOnCardResolved?.(card || { id: cardId });
 }
 
 function showSaveCta(tab) {
@@ -97,6 +104,7 @@ function showSaveCta(tab) {
   els.savePageUrl.textContent = tab.url || "";
   setStatus(els.saveStatus, "");
   show("save");
+  globalThis.chatOnCardResolved?.(null);
 }
 
 /** Read & clear the transient "auto-add this URL on next open" flag the
@@ -195,7 +203,7 @@ async function refresh() {
   try {
     const card = await findCardForUrl(activeTab.url);
     if (card?.id) {
-      embedCard(card.id);
+      embedCard(card.id, card);
     } else {
       showSaveCta(activeTab);
     }
@@ -250,3 +258,278 @@ els.openPopupBtn.addEventListener("click", () => {
 });
 
 void refresh();
+
+// ============================================================
+// Chat module (Phase: side-panel chat)
+// ============================================================
+
+const chatState = {
+  cardId: null,
+  sessionId: null,
+  messages: [],
+  pending: false,
+  voice: null,
+};
+
+const $chat = {
+  pane: () => document.getElementById("chat-pane"),
+  title: () => document.getElementById("chat-title"),
+  messages: () => document.getElementById("chat-messages"),
+  form: () => document.getElementById("chat-form"),
+  input: () => document.getElementById("chat-input"),
+  voice: () => document.getElementById("chat-voice"),
+  send: () => document.getElementById("chat-send"),
+  newBtn: () => document.getElementById("chat-new"),
+  status: () => document.getElementById("chat-status"),
+};
+
+function renderMessages() {
+  const box = $chat.messages();
+  if (!box) return;
+  box.innerHTML = "";
+  for (const m of chatState.messages) {
+    const div = document.createElement("div");
+    div.className =
+      "chat-msg " + (m.role === "user" ? "chat-msg-user" : "chat-msg-assistant");
+    div.textContent = m.content;
+    box.appendChild(div);
+  }
+  box.scrollTop = box.scrollHeight;
+}
+
+function setChatStatus(text, kind = "") {
+  const el = $chat.status();
+  if (!el) return;
+  el.textContent = text || "";
+  el.className = "chat-status" + (kind === "error" ? " chat-status-error" : "");
+}
+
+function setSendEnabled(on) {
+  const b = $chat.send();
+  if (b) b.disabled = !on;
+}
+
+async function loadLatestSession(cardId, apiUrl, token) {
+  try {
+    const res = await fetch(`${apiUrl}/api/chat/sessions?card_id=${cardId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const sessions = await res.json();
+    if (!Array.isArray(sessions) || sessions.length === 0) return null;
+    const latest = sessions
+      .slice()
+      .sort((a, b) =>
+        String(b.updated_at || "").localeCompare(String(a.updated_at || "")),
+      )[0];
+    const detail = await fetch(`${apiUrl}/api/chat/sessions/${latest.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!detail.ok) return null;
+    const data = await detail.json();
+    return {
+      sessionId: latest.id,
+      messages: (data.messages || []).map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function mountChat(card) {
+  const pane = $chat.pane();
+  if (!pane) return;
+  const stored = await chrome.storage.local.get(["apiUrl", "token"]);
+  const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
+  const token = stored.token || "";
+  if (!apiUrl || !token || !card?.id) {
+    pane.hidden = true;
+    chatState.cardId = null;
+    return;
+  }
+  if (chatState.cardId === card.id) {
+    pane.hidden = false;
+    return;
+  }
+  chatState.cardId = card.id;
+  chatState.sessionId = null;
+  chatState.messages = [];
+  renderMessages();
+  setChatStatus("");
+  const titleEl = $chat.title();
+  if (titleEl) titleEl.textContent = card.title ? `Chat — ${card.title}` : "Chat";
+  pane.hidden = false;
+
+  const session = await loadLatestSession(card.id, apiUrl, token);
+  if (session && chatState.cardId === card.id) {
+    chatState.sessionId = session.sessionId;
+    chatState.messages = session.messages;
+    renderMessages();
+  }
+}
+
+function unmountChat() {
+  const pane = $chat.pane();
+  if (pane) pane.hidden = true;
+  chatState.cardId = null;
+  chatState.sessionId = null;
+  chatState.messages = [];
+}
+
+async function sendChatMessage(text) {
+  if (!text || !chatState.cardId || chatState.pending) return;
+  const stored = await chrome.storage.local.get(["apiUrl", "token"]);
+  const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
+  const token = stored.token || "";
+  if (!apiUrl || !token) {
+    setChatStatus("Reconnect the extension first.", "error");
+    return;
+  }
+  chatState.pending = true;
+  setSendEnabled(false);
+  chatState.messages.push({ role: "user", content: text });
+  renderMessages();
+  setChatStatus("Thinking…");
+  try {
+    const res = await fetch(`${apiUrl}/api/cards/${chatState.cardId}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        messages: chatState.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+        session_id: chatState.sessionId,
+      }),
+    });
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try {
+        detail = (await res.json()).detail || detail;
+      } catch {
+        /* swallow body-parse errors — keep the HTTP code */
+      }
+      throw new Error(detail);
+    }
+    const data = await res.json();
+    chatState.sessionId = data.session_id || chatState.sessionId;
+    chatState.messages.push({
+      role: "assistant",
+      content: data.answer || "",
+    });
+    renderMessages();
+    setChatStatus("");
+  } catch (e) {
+    setChatStatus((e && e.message) || "Send failed", "error");
+    // Roll back the optimistic user message so the user can retry.
+    chatState.messages.pop();
+    renderMessages();
+  } finally {
+    chatState.pending = false;
+    setSendEnabled(true);
+  }
+}
+
+function setVoiceVisualState(state) {
+  const btn = $chat.voice();
+  if (!btn) return;
+  btn.classList.remove("recording", "transcribing", "error");
+  if (state === "recording") btn.classList.add("recording");
+  else if (state === "transcribing") btn.classList.add("transcribing");
+  else if (state === "error") btn.classList.add("error");
+  if (state === "recording") setChatStatus("Recording — click again to stop.");
+  else if (state === "transcribing") setChatStatus("Transcribing…");
+  else if (state === "error") setChatStatus("Voice failed — try again.", "error");
+  else setChatStatus("");
+}
+
+function buildVoiceRecorder(apiUrl, token) {
+  return createVoiceRecorder({
+    endpoint: `${apiUrl}/api/transcribe`,
+    getAuthToken: () => token,
+    onTranscribed: (text) => {
+      const ta = $chat.input();
+      if (!ta) return;
+      const { next, caret } = insertAtCaret(ta, ta.value, text);
+      ta.value = next;
+      setTimeout(() => {
+        ta.setSelectionRange(caret, caret);
+        ta.focus();
+      }, 0);
+    },
+    onError: (msg) => console.warn("[mindshift] voice error:", msg),
+    onStateChange: setVoiceVisualState,
+  });
+}
+
+function wireChatEvents() {
+  const form = $chat.form();
+  if (!form) return; // chat-pane not present in DOM, skip
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const ta = $chat.input();
+    const text = (ta?.value || "").trim();
+    if (!text) return;
+    ta.value = "";
+    void sendChatMessage(text);
+  });
+  $chat.input().addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+  $chat.newBtn().addEventListener("click", () => {
+    chatState.sessionId = null;
+    chatState.messages = [];
+    renderMessages();
+    setChatStatus("");
+    $chat.input().focus();
+  });
+  $chat.voice().addEventListener("click", async () => {
+    const cur = chatState.voice?.getState?.();
+    if (cur === "recording") {
+      chatState.voice.stop();
+      return;
+    }
+    if (cur === "transcribing" || cur === "requesting") {
+      chatState.voice.cancel();
+      return;
+    }
+    const stored = await chrome.storage.local.get(["apiUrl", "token"]);
+    const apiUrl = (stored.apiUrl || "").replace(/\/$/, "");
+    const token = stored.token || "";
+    if (!apiUrl || !token) {
+      setChatStatus("Reconnect the extension first.", "error");
+      return;
+    }
+    chatState.voice = buildVoiceRecorder(apiUrl, token);
+    if (!chatState.voice.isSupported) {
+      setChatStatus("Voice not available in this browser.", "error");
+      return;
+    }
+    chatState.voice.start();
+  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", wireChatEvents);
+} else {
+  wireChatEvents();
+}
+
+// Exported hook — called from the existing card-resolve flow above.
+// Lives on globalThis so we don't need to refactor imports in this file.
+globalThis.chatOnCardResolved = function (card) {
+  if (card?.id) {
+    void mountChat(card);
+  } else {
+    unmountChat();
+  }
+};
