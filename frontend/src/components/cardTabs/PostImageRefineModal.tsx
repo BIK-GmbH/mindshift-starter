@@ -206,15 +206,33 @@ export function PostImageRefineModal({
               {t("posts.refine.history", { defaultValue: "Version history" })}
             </div>
             <div className="flex gap-2 overflow-x-auto">
-              {versions.map((v) => (
-                <VersionThumb
-                  key={v.id}
-                  version={v}
-                  disabled={activating === v.id || submitting}
-                  isActivating={activating === v.id}
-                  onClick={() => !v.is_active && v.status === "ready" && void activateVersion(v.id)}
-                />
-              ))}
+              {versions.map((v) => {
+                // Derive is_active CLIENT-SIDE from whether this
+                // version's file matches the post's currently-active
+                // file. The server-supplied `is_active` is only
+                // refreshed when polling runs — and polling stops as
+                // soon as no version is `processing`. That meant
+                // after switching A→B via the version strip, A still
+                // had the stale `is_active=true` flag and its button
+                // stayed disabled, so the user couldn't click it
+                // back. Deriving from post.image_url makes the strip
+                // react to activation instantly.
+                const isActive =
+                  v.image_url !== null && v.image_url === post.image_url;
+                return (
+                  <VersionThumb
+                    key={v.id}
+                    version={{ ...v, is_active: isActive }}
+                    disabled={activating === v.id || submitting}
+                    isActivating={activating === v.id}
+                    onClick={() =>
+                      !isActive &&
+                      v.status === "ready" &&
+                      void activateVersion(v.id)
+                    }
+                  />
+                );
+              })}
             </div>
           </div>
         )}
