@@ -211,6 +211,24 @@ export default function LibraryPage() {
     };
   }, [fetchCards]);
 
+  // Refresh whenever the user returns to the tab/window. The eventbus
+  // above only catches in-app saves; saves done from the side panel or
+  // browser extension don't fire it because they happen on the backend
+  // directly. Visibility + focus listeners cover that gap so coming
+  // back to the Library tab Just Shows the new card.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void fetchCards();
+    };
+    const onFocus = () => void fetchCards();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [fetchCards]);
+
   // Clear the auto-dismiss timer on unmount so we don't setState on a
   // gone component if the user navigates away during the undo window.
   // Pending deletes themselves keep firing — that's intentional, the
