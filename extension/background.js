@@ -190,6 +190,26 @@ function looksLikePdf({ url, mimeType }) {
  *  server fetches the PDF bytes itself; trafilatura on a PDF body
  *  is garbage.
  */
+/** Ask the page's content script for its outerHTML. Returns null when
+ *  no content script is running (chrome://, internal pages, the SERP
+ *  / YouTube overlays, etc.) — caller falls back to letting the backend
+ *  do its own fetch. */
+async function grabPageHtml(tabId) {
+  if (typeof tabId !== "number") return null;
+  try {
+    const resp = await chrome.tabs.sendMessage(tabId, { type: "grabPageHtml" });
+    if (resp?.ok && typeof resp.html === "string" && resp.html.length > 0) {
+      // Cap at 5 MB to match the backend's page_html field limit. Pages
+      // larger than that fall back to server-fetch.
+      if (resp.html.length > 5_000_000) return null;
+      return resp.html;
+    }
+  } catch {
+    /* content script not loaded — fall back to server fetch */
+  }
+  return null;
+}
+
 async function savePageForUrl(url, { tabId, mimeType } = {}) {
   const stored = await chrome.storage.local.get([
     "apiUrl",
@@ -206,13 +226,21 @@ async function savePageForUrl(url, { tabId, mimeType } = {}) {
     ? "/api/cards/from-pdf-url"
     : "/api/cards/from-url";
   const paused = !!stored.saveAsReadLater;
+  const body = { url: canon, paused };
+  // Only attach HTML for the from-url path; PDF ingestion downloads the
+  // PDF blob server-side and doesn't benefit from a DOM grab.
+  if (endpoint === "/api/cards/from-url") {
+    const html = await grabPageHtml(tabId);
+    if (html) body.page_html = html;
+  }
+
   const res = await fetch(`${apiUrl}${endpoint}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ url: canon, paused }),
+    body: JSON.stringify(body),
   });
   if (res.status === 401 || res.status === 403) {
     return { ok: false, error: "Token expired", code: "auth" };

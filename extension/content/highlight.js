@@ -428,4 +428,20 @@
   // there) plus a short delay for SPAs that hydrate into the DOM.
   void restoreHighlights();
   setTimeout(() => void restoreHighlights(), 1500);
+
+  // ---------------------- DOM grab (extension save) ----------------------
+  // The service worker calls us when the user saves the current tab. We
+  // hand over the rendered outerHTML so the backend can extract content
+  // from login-walled pages it couldn't fetch anonymously.
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg?.type === "grabPageHtml") {
+      try {
+        sendResponse({ ok: true, html: document.documentElement.outerHTML });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err?.message || err) });
+      }
+      return true; // async response — keep the message channel open
+    }
+    return false;
+  });
 })();
