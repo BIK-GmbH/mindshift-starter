@@ -95,13 +95,22 @@
     "empty": "Noch keine Abonnements — füge oben eine RSS- oder Atom-URL ein.",
     "ingested": "Beiträge",
     "neverSynced": "noch nicht synchronisiert",
-    "refresh": "Jetzt aktualisieren",
+    "refresh": "Aktualisieren",
+    "refreshAll": "Alle aktualisieren",
+    "subscriptions": "Abonnements",
     "pause": "Pollen pausieren",
     "resume": "Pollen fortsetzen",
     "active": "Aktiv",
     "paused": "Pausiert",
     "editTitle": "Klicken zum Umbenennen",
-    "confirmDelete": "Dieses Abonnement entfernen?"
+    "confirmDelete": "Dieses Abonnement entfernen?",
+    "toast": {
+      "allDoneWithItems": "{{feeds}} Feeds aktualisiert — {{queued}} neu, {{skipped}} bereits gespeichert.",
+      "allDoneNothingNew": "{{feeds}} Feeds aktualisiert — keine neuen Beiträge.",
+      "oneDoneWithItems": "{{queued}} neu, {{skipped}} bereits gespeichert.",
+      "oneDoneNothingNew": "Keine neuen Beiträge in diesem Feed.",
+      "someFailed": "{{count}} Feed(s) fehlgeschlagen — siehe Fehler in der Zeile."
+    }
   },
   "ingest": {
     "queued": "In der Warteschlange…",

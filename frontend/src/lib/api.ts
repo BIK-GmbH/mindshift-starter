@@ -804,6 +804,12 @@ export const api = {
   deleteFeed: (id: string) => request<void>(`/api/feeds/${id}`, { method: "DELETE" }),
   refreshFeed: (id: string) =>
     request<FeedRefreshResult>(`/api/feeds/${id}/refresh`, { method: "POST" }),
+  refreshAllFeeds: () =>
+    request<FeedRefreshAllResult>(
+      "/api/feeds/refresh-all",
+      { method: "POST" },
+      { timeoutMs: 90_000 },
+    ),
 
   // --- Social posts (per-card LinkedIn / X / Bluesky drafts) ---
   listSocialPosts: (cardId: string) =>
@@ -960,6 +966,13 @@ export interface FeedRefreshResult {
   queued: number;
   skipped_seen: number;
   error: string | null;
+}
+
+export interface FeedRefreshAllResult {
+  feeds_polled: number;
+  queued: number;
+  skipped_seen: number;
+  per_feed_errors: Record<string, string>;
 }
 
 export interface PathCardItem {

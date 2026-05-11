@@ -5,6 +5,11 @@ import { useTranslation } from "react-i18next";
 import PageHeader from "../components/PageHeader";
 import { api, type FeedOut } from "../lib/api";
 
+interface ToastState {
+  kind: "ok" | "err";
+  text: string;
+}
+
 /**
  * Feeds page — lists every RSS/Atom subscription, lets the user add new
  * ones, refresh on demand, rename, toggle active, or remove. Newly added
@@ -19,6 +24,16 @@ export default function FeedsPage() {
 
   const [newUrl, setNewUrl] = useState("");
   const [adding, setAdding] = useState(false);
+  const [refreshingAll, setRefreshingAll] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
+
+  // Auto-dismiss the toast after 5 s so a stale "3 new items" banner
+  // from a refresh five minutes ago doesn't sit on the page forever.
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   const fetchFeeds = useCallback(async () => {
     try {
@@ -52,6 +67,49 @@ export default function FeedsPage() {
     }
   };
 
+  const refreshAll = async () => {
+    setRefreshingAll(true);
+    setError(null);
+    try {
+      const result = await api.refreshAllFeeds();
+      // Re-list so the per-row "last sync" + counts update.
+      await fetchFeeds();
+      const errorCount = Object.keys(result.per_feed_errors || {}).length;
+      if (result.queued > 0) {
+        setToast({
+          kind: "ok",
+          text: t("feeds.toast.allDoneWithItems", {
+            defaultValue:
+              "Refreshed {{feeds}} feeds — {{queued}} new, {{skipped}} already saved.",
+            feeds: result.feeds_polled,
+            queued: result.queued,
+            skipped: result.skipped_seen,
+          }),
+        });
+      } else {
+        setToast({
+          kind: "ok",
+          text: t("feeds.toast.allDoneNothingNew", {
+            defaultValue: "Refreshed {{feeds}} feeds — nothing new.",
+            feeds: result.feeds_polled,
+          }),
+        });
+      }
+      if (errorCount > 0) {
+        setError(
+          t("feeds.toast.someFailed", {
+            defaultValue: "{{count}} feed(s) failed — see inline errors.",
+            count: errorCount,
+          }) ?? "",
+        );
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setRefreshingAll(false);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
       <PageHeader
@@ -66,6 +124,21 @@ export default function FeedsPage() {
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-6 pb-16 pt-6">
+          {/* Refresh-result toast (per-feed and refresh-all share it) */}
+          {toast && (
+            <div
+              className={[
+                "mb-4 rounded-md border px-3 py-2 text-xs",
+                toast.kind === "ok"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                  : "border-red-500/40 bg-red-500/10 text-red-200",
+              ].join(" ")}
+              role="status"
+            >
+              {toast.text}
+            </div>
+          )}
+
           {/* Add a new feed */}
           <section className="mb-6 rounded-xl border border-ink-800 bg-ink-800/30 p-4">
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-300">
@@ -112,19 +185,39 @@ export default function FeedsPage() {
               })}
             </p>
           ) : (
-            <ul className="space-y-2">
-              {feeds.map((feed) => (
-                <FeedRow
-                  key={feed.id}
-                  feed={feed}
-                  onChanged={(next) =>
-                    setFeeds((prev) => prev.map((f) => (f.id === next.id ? next : f)))
-                  }
-                  onDeleted={() => setFeeds((prev) => prev.filter((f) => f.id !== feed.id))}
-                  onError={setError}
-                />
-              ))}
-            </ul>
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-wider text-ink-500">
+                  {t("feeds.subscriptions", { defaultValue: "Subscriptions" })}
+                  <span className="ml-1.5 text-ink-400">({feeds.length})</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void refreshAll()}
+                  disabled={refreshingAll}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-orange-500/40 bg-orange-500/10 px-2.5 py-1 text-xs font-medium text-orange-200 transition hover:bg-orange-500/20 disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={["h-3 w-3", refreshingAll ? "animate-spin" : ""].join(" ")}
+                  />
+                  {t("feeds.refreshAll", { defaultValue: "Refresh all" })}
+                </button>
+              </div>
+              <ul className="space-y-2">
+                {feeds.map((feed) => (
+                  <FeedRow
+                    key={feed.id}
+                    feed={feed}
+                    onChanged={(next) =>
+                      setFeeds((prev) => prev.map((f) => (f.id === next.id ? next : f)))
+                    }
+                    onDeleted={() => setFeeds((prev) => prev.filter((f) => f.id !== feed.id))}
+                    onError={setError}
+                    onToast={setToast}
+                  />
+                ))}
+              </ul>
+            </>
           )}
         </div>
       </div>
@@ -137,9 +230,10 @@ interface FeedRowProps {
   onChanged: (next: FeedOut) => void;
   onDeleted: () => void;
   onError: (msg: string | null) => void;
+  onToast: (t: ToastState | null) => void;
 }
 
-function FeedRow({ feed, onChanged, onDeleted, onError }: FeedRowProps) {
+function FeedRow({ feed, onChanged, onDeleted, onError, onToast }: FeedRowProps) {
   const { t } = useTranslation();
   const [refreshing, setRefreshing] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -155,7 +249,25 @@ function FeedRow({ feed, onChanged, onDeleted, onError }: FeedRowProps) {
       const all = await api.listFeeds();
       const next = all.find((f) => f.id === feed.id);
       if (next) onChanged(next);
-      if (result.error) onError(result.error);
+      if (result.error) {
+        onError(result.error);
+      } else if (result.queued > 0) {
+        onToast({
+          kind: "ok",
+          text: t("feeds.toast.oneDoneWithItems", {
+            defaultValue: "{{queued}} new, {{skipped}} already saved.",
+            queued: result.queued,
+            skipped: result.skipped_seen,
+          }),
+        });
+      } else {
+        onToast({
+          kind: "ok",
+          text: t("feeds.toast.oneDoneNothingNew", {
+            defaultValue: "No new items in this feed.",
+          }),
+        });
+      }
     } catch (err) {
       onError((err as Error).message);
     } finally {
@@ -276,10 +388,13 @@ function FeedRow({ feed, onChanged, onDeleted, onError }: FeedRowProps) {
             type="button"
             onClick={() => void refresh()}
             disabled={refreshing}
-            title={t("feeds.refresh", { defaultValue: "Refresh now" }) ?? ""}
-            className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100 disabled:opacity-50"
+            title={t("feeds.refresh", { defaultValue: "Refresh" }) ?? ""}
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-orange-500/40 bg-orange-500/10 px-2 text-[11px] font-medium text-orange-200 transition hover:bg-orange-500/20 disabled:opacity-50"
           >
             <RefreshCw className={["h-3 w-3", refreshing ? "animate-spin" : ""].join(" ")} />
+            <span className="hidden sm:inline">
+              {t("feeds.refresh", { defaultValue: "Refresh" })}
+            </span>
           </button>
           <button
             type="button"

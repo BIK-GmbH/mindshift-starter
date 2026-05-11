@@ -26,6 +26,7 @@ from app.models.card import Card
 from app.models.feed import Feed
 from app.models.job import Job
 from app.models.source import Source
+from app.services.url_normalize import canonicalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,20 @@ def poll_feed(feed_id: UUID) -> dict:
         candidates = list(_normalise_entries(parsed.entries))
         candidates.reverse()  # oldest first
 
-        existing_urls = _existing_card_urls(db, feed.user_id, [c["url"] for c in candidates])
+        # Canonicalise every candidate URL upfront. Without this an
+        # article feed serving `?utm_source=rss` tracking params would
+        # duplicate posts the user already saved via the extension /
+        # share-target (different raw URL, same canonical). YouTube
+        # already canonicalises inside `_create_card_from_feed_entry`,
+        # but the article path was the weak spot.
+        for entry in candidates:
+            entry["canonical_url"] = canonicalize_url(entry["url"])
+
+        existing_urls = _existing_card_urls(
+            db,
+            feed.user_id,
+            [c["url"] for c in candidates] + [c["canonical_url"] for c in candidates],
+        )
         queued = 0
         # Collect the ingestion jobs we kicked off so a SINGLE background
         # worker can drain them sequentially. Spawning one thread per
@@ -111,7 +125,8 @@ def poll_feed(feed_id: UUID) -> dict:
             if queued >= MAX_NEW_PER_POLL:
                 break
             url = entry["url"]
-            if url in existing_urls:
+            canon = entry["canonical_url"]
+            if url in existing_urls or canon in existing_urls:
                 summary["skipped_seen"] += 1
                 continue
 

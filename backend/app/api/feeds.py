@@ -8,7 +8,13 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.feed import Feed
 from app.models.user import User
-from app.schemas.feed import FeedCreate, FeedOut, FeedRefreshResult, FeedUpdate
+from app.schemas.feed import (
+    FeedCreate,
+    FeedOut,
+    FeedRefreshAllResult,
+    FeedRefreshResult,
+    FeedUpdate,
+)
 from app.services.feeds import normalize_feed_url, poll_feed
 
 router = APIRouter(prefix="/feeds", tags=["feeds"])
@@ -90,6 +96,47 @@ def delete_feed(
         raise HTTPException(status_code=404, detail="Feed not found")
     db.delete(feed)
     db.commit()
+
+
+@router.post("/refresh-all", response_model=FeedRefreshAllResult)
+def refresh_all_feeds(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FeedRefreshAllResult:
+    """Poll every active feed the user owns in sequence.
+
+    Each feed already caps itself at MAX_NEW_PER_POLL items and
+    serialises YouTube fetches internally, so chaining them here is
+    safe — typical user has < 20 active feeds. Declared before the
+    {feed_id} path so FastAPI doesn't capture "refresh-all" as an id.
+    """
+    rows = db.execute(
+        select(Feed).where(
+            Feed.user_id == current_user.id,
+            Feed.is_active.is_(True),
+        )
+    ).scalars().all()
+
+    total_queued = 0
+    total_skipped = 0
+    errors: dict[str, str] = {}
+    for feed in rows:
+        try:
+            summary = poll_feed(feed.id)
+        except Exception as exc:  # noqa: BLE001
+            errors[str(feed.id)] = str(exc)
+            continue
+        total_queued += int(summary.get("queued") or 0)
+        total_skipped += int(summary.get("skipped_seen") or 0)
+        if summary.get("error"):
+            errors[str(feed.id)] = str(summary["error"])
+
+    return FeedRefreshAllResult(
+        feeds_polled=len(rows),
+        queued=total_queued,
+        skipped_seen=total_skipped,
+        per_feed_errors=errors,
+    )
 
 
 @router.post("/{feed_id}/refresh", response_model=FeedRefreshResult)

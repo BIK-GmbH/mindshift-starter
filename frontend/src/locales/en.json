@@ -95,13 +95,22 @@
     "empty": "No subscriptions yet — paste an RSS or Atom URL above to start.",
     "ingested": "items",
     "neverSynced": "never synced",
-    "refresh": "Refresh now",
+    "refresh": "Refresh",
+    "refreshAll": "Refresh all",
+    "subscriptions": "Subscriptions",
     "pause": "Pause polling",
     "resume": "Resume polling",
     "active": "Active",
     "paused": "Paused",
     "editTitle": "Click to rename",
-    "confirmDelete": "Remove this subscription?"
+    "confirmDelete": "Remove this subscription?",
+    "toast": {
+      "allDoneWithItems": "Refreshed {{feeds}} feeds — {{queued}} new, {{skipped}} already saved.",
+      "allDoneNothingNew": "Refreshed {{feeds}} feeds — nothing new.",
+      "oneDoneWithItems": "{{queued}} new, {{skipped}} already saved.",
+      "oneDoneNothingNew": "No new items in this feed.",
+      "someFailed": "{{count}} feed(s) failed — see inline errors."
+    }
   },
   "ingest": {
     "queued": "Queued for processing…",

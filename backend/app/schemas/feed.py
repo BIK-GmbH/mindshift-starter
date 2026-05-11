@@ -36,3 +36,16 @@ class FeedRefreshResult(BaseModel):
     queued: int
     skipped_seen: int
     error: str | None = None
+
+
+class FeedRefreshAllResult(BaseModel):
+    """Aggregate summary across every active feed the user owns.
+
+    `per_feed_errors` collects feed_id → error string for any
+    individual poll that failed, so the UI can flag them inline.
+    """
+
+    feeds_polled: int
+    queued: int
+    skipped_seen: int
+    per_feed_errors: dict[str, str] = {}
