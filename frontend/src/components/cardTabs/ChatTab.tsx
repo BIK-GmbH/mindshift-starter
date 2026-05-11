@@ -51,7 +51,9 @@ export default function ChatTab({ card, showSourceMedia = false, fitParent = fal
       )}
       <div className="min-h-0 flex-1 overflow-hidden">
         <ChatPanel
-          send={(history) => api.chatCard(card.id, history)}
+          send={(history, options) =>
+            api.chatCard(card.id, history, undefined, options?.useWebSearch)
+          }
           placeholder={t("chat.placeholderCard") ?? ""}
           emptyHint={t("chat.cardEmpty") ?? ""}
         />

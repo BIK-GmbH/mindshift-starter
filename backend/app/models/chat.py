@@ -50,5 +50,9 @@ class ChatMessage(Base, TimestampMixin):
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # "user" | "assistant"
     content: Mapped[str] = mapped_column(Text, nullable=False)
     citations_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Web-search citations (Brave). Persisted so chat history shows the
+    # original web sources next to the answer instead of dropping them
+    # the moment the user refreshes.
+    web_citations_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     session = relationship("ChatSession", back_populates="messages")

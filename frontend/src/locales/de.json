@@ -558,6 +558,11 @@
     "kbSubtitle": "Stelle Fragen über alle deine Cards.",
     "kbEmpty": "Stelle eine Frage – Antworten kommen mit Quellenangaben.",
     "cardEmpty": "Stelle eine Frage zum Inhalt dieser Card.",
+    "sources": "Quellen",
+    "webSources": "Web-Quellen",
+    "webSearch": "Websuche",
+    "webSearchOnTitle": "Websuche ist AN — klick zum Ausschalten",
+    "webSearchOffTitle": "Websuche aktivieren",
     "history": {
       "heading": "Unterhaltungen",
       "newChat": "Neu",

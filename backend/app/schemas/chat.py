@@ -13,6 +13,10 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessageIn] = Field(min_length=1, max_length=40)
     top_k: int = Field(default=5, ge=1, le=20)
     session_id: UUID | None = None  # if set, persist user msg + assistant reply
+    # When true, augment the LLM context with Brave web-search snippets
+    # of the user's latest message. Falls back to KB-only silently when
+    # BRAVE_API_KEY is not configured.
+    use_web_search: bool = False
 
 
 class CitationOut(BaseModel):
@@ -24,9 +28,18 @@ class CitationOut(BaseModel):
     snippet: str
 
 
+class WebCitationOut(BaseModel):
+    index: int
+    title: str
+    url: str
+    description: str
+    age: str | None = None
+
+
 class ChatResponse(BaseModel):
     answer: str
     citations: list[CitationOut] = Field(default_factory=list)
+    web_citations: list[WebCitationOut] = Field(default_factory=list)
     session_id: UUID | None = None  # echo back so frontend can keep using it
 
 
@@ -60,6 +73,7 @@ class ChatMessageOut(BaseModel):
     role: str
     content: str
     citations_json: list | None = None
+    web_citations_json: list | None = None
     created_at: datetime
 
 

@@ -18,6 +18,7 @@ from app.schemas.chat import (
     ChatSessionOut,
     ChatSessionUpdate,
     CitationOut,
+    WebCitationOut,
 )
 from app.services.chat import ChatMessage, chat_with_card, chat_with_kb
 
@@ -88,6 +89,7 @@ def _persist_messages(
     user_msg: str,
     assistant_msg: str,
     citations: list | None,
+    web_citations: list | None = None,
 ) -> None:
     db.add(ChatMessageModel(session_id=session.id, role="user", content=user_msg))
     db.add(
@@ -96,11 +98,25 @@ def _persist_messages(
             role="assistant",
             content=assistant_msg,
             citations_json=citations,
+            web_citations_json=web_citations,
         )
     )
     # Bump updated_at
     session.updated_at = func.now()
     db.commit()
+
+
+def _web_citations_payload(result) -> list[dict]:
+    return [
+        {
+            "index": w.index,
+            "title": w.title,
+            "url": w.url,
+            "description": w.description,
+            "age": w.age,
+        }
+        for w in result.web_citations
+    ]
 
 
 @router.post("/cards/{card_id}/chat", response_model=ChatResponse)
@@ -117,15 +133,38 @@ def chat_card(
     session = _ensure_session(db, current_user, payload, card_id=card_id)
 
     try:
-        result = chat_with_card(db, card, _to_history(payload))
+        result = chat_with_card(
+            db, card, _to_history(payload), use_web_search=payload.use_web_search
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    _persist_messages(db, session, payload.messages[-1].content, result.answer, None)
+    web_payload = _web_citations_payload(result)
+    _persist_messages(
+        db,
+        session,
+        payload.messages[-1].content,
+        result.answer,
+        None,
+        web_citations=web_payload or None,
+    )
 
-    return ChatResponse(answer=result.answer, session_id=session.id)
+    return ChatResponse(
+        answer=result.answer,
+        session_id=session.id,
+        web_citations=[
+            WebCitationOut(
+                index=w.index,
+                title=w.title,
+                url=w.url,
+                description=w.description,
+                age=w.age,
+            )
+            for w in result.web_citations
+        ],
+    )
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -137,7 +176,13 @@ def chat_kb(
     session = _ensure_session(db, current_user, payload, card_id=None)
 
     try:
-        result = chat_with_kb(db, current_user.id, _to_history(payload), top_k=payload.top_k)
+        result = chat_with_kb(
+            db,
+            current_user.id,
+            _to_history(payload),
+            top_k=payload.top_k,
+            use_web_search=payload.use_web_search,
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
@@ -154,7 +199,15 @@ def chat_kb(
         }
         for c in result.citations
     ]
-    _persist_messages(db, session, payload.messages[-1].content, result.answer, citations_payload)
+    web_payload = _web_citations_payload(result)
+    _persist_messages(
+        db,
+        session,
+        payload.messages[-1].content,
+        result.answer,
+        citations_payload or None,
+        web_citations=web_payload or None,
+    )
 
     return ChatResponse(
         answer=result.answer,
@@ -169,6 +222,16 @@ def chat_kb(
                 snippet=c.snippet,
             )
             for c in result.citations
+        ],
+        web_citations=[
+            WebCitationOut(
+                index=w.index,
+                title=w.title,
+                url=w.url,
+                description=w.description,
+                age=w.age,
+            )
+            for w in result.web_citations
         ],
     )
 

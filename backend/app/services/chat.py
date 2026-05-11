@@ -1,7 +1,9 @@
-"""Chat orchestration: per-card and KB-wide RAG."""
+"""Chat orchestration: per-card and KB-wide RAG, optionally augmented
+with Brave web search."""
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from uuid import UUID
 
@@ -11,7 +13,10 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models.card import Card
 from app.models.embedding import Embedding
+from app.services import web_search
 from app.services.embeddings import embed_query
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CHAT_MODEL = "gpt-5.4-mini"
 TOP_K_DEFAULT = 5
@@ -45,9 +50,19 @@ class Citation:
 
 
 @dataclass(slots=True)
+class WebCitation:
+    index: int
+    title: str
+    url: str
+    description: str
+    age: str | None
+
+
+@dataclass(slots=True)
 class ChatResult:
     answer: str
     citations: list[Citation] = field(default_factory=list)
+    web_citations: list[WebCitation] = field(default_factory=list)
 
 
 def _client():
@@ -68,8 +83,20 @@ def _to_openai_messages(history: list[ChatMessage], system_prompt: str) -> list[
     return messages
 
 
-def chat_with_card(db: Session, card: Card, history: list[ChatMessage]) -> ChatResult:
-    """Answer the user's last message using one card as context."""
+def chat_with_card(
+    db: Session,
+    card: Card,
+    history: list[ChatMessage],
+    *,
+    use_web_search: bool = False,
+) -> ChatResult:
+    """Answer the user's last message using one card as context.
+
+    With `use_web_search=True`, Brave web-search results for the user's
+    latest message are added as a second context block. Web citations
+    use a [W#1], [W#2] sequence so the LLM can cite them inline
+    distinguishably from card citations.
+    """
     if not history:
         raise ValueError("History cannot be empty")
     last_user = next((m for m in reversed(history) if m.role == "user"), None)
@@ -79,7 +106,22 @@ def chat_with_card(db: Session, card: Card, history: list[ChatMessage]) -> ChatR
     chunks = _retrieve_card_chunks(db, card, last_user.content)
     context_block = _format_card_context(card, chunks)
 
-    system_prompt = f"{CARD_SYSTEM_PROMPT}\n\n--- SOURCE ---\n{context_block}\n--- END ---"
+    web_citations: list[WebCitation] = []
+    web_block = ""
+    if use_web_search:
+        web_citations = _web_lookup(last_user.content)
+        web_block = _format_web_context(web_citations)
+
+    system_prompt = (
+        f"{CARD_SYSTEM_PROMPT}\n\n--- SOURCE ---\n{context_block}\n--- END ---"
+    )
+    if web_block:
+        system_prompt += (
+            "\n\n--- WEB RESULTS ---\n"
+            + web_block
+            + "\n--- END ---\n"
+            + "Cite web results inline as [W#1], [W#2], etc. when you draw on them."
+        )
 
     client, settings = _client()
     response = client.chat.completions.create(
@@ -87,7 +129,7 @@ def chat_with_card(db: Session, card: Card, history: list[ChatMessage]) -> ChatR
         messages=_to_openai_messages(history, system_prompt),
     )
     answer = (response.choices[0].message.content or "").strip()
-    return ChatResult(answer=answer)
+    return ChatResult(answer=answer, web_citations=web_citations)
 
 
 def chat_with_kb(
@@ -95,8 +137,16 @@ def chat_with_kb(
     user_id: UUID,
     history: list[ChatMessage],
     top_k: int = TOP_K_DEFAULT,
+    *,
+    use_web_search: bool = False,
 ) -> ChatResult:
-    """Answer the user's last message using RAG over their knowledge base."""
+    """Answer the user's last message using RAG over their knowledge base.
+
+    With `use_web_search=True`, Brave web-search results are added alongside
+    the KB snippets. If neither source returns anything useful, the LLM is
+    still invoked with web results so the user gets a fresh-web answer
+    instead of the legacy "no snippets" fallback.
+    """
     if not history:
         raise ValueError("History cannot be empty")
     last_user = next((m for m in reversed(history) if m.role == "user"), None)
@@ -104,20 +154,36 @@ def chat_with_kb(
         raise ValueError("History contains no user message")
 
     citations = _retrieve_kb_citations(db, user_id, last_user.content, top_k)
+    web_citations: list[WebCitation] = []
+    if use_web_search:
+        web_citations = _web_lookup(last_user.content)
 
-    if not citations:
+    if not citations and not web_citations:
         return ChatResult(
             answer=(
                 "Ich finde dazu keine passenden Stellen in deiner Knowledge Base. "
                 "Füge mehr Inhalte hinzu oder formuliere die Frage anders."
             ),
             citations=[],
+            web_citations=[],
         )
 
-    context_block = "\n\n".join(
-        f"[#{c.index}] ({c.title} — {c.source_type}):\n{c.snippet}" for c in citations
-    )
-    system_prompt = f"{KB_SYSTEM_PROMPT}\n\n--- SNIPPETS ---\n{context_block}\n--- END ---"
+    parts: list[str] = []
+    if citations:
+        kb_block = "\n\n".join(
+            f"[#{c.index}] ({c.title} — {c.source_type}):\n{c.snippet}" for c in citations
+        )
+        parts.append("--- SNIPPETS ---\n" + kb_block + "\n--- END ---")
+    if web_citations:
+        web_block = _format_web_context(web_citations)
+        parts.append(
+            "--- WEB RESULTS ---\n"
+            + web_block
+            + "\n--- END ---\n"
+            + "Cite web results inline as [W#1], [W#2], etc. when you draw on them."
+        )
+
+    system_prompt = KB_SYSTEM_PROMPT + "\n\n" + "\n\n".join(parts)
 
     client, settings = _client()
     response = client.chat.completions.create(
@@ -125,7 +191,45 @@ def chat_with_kb(
         messages=_to_openai_messages(history, system_prompt),
     )
     answer = (response.choices[0].message.content or "").strip()
-    return ChatResult(answer=answer, citations=citations)
+    return ChatResult(
+        answer=answer,
+        citations=citations,
+        web_citations=web_citations,
+    )
+
+
+# --- Web search helpers -----------------------------------------------------
+
+
+def _web_lookup(query: str) -> list[WebCitation]:
+    """Fetch top web results for `query` and number them W#1, W#2, …
+    Returns an empty list (instead of raising) on transient errors so
+    chat keeps working even when Brave is down. A missing BRAVE_API_KEY
+    is logged once and returns []."""
+    try:
+        results = web_search.search(query)
+    except web_search.NoApiKey:
+        logger.info("web_search requested but BRAVE_API_KEY not configured — skipping")
+        return []
+    return [
+        WebCitation(
+            index=i + 1,
+            title=r.title,
+            url=r.url,
+            description=r.description,
+            age=r.age,
+        )
+        for i, r in enumerate(results)
+    ]
+
+
+def _format_web_context(web_citations: list[WebCitation]) -> str:
+    """Render web citations as a numbered block for the system prompt."""
+    return "\n\n".join(
+        f"[W#{c.index}] {c.title}\n  URL: {c.url}\n  {c.description}"
+        + (f"\n  Age: {c.age}" if c.age else "")
+        for c in web_citations
+    )
 
 
 # --- Retrieval --------------------------------------------------------------

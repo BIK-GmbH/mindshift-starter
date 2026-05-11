@@ -558,6 +558,11 @@
     "kbSubtitle": "Ask questions across all your cards.",
     "kbEmpty": "Ask a question — answers come with citations.",
     "cardEmpty": "Ask a question about this card's content.",
+    "sources": "Sources",
+    "webSources": "Web sources",
+    "webSearch": "Web search",
+    "webSearchOnTitle": "Web search is ON — click to turn off",
+    "webSearchOffTitle": "Turn web search ON",
     "history": {
       "heading": "Conversations",
       "newChat": "New",

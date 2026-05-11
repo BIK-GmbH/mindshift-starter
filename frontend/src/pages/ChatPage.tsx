@@ -90,8 +90,8 @@ export default function ChatPage() {
 
   // Build send fn that always passes the current session id (existing OR draft).
   const sendKb = useCallback(
-    (history: Parameters<typeof api.chatKb>[0]) =>
-      api.chatKb(history, 5, activeId ?? draftSessionId ?? undefined),
+    (history: Parameters<typeof api.chatKb>[0], options?: { useWebSearch?: boolean }) =>
+      api.chatKb(history, 5, activeId ?? draftSessionId ?? undefined, options?.useWebSearch),
     [activeId, draftSessionId],
   );
 

@@ -37,6 +37,12 @@ class Settings(BaseSettings):
         default="gemini-3.1-flash-tts-preview", alias="GEMINI_TTS_MODEL"
     )
 
+    # Brave Search — optional. When set, the Chat panel's "Web search"
+    # toggle is functional; without it, requests with use_web_search=True
+    # silently fall back to KB-only mode so a missing key doesn't break
+    # the chat for users.
+    brave_api_key: str = Field(default="", alias="BRAVE_API_KEY")
+
     # YouTube transcript proxy (optional). Two mutually exclusive shapes:
     #   - Webshare residential pool: set both username + password. The
     #     youtube-transcript-api lib wires up its own rotating residential

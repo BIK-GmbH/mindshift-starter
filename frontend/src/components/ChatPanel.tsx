@@ -1,15 +1,27 @@
-import { Bot, Lightbulb, Loader2, Send, User } from "lucide-react";
+import { Bot, ExternalLink, Globe, Lightbulb, Loader2, Send, User } from "lucide-react";
 import { marked } from "marked";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import VoiceRecordButton from "./VoiceRecordButton";
-import type { ChatMessage, ChatResponse, Citation, PersistedChatMessage } from "../lib/api";
+import type {
+  ChatMessage,
+  ChatResponse,
+  Citation,
+  PersistedChatMessage,
+  WebCitation,
+} from "../lib/api";
 import { insertAtCaret } from "../lib/insertAtCaret";
 
 interface Props {
-  send: (history: ChatMessage[]) => Promise<ChatResponse>;
+  /** Callback to send a message history to the backend. The `options`
+   *  argument carries client-side toggles (e.g. web-search) that don't
+   *  belong in the history but do belong in the request body. */
+  send: (
+    history: ChatMessage[],
+    options?: { useWebSearch?: boolean },
+  ) => Promise<ChatResponse>;
   placeholder?: string;
   emptyHint?: string;
   suggestions?: string[];
@@ -23,7 +35,10 @@ interface Props {
 interface UiMessage extends ChatMessage {
   id: string;
   citations?: Citation[];
+  webCitations?: WebCitation[];
 }
+
+const WEB_SEARCH_STORAGE_KEY = "mindshift.chat.useWebSearch";
 
 function persistedToUi(msgs: PersistedChatMessage[]): UiMessage[] {
   return msgs.map((m) => ({
@@ -31,6 +46,7 @@ function persistedToUi(msgs: PersistedChatMessage[]): UiMessage[] {
     role: m.role,
     content: m.content,
     citations: m.citations_json ?? undefined,
+    webCitations: m.web_citations_json ?? undefined,
   }));
 }
 
@@ -50,8 +66,31 @@ export default function ChatPanel({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Web-search toggle — sticky across page reloads so the user doesn't
+  // re-enable it for every conversation. Per-tab (localStorage), not
+  // per-session — that matches the "I want web by default for a while"
+  // mental model.
+  const [useWebSearch, setUseWebSearch] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(WEB_SEARCH_STORAGE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const toggleWebSearch = useCallback(() => {
+    setUseWebSearch((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(WEB_SEARCH_STORAGE_KEY, next ? "1" : "0");
+      } catch {
+        /* private-mode / disabled storage — toggle still works in-memory */
+      }
+      return next;
+    });
+  }, []);
 
   const onVoice = useCallback(
     (text: string) => {
@@ -93,7 +132,10 @@ export default function ChatPanel({
     setError(null);
 
     try {
-      const response = await send(nextHistory.map(({ role, content }) => ({ role, content })));
+      const response = await send(
+        nextHistory.map(({ role, content }) => ({ role, content })),
+        { useWebSearch },
+      );
       setMessages((prev) => [
         ...prev,
         {
@@ -101,6 +143,7 @@ export default function ChatPanel({
           role: "assistant",
           content: response.answer,
           citations: response.citations,
+          webCitations: response.web_citations,
         },
       ]);
       if (response.session_id && onSessionId) onSessionId(response.session_id);
@@ -169,6 +212,25 @@ export default function ChatPanel({
           className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
           style={{ minHeight: "1.75rem", maxHeight: "10rem" }}
         />
+        <button
+          type="button"
+          onClick={toggleWebSearch}
+          title={
+            useWebSearch
+              ? t("chat.webSearchOnTitle", { defaultValue: "Web search is ON — click to turn off" }) ?? ""
+              : t("chat.webSearchOffTitle", { defaultValue: "Turn web search ON" }) ?? ""
+          }
+          aria-pressed={useWebSearch}
+          aria-label={t("chat.webSearch", { defaultValue: "Web search" }) ?? "Web search"}
+          className={[
+            "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md transition-colors",
+            useWebSearch
+              ? "bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/40"
+              : "text-ink-400 hover:bg-ink-800 hover:text-ink-100",
+          ].join(" ")}
+        >
+          <Globe className="h-4 w-4" />
+        </button>
         <VoiceRecordButton onTranscribed={onVoice} showStatusLine={true} />
         <button
           type="submit"
@@ -222,6 +284,7 @@ function MessageBubble({
         <AssistantMessage
           content={message.content}
           citations={message.citations ?? []}
+          webCitations={message.webCitations ?? []}
           onOpen={onOpenCard}
         />
       </div>
@@ -240,10 +303,12 @@ function escapeHtml(s: string): string {
 function AssistantMessage({
   content,
   citations,
+  webCitations,
   onOpen,
 }: {
   content: string;
   citations: Citation[];
+  webCitations: WebCitation[];
   onOpen: (cardId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -254,19 +319,32 @@ function AssistantMessage({
   // inline HTML through unchanged, so the pill ends up correctly placed
   // inside whatever paragraph / list-item / blockquote it lived in.
   // Click delegation on the wrapper turns the pill into a button.
+  // [W#n] tokens are rendered the same way but link out to the web URL.
   const html = useMemo(() => {
     const byIndex = new Map(citations.map((c) => [c.index, c]));
-    const withPills = content.replace(/\[#(\d+)\]/g, (match, n) => {
+    const byWebIndex = new Map(webCitations.map((w) => [w.index, w]));
+    // Order matters: [W#n] is a superset of [#n] visually, so handle
+    // the W-form first to avoid the bare [#n] regex from gobbling its
+    // digits prematurely.
+    let withPills = content.replace(/\[W#(\d+)\]/g, (match, n) => {
+      const w = byWebIndex.get(Number(n));
+      if (!w) return match;
+      return ` <a class="chat-cite chat-cite-web" data-cite-web="${escapeHtml(w.url)}" href="${escapeHtml(w.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(w.title)}">[W#${n}]</a>`;
+    });
+    withPills = withPills.replace(/\[#(\d+)\]/g, (match, n) => {
       const c = byIndex.get(Number(n));
       if (!c) return match;
       return ` <a class="chat-cite" data-cite-id="${c.card_id}" data-cite-n="${n}" href="#" title="${escapeHtml(c.title)}">[#${n}]</a>`;
     });
     return marked.parse(withPills, { async: false }) as string;
-  }, [content, citations]);
+  }, [content, citations, webCitations]);
 
   const onWrapperClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>("[data-cite-id]");
     if (!target) return;
+    // Web pills are real anchors with target=_blank — let the browser
+    // handle them. Only intercept card pills (data-cite-id without
+    // an http URL).
     e.preventDefault();
     const cardId = target.getAttribute("data-cite-id");
     if (cardId) onOpen(cardId);
@@ -298,6 +376,37 @@ function AssistantMessage({
                   <span className="truncate font-medium">{c.title}</span>
                   <span className="text-[10px] text-ink-500">({c.source_type})</span>
                 </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {webCitations.length > 0 && (
+        <div className="border-t border-ink-700/60 pt-2">
+          <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+            <Globe className="h-3 w-3" />
+            {t("chat.webSources", { defaultValue: "Web sources" })}
+          </p>
+          <ul className="space-y-1">
+            {webCitations.map((w) => (
+              <li key={w.index}>
+                <a
+                  href={w.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex w-full items-start gap-2 rounded-md px-1.5 py-1 text-xs text-ink-300 transition hover:bg-ink-700/40 hover:text-ink-100"
+                >
+                  <span className="mt-0.5 flex-shrink-0 rounded bg-sky-500/20 px-1 text-[10px] font-semibold text-sky-200">
+                    W#{w.index}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block truncate font-medium">{w.title}</span>
+                    <span className="block truncate text-[10px] text-ink-500" title={w.url}>
+                      {w.url}
+                    </span>
+                  </span>
+                  <ExternalLink className="mt-0.5 h-3 w-3 flex-shrink-0 text-ink-500 group-hover:text-ink-300" />
+                </a>
               </li>
             ))}
           </ul>
