@@ -799,6 +799,30 @@ export const api = {
       method: "DELETE",
     }),
 
+  // --- MCP servers ---
+  listMCPServers: () => request<MCPServerOut[]>("/api/mcp/servers"),
+  createMCPServer: (body: MCPServerCreate) =>
+    request<MCPServerOut>("/api/mcp/servers", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateMCPServer: (id: string, body: MCPServerUpdate) =>
+    request<MCPServerOut>(`/api/mcp/servers/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteMCPServer: (id: string) =>
+    request<void>(`/api/mcp/servers/${id}`, { method: "DELETE" }),
+  testMCPServer: (id: string) =>
+    request<MCPTestResult>(`/api/mcp/servers/${id}/test`, { method: "POST" }, {
+      timeoutMs: 60_000,
+    }),
+  callMCPTool: (body: { server_id: string; tool_name: string; arguments: Record<string, unknown> }) =>
+    request<MCPCallToolResponse>("/api/mcp/call", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }, { timeoutMs: 120_000 }),
+
   // --- Admin user management ---
   listAdminUsers: () => request<AdminUserRow[]>("/api/admin/users"),
   createAdminUser: (body: AdminUserCreate) =>
@@ -1121,6 +1145,68 @@ export interface UserOut {
   avatar_file_id: string | null;
   public_profile: boolean;
   is_admin: boolean;
+}
+
+export type MCPTransport = "http" | "sse";
+export type MCPAuthType = "none" | "bearer" | "header";
+
+export interface MCPToolOut {
+  id: string;
+  server_id: string;
+  name: string;
+  description: string | null;
+  input_schema: Record<string, unknown> | null;
+  last_seen_at: string;
+}
+
+export interface MCPServerOut {
+  id: string;
+  name: string;
+  transport: MCPTransport;
+  url: string;
+  auth_type: MCPAuthType;
+  has_auth_secret: boolean;
+  auth_header_name: string | null;
+  is_active: boolean;
+  last_connected_at: string | null;
+  last_error: string | null;
+  tools: MCPToolOut[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MCPServerCreate {
+  name: string;
+  url: string;
+  transport?: MCPTransport;
+  auth_type?: MCPAuthType;
+  auth_secret?: string | null;
+  auth_header_name?: string | null;
+  is_active?: boolean;
+}
+
+export interface MCPServerUpdate {
+  name?: string;
+  url?: string;
+  transport?: MCPTransport;
+  auth_type?: MCPAuthType;
+  /** "" clears, null/undefined leaves untouched. */
+  auth_secret?: string | null;
+  auth_header_name?: string | null;
+  is_active?: boolean;
+}
+
+export interface MCPTestResult {
+  ok: boolean;
+  tool_count: number;
+  tools: MCPToolOut[];
+  error: string | null;
+}
+
+export interface MCPCallToolResponse {
+  ok: boolean;
+  result: Record<string, unknown> | null;
+  error: string | null;
 }
 
 export type SocialPostPlatform = "linkedin" | "x" | "bluesky";

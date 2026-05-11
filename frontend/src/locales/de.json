@@ -321,6 +321,7 @@
       "appearance": "Erscheinungsbild",
       "tags": "Tags",
       "extension": "API & Extension",
+      "mcp": "MCP Server",
       "about": "Über"
     },
     "extension": {

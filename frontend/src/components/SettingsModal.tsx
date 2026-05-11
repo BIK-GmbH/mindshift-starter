@@ -16,6 +16,7 @@ import {
   Monitor,
   Moon,
   Pencil,
+  Plug,
   Plus,
   Puzzle,
   RefreshCw,
@@ -33,16 +34,29 @@ import { useAuth } from "../lib/AuthContext";
 import { useDialog } from "../lib/DialogContext";
 import { useSettingsModal } from "../lib/SettingsModalContext";
 import { useTheme } from "../lib/ThemeContext";
-import { api, type TagWithCount } from "../lib/api";
+import {
+  api,
+  type MCPServerCreate,
+  type MCPServerOut,
+  type MCPServerUpdate,
+  type TagWithCount,
+} from "../lib/api";
 import { getSoundsEnabled, playSound, setSoundsEnabled } from "../lib/sounds";
 
-type SettingsTab = "account" | "appearance" | "tags" | "extension" | "about";
+type SettingsTab =
+  | "account"
+  | "appearance"
+  | "tags"
+  | "extension"
+  | "mcp"
+  | "about";
 
 const tabs: { id: SettingsTab; labelKey: string; Icon: typeof UserRound }[] = [
   { id: "account", labelKey: "settings.tab.account", Icon: UserRound },
   { id: "appearance", labelKey: "settings.tab.appearance", Icon: SlidersHorizontal },
   { id: "tags", labelKey: "settings.tab.tags", Icon: Hash },
   { id: "extension", labelKey: "settings.tab.extension", Icon: Puzzle },
+  { id: "mcp", labelKey: "settings.tab.mcp", Icon: Plug },
   { id: "about", labelKey: "settings.tab.about", Icon: HelpCircle },
 ];
 
@@ -131,6 +145,7 @@ export default function SettingsModal() {
             {active === "appearance" && <AppearanceTab />}
             {active === "tags" && <TagsTab />}
             {active === "extension" && <ExtensionTab />}
+            {active === "mcp" && <MCPServersTab />}
             {active === "about" && <AboutTab />}
           </div>
         </div>
@@ -1117,5 +1132,447 @@ function AboutTab() {
         BIK-GmbH/mindshift-starter
       </a>
     </section>
+  );
+}
+
+/* ----------------------------------------------------------------------
+ * MCP servers — generic third-party tool integrations.
+ * -------------------------------------------------------------------- */
+function MCPServersTab() {
+  const { t } = useTranslation();
+  const { confirm } = useDialog();
+  const [servers, setServers] = useState<MCPServerOut[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const list = await api.listMCPServers();
+      setServers(list);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const onTest = async (id: string) => {
+    setTestingId(id);
+    setError(null);
+    try {
+      const r = await api.testMCPServer(id);
+      if (!r.ok) setError(r.error ?? "Connection failed");
+      await refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const onDelete = async (server: MCPServerOut) => {
+    const ok = await confirm({
+      title: t("settings.mcp.confirmDeleteTitle", { defaultValue: "Remove this MCP server?" }),
+      body:
+        t("settings.mcp.confirmDeleteBody", {
+          name: server.name,
+          defaultValue:
+            'Mindshift will stop calling tools on "{{name}}" and the cached tool list will be removed. Re-add it later to reconnect.',
+        }) ?? "",
+      confirmLabel: t("common.delete"),
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.deleteMCPServer(server.id);
+      setServers((prev) => prev.filter((s) => s.id !== server.id));
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  return (
+    <section className="space-y-4">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-ink-100">
+            {t("settings.mcp.heading", { defaultValue: "MCP Servers" })}
+          </h3>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-400">
+            {t("settings.mcp.body", {
+              defaultValue:
+                "Plug third-party Model Context Protocol servers into Mindshift. Their tools become available to features like the Posts tab's „Publish via …\" — for example a LinkedIn / X publishing MCP. Auth tokens are encrypted at rest.",
+            })}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setCreating(true);
+            setEditingId(null);
+          }}
+          className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-ink-200"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t("settings.mcp.addServer", { defaultValue: "Add server" })}
+        </button>
+      </header>
+
+      {error && (
+        <p className="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>
+      )}
+
+      {creating && (
+        <MCPServerForm
+          mode="create"
+          onSubmit={async (body) => {
+            try {
+              const created = await api.createMCPServer(body as MCPServerCreate);
+              setServers((prev) => [created, ...prev]);
+              setCreating(false);
+            } catch (err) {
+              setError((err as Error).message);
+            }
+          }}
+          onCancel={() => setCreating(false)}
+        />
+      )}
+
+      {loading ? (
+        <p className="flex items-center gap-2 text-xs text-ink-400">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          {t("common.loading")}
+        </p>
+      ) : servers.length === 0 && !creating ? (
+        <p className="rounded-lg border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-400">
+          {t("settings.mcp.empty", {
+            defaultValue: "No MCP servers yet. Click „Add server\" to register one.",
+          })}
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {servers.map((s) => (
+            <li key={s.id}>
+              {editingId === s.id ? (
+                <MCPServerForm
+                  mode="edit"
+                  initial={s}
+                  onSubmit={async (body) => {
+                    try {
+                      const updated = await api.updateMCPServer(s.id, body);
+                      setServers((prev) =>
+                        prev.map((row) => (row.id === s.id ? updated : row)),
+                      );
+                      setEditingId(null);
+                    } catch (err) {
+                      setError((err as Error).message);
+                    }
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <MCPServerRow
+                  server={s}
+                  testing={testingId === s.id}
+                  onTest={() => void onTest(s.id)}
+                  onEdit={() => {
+                    setEditingId(s.id);
+                    setCreating(false);
+                  }}
+                  onDelete={() => void onDelete(s)}
+                />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function MCPServerRow({
+  server,
+  testing,
+  onTest,
+  onEdit,
+  onDelete,
+}: {
+  server: MCPServerOut;
+  testing: boolean;
+  onTest: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="rounded-lg border border-ink-700 bg-ink-800/40 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <Plug className="h-3.5 w-3.5 text-violet-300" />
+            <p className="truncate text-sm font-semibold text-ink-100">{server.name}</p>
+            {!server.is_active && (
+              <span className="rounded-full bg-ink-700 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-ink-400">
+                {t("settings.mcp.paused", { defaultValue: "paused" })}
+              </span>
+            )}
+            <span className="rounded-full bg-ink-700/60 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-ink-300">
+              {server.transport}
+            </span>
+            {server.has_auth_secret && (
+              <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-500/30">
+                {t("settings.mcp.authed", { defaultValue: "authed" })}
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 truncate font-mono text-[10px] text-ink-500">{server.url}</p>
+          {server.last_error ? (
+            <p className="mt-1 truncate text-[11px] text-red-300" title={server.last_error}>
+              {server.last_error}
+            </p>
+          ) : server.last_connected_at ? (
+            <p className="mt-1 text-[11px] text-ink-500">
+              {t("settings.mcp.lastConnected", {
+                defaultValue: "Last connected: {{when}}",
+                when: new Date(server.last_connected_at).toLocaleString(),
+              })}
+            </p>
+          ) : null}
+          {server.tools.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {server.tools.map((tool) => (
+                <span
+                  key={tool.id}
+                  title={tool.description ?? ""}
+                  className="inline-flex items-center rounded-md bg-ink-700/60 px-1.5 py-0.5 font-mono text-[10px] text-ink-200"
+                >
+                  {tool.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onTest}
+            disabled={testing}
+            className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-2 py-1 text-[11px] text-ink-200 transition hover:bg-ink-800 disabled:opacity-50"
+            title={t("settings.mcp.test", { defaultValue: "Test connection" }) ?? ""}
+          >
+            {testing ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3" />
+            )}
+            {testing
+              ? t("settings.mcp.testing", { defaultValue: "Testing…" })
+              : t("settings.mcp.test", { defaultValue: "Test" })}
+          </button>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800"
+            title={t("common.edit", { defaultValue: "Edit" }) ?? "Edit"}
+            aria-label={t("common.edit", { defaultValue: "Edit" }) ?? "Edit"}
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
+            title={t("common.delete") ?? ""}
+            aria-label={t("common.delete") ?? "Delete"}
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MCPServerForm({
+  mode,
+  initial,
+  onSubmit,
+  onCancel,
+}: {
+  mode: "create" | "edit";
+  initial?: MCPServerOut;
+  onSubmit: (body: MCPServerCreate | MCPServerUpdate) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({
+    name: initial?.name ?? "",
+    url: initial?.url ?? "",
+    transport: (initial?.transport ?? "http") as "http" | "sse",
+    auth_type: (initial?.auth_type ?? "none") as "none" | "bearer" | "header",
+    auth_secret: "",
+    auth_header_name: initial?.auth_header_name ?? "",
+    is_active: initial?.is_active ?? true,
+  });
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const body: MCPServerCreate | MCPServerUpdate = {
+        name: form.name.trim(),
+        url: form.url.trim(),
+        transport: form.transport,
+        auth_type: form.auth_type,
+        auth_header_name:
+          form.auth_type === "header" ? form.auth_header_name.trim() || null : null,
+        is_active: form.is_active,
+      };
+      // Only send auth_secret when the user typed something — empty string
+      // means "clear the secret", undefined means "leave unchanged".
+      if (form.auth_type === "none") {
+        body.auth_secret = "";
+      } else if (form.auth_secret) {
+        body.auth_secret = form.auth_secret;
+      }
+      await onSubmit(body);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-ink-700 bg-ink-800/40 p-4">
+      <h4 className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-ink-200">
+        <Plug className="h-3 w-3" />
+        {mode === "create"
+          ? t("settings.mcp.formCreate", { defaultValue: "Add MCP server" })
+          : t("settings.mcp.formEdit", { defaultValue: "Edit MCP server" })}
+      </h4>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <FieldLabel label={t("settings.mcp.name", { defaultValue: "Name" })}>
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="Triple"
+            className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 text-sm text-ink-100 focus:border-ink-500 focus:outline-none"
+          />
+        </FieldLabel>
+        <FieldLabel label={t("settings.mcp.transport", { defaultValue: "Transport" })}>
+          <select
+            value={form.transport}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, transport: e.target.value as "http" | "sse" }))
+            }
+            className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 text-sm text-ink-100 focus:border-ink-500 focus:outline-none"
+          >
+            <option value="http">HTTP (Streamable)</option>
+            <option value="sse">SSE</option>
+          </select>
+        </FieldLabel>
+        <div className="sm:col-span-2">
+          <FieldLabel label={t("settings.mcp.url", { defaultValue: "Server URL" })}>
+            <input
+              type="url"
+              value={form.url}
+              onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+              placeholder="https://mcp.example.com/v1"
+              className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 text-sm text-ink-100 font-mono focus:border-ink-500 focus:outline-none"
+            />
+          </FieldLabel>
+        </div>
+        <FieldLabel label={t("settings.mcp.authType", { defaultValue: "Auth" })}>
+          <select
+            value={form.auth_type}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                auth_type: e.target.value as "none" | "bearer" | "header",
+              }))
+            }
+            className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 text-sm text-ink-100 focus:border-ink-500 focus:outline-none"
+          >
+            <option value="none">No auth</option>
+            <option value="bearer">Bearer token</option>
+            <option value="header">Custom header</option>
+          </select>
+        </FieldLabel>
+        {form.auth_type === "header" && (
+          <FieldLabel label={t("settings.mcp.authHeader", { defaultValue: "Header name" })}>
+            <input
+              type="text"
+              value={form.auth_header_name}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, auth_header_name: e.target.value }))
+              }
+              placeholder="X-API-Key"
+              className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 text-sm text-ink-100 font-mono focus:border-ink-500 focus:outline-none"
+            />
+          </FieldLabel>
+        )}
+        {form.auth_type !== "none" && (
+          <div className="sm:col-span-2">
+            <FieldLabel
+              label={
+                initial?.has_auth_secret
+                  ? t("settings.mcp.newSecret", {
+                      defaultValue: "New secret (leave empty to keep existing)",
+                    })
+                  : t("settings.mcp.secret", { defaultValue: "Secret" })
+              }
+            >
+              <input
+                type="password"
+                value={form.auth_secret}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, auth_secret: e.target.value }))
+                }
+                autoComplete="new-password"
+                placeholder={initial?.has_auth_secret ? "•••••••• (already set)" : ""}
+                className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 text-sm text-ink-100 font-mono focus:border-ink-500 focus:outline-none"
+              />
+            </FieldLabel>
+          </div>
+        )}
+        <div className="sm:col-span-2">
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-ink-300">
+            <input
+              type="checkbox"
+              checked={form.is_active}
+              onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
+              className="h-3.5 w-3.5"
+            />
+            {t("settings.mcp.active", { defaultValue: "Active — tools are usable" })}
+          </label>
+        </div>
+      </div>
+      <div className="mt-3 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition hover:bg-ink-800"
+        >
+          {t("common.cancel")}
+        </button>
+        <button
+          type="button"
+          onClick={() => void submit()}
+          disabled={busy || !form.name || !form.url}
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+          {mode === "create" ? t("settings.mcp.create", { defaultValue: "Add" }) : t("common.save")}
+        </button>
+      </div>
+    </div>
   );
 }

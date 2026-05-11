@@ -18,6 +18,7 @@ from app.api.public import router as public_router
 from app.api.health import router as health_router
 from app.api.imports import router as import_router
 from app.api.jobs import router as jobs_router
+from app.api.mcp import router as mcp_router
 from app.api.og import router as og_router
 from app.api.paths import public_router as paths_public_router
 from app.api.paths import router as paths_router
@@ -98,6 +99,7 @@ app.include_router(ai_router, prefix="/api")
 app.include_router(audio_router, prefix="/api")
 app.include_router(podcasts_router, prefix="/api")
 app.include_router(social_posts_router, prefix="/api")
+app.include_router(mcp_router, prefix="/api")
 app.include_router(podcasts_public_router, prefix="/api")
 app.include_router(paths_router, prefix="/api")
 app.include_router(paths_public_router, prefix="/api")

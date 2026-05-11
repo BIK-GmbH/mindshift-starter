@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     # Get a key at https://supadata.ai (100 credits/month free, no card).
     supadata_api_key: str = Field(default="", alias="SUPADATA_API_KEY")
 
+    # Symmetric Fernet key (urlsafe-base64, 32 bytes) for encrypting
+    # MCP-server auth tokens at rest. Generate with
+    # `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+    # Missing in dev falls back to a JWT_SECRET-derived key (warning logged).
+    mcp_encryption_key: str = Field(default="", alias="MCP_ENCRYPTION_KEY")
+
     # File storage. `local` writes under `storage_path` (great for dev and
     # Railway volume mounts). `s3` is reserved for a future implementation.
     storage_backend: str = Field(default="local", alias="STORAGE_BACKEND")
