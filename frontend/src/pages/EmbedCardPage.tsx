@@ -601,8 +601,26 @@ function SummaryTab({
 
   const handleCopy = useCallback(
     async (mode: "text" | "md") => {
-      if (!text) return;
-      const payload = mode === "md" ? text : markdownToPlainText(text);
+      const summary = text ?? "";
+      const takeawayStrings = takeaways.filter((tk): tk is string => typeof tk === "string" && tk.trim().length > 0);
+      if (!summary && takeawayStrings.length === 0) return;
+
+      let payload: string;
+      if (mode === "md") {
+        const parts = [summary];
+        if (takeawayStrings.length > 0) {
+          parts.push(`## Key Takeaways\n\n${takeawayStrings.map((tk) => `- ${tk}`).join("\n")}`);
+        }
+        payload = parts.filter(Boolean).join("\n\n");
+      } else {
+        const parts = [markdownToPlainText(summary)];
+        if (takeawayStrings.length > 0) {
+          const plain = takeawayStrings.map((tk) => `• ${markdownToPlainText(tk)}`).join("\n");
+          parts.push(`Key Takeaways:\n\n${plain}`);
+        }
+        payload = parts.filter(Boolean).join("\n\n");
+      }
+
       try {
         await navigator.clipboard.writeText(payload);
         setCopiedAs(mode);
@@ -611,7 +629,7 @@ function SummaryTab({
         /* clipboard API can be blocked in some iframe contexts — silently ignore */
       }
     },
-    [text],
+    [text, takeaways],
   );
 
   return (
