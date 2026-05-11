@@ -81,6 +81,7 @@ _SESSION_HEADER = "Mcp-Session-Id"
 
 def _rpc(
     *,
+    client: httpx.Client,
     url: str,
     method: str,
     params: dict | None = None,
@@ -88,11 +89,15 @@ def _rpc(
     session_id: str | None = None,
     timeout: float = 20.0,
 ) -> tuple[dict, str | None]:
-    """Single JSON-RPC request to an MCP HTTP endpoint. Returns the
-    `result` block plus any `Mcp-Session-Id` the server attached to the
-    response (Streamable-HTTP transport spec: the server hands out a
-    session id on `initialize` and expects it back on every subsequent
-    request). Raises MCPError on transport or protocol failure."""
+    """Single JSON-RPC request to an MCP HTTP endpoint. Reuses the
+    caller-supplied `httpx.Client` so the TCP connection persists across
+    `initialize` and `tools/*` calls — Reepl's hosted MCP relies on
+    that connection continuity to maintain its "session", and a fresh
+    client per call results in "Session expired or invalid" on every
+    state-changing tool invocation. Returns the `result` block plus any
+    `Mcp-Session-Id` the server attached to the response (used by
+    Streamable-HTTP-spec-compliant servers that pass the session via
+    header instead). Raises MCPError on transport or protocol failure."""
     payload: dict[str, Any] = {
         "jsonrpc": "2.0",
         "id": _next_id(),
@@ -106,8 +111,7 @@ def _rpc(
         req_headers[_SESSION_HEADER] = session_id
 
     try:
-        with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-            resp = client.post(url, json=payload, headers=req_headers)
+        resp = client.post(url, json=payload, headers=req_headers, timeout=timeout)
     except httpx.HTTPError as exc:
         raise MCPError(f"Couldn't reach MCP server: {exc}") from exc
 
@@ -139,16 +143,21 @@ def _rpc(
     return data["result"], new_session_id
 
 
-def _initialize(url: str, headers: dict[str, str]) -> str | None:
+def _initialize(client: httpx.Client, url: str, headers: dict[str, str]) -> str | None:
     """MCP handshake. Most servers require this before tools/list works,
     and Streamable-HTTP servers return an `Mcp-Session-Id` we MUST send
     back on every later request. Returns the session id or None.
+
+    The supplied `httpx.Client` is reused for the follow-up RPC so the
+    TCP connection — and any cookie / session state Reepl-style servers
+    keep on it — survives between calls.
 
     Failure is non-fatal — some hosted MCP servers skip the dance and
     accept tools/list straight away — but we try anyway and ignore
     "method not found" errors."""
     try:
         _result, session_id = _rpc(
+            client=client,
             url=url,
             method="initialize",
             params={
@@ -187,10 +196,16 @@ def list_tools(
         auth_secret=auth_secret,
         auth_header_name=auth_header_name,
     )
-    session_id = _initialize(url, headers)
-    result, _ = _rpc(
-        url=url, method="tools/list", params={}, headers=headers, session_id=session_id
-    )
+    with httpx.Client(follow_redirects=True) as client:
+        session_id = _initialize(client, url, headers)
+        result, _ = _rpc(
+            client=client,
+            url=url,
+            method="tools/list",
+            params={},
+            headers=headers,
+            session_id=session_id,
+        )
     raw_tools = result.get("tools") or []
     out: list[MCPTool] = []
     for t in raw_tools:
@@ -228,13 +243,15 @@ def call_tool(
         auth_secret=auth_secret,
         auth_header_name=auth_header_name,
     )
-    session_id = _initialize(url, headers)
-    result, _ = _rpc(
-        url=url,
-        method="tools/call",
-        params={"name": tool_name, "arguments": arguments},
-        headers=headers,
-        session_id=session_id,
-        timeout=timeout,
-    )
+    with httpx.Client(follow_redirects=True) as client:
+        session_id = _initialize(client, url, headers)
+        result, _ = _rpc(
+            client=client,
+            url=url,
+            method="tools/call",
+            params={"name": tool_name, "arguments": arguments},
+            headers=headers,
+            session_id=session_id,
+            timeout=timeout,
+        )
     return result
