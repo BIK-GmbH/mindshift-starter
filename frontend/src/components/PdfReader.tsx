@@ -176,7 +176,7 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
   // Compact mini-mode: page indicator + maximize button only.
   if (compact) {
     return (
-      <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-ink-950">
+      <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-ink-900">
         {blobUrl ? (
           <Document file={blobUrl} onLoadSuccess={onDocumentLoad} onLoadError={onDocumentLoadError}>
             <Page
@@ -201,7 +201,7 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
   // flex via `fixed inset-0 z-[60]` — z is bumped above the chat's
   // Send button (z-50) so a maximized PDF blocks chat input.
   const wrapperClass = fullscreen
-    ? "fixed inset-0 z-[60] flex flex-col bg-ink-950"
+    ? "fixed inset-0 z-[60] flex flex-col bg-ink-900"
     : "flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900/40";
 
   // Build the reader markup once; in fullscreen mode we portal it to
@@ -213,8 +213,16 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
   // "fullscreen" PDF would only cover the right half of the screen).
   const reader = (
     <div ref={containerRef} className={wrapperClass} style={{ viewTransitionName: "pdf-reader" } as React.CSSProperties}>
-      {/* Toolbar */}
-      <div className="flex flex-shrink-0 items-center gap-2 border-b border-ink-700 bg-ink-800/60 px-2 py-1.5 text-xs">
+      {/* Toolbar — fully opaque in fullscreen (we layer over the entire
+          app, anything semi-transparent would let chat header + nav
+          rail buttons leak through). In-pane stays slightly translucent
+          to feel less heavy. */}
+      <div
+        className={[
+          "flex flex-shrink-0 items-center gap-2 border-b border-ink-700 px-2 py-1.5 text-xs",
+          fullscreen ? "bg-ink-900" : "bg-ink-800/60",
+        ].join(" ")}
+      >
         <button
           type="button"
           onClick={goPrev}
@@ -288,7 +296,7 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
       </div>
 
       {/* Document area */}
-      <div ref={docAreaRef} className="flex min-h-0 flex-1 justify-center overflow-auto bg-ink-950 p-3">
+      <div ref={docAreaRef} className="flex min-h-0 flex-1 justify-center overflow-auto bg-ink-900 p-3">
         {blobUrl ? (
           <Document file={blobUrl} onLoadSuccess={onDocumentLoad} onLoadError={onDocumentLoadError}>
             <Page
