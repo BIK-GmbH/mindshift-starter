@@ -1,6 +1,7 @@
 // frontend/src/components/PdfReader.tsx
 import { ChevronLeft, ChevronRight, ExternalLink, Maximize2, Minimize2, Minus, Plus, RectangleHorizontal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Document, Page } from "react-pdf";
 
@@ -203,7 +204,14 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
     ? "fixed inset-0 z-[60] flex flex-col bg-ink-950"
     : "flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900/40";
 
-  return (
+  // Build the reader markup once; in fullscreen mode we portal it to
+  // document.body so it escapes any transformed ancestor (the library
+  // right-pane uses `animation: pane-slide-in both` which leaves a
+  // lingering `transform: translateX(0)` on the element — and a
+  // `position: fixed` descendant of a transformed element is relative
+  // to that element, not the viewport. Without the portal the
+  // "fullscreen" PDF would only cover the right half of the screen).
+  const reader = (
     <div ref={containerRef} className={wrapperClass} style={{ viewTransitionName: "pdf-reader" } as React.CSSProperties}>
       {/* Toolbar */}
       <div className="flex flex-shrink-0 items-center gap-2 border-b border-ink-700 bg-ink-800/60 px-2 py-1.5 text-xs">
@@ -302,4 +310,6 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
       </div>
     </div>
   );
+
+  return fullscreen ? createPortal(reader, document.body) : reader;
 }
