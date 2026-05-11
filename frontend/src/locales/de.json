@@ -632,5 +632,17 @@
     "exitFullscreen": "Vollbild verlassen",
     "loadError": "PDF konnte nicht geladen werden",
     "openOriginal": "Original öffnen"
+  },
+  "voice": {
+    "record": "Sprachaufnahme",
+    "stop": "Aufnahme stoppen",
+    "recording": "Nimmt auf — klick zum Stoppen",
+    "transcribing": "Transkribiere…",
+    "requesting": "Mikro-Zugriff…",
+    "errorGeneric": "Sprachaufnahme fehlgeschlagen. Bitte erneut versuchen.",
+    "errorPermission": "Mikro-Zugriff verweigert.",
+    "errorUnsupported": "Sprachaufnahme in diesem Browser nicht verfügbar.",
+    "errorTooLarge": "Aufnahme zu lang (max 25 MB).",
+    "errorNoSpeech": "Keine Sprache erkannt — bitte erneut versuchen."
   }
 }

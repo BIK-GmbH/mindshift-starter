@@ -632,5 +632,17 @@
     "exitFullscreen": "Exit fullscreen",
     "loadError": "Couldn't load the PDF",
     "openOriginal": "Open original"
+  },
+  "voice": {
+    "record": "Record voice",
+    "stop": "Stop recording",
+    "recording": "Recording — click to stop",
+    "transcribing": "Transcribing…",
+    "requesting": "Requesting mic access…",
+    "errorGeneric": "Voice recording failed. Try again.",
+    "errorPermission": "Microphone access denied.",
+    "errorUnsupported": "Voice recording not available in this browser.",
+    "errorTooLarge": "Recording too long (max 25 MB).",
+    "errorNoSpeech": "No speech detected — try again."
   }
 }
