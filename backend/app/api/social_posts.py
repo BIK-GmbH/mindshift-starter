@@ -18,12 +18,12 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.models.card import Card
 from app.models.card_social_post import CardSocialPost
 from app.models.card_social_post_image_version import CardSocialPostImageVersion
@@ -44,7 +44,6 @@ from app.schemas.social_post import (
 from app.services.social_post import (
     generate_post,
     generate_post_image,
-    refine_post_image,
     rewrite_selection,
 )
 from app.services.storage import get_storage
@@ -184,6 +183,7 @@ def create_social_post(
             prompt_used=None,  # Original template-based generation
             kind="generate",
             parent_version_id=None,
+            status="ready",
         )
     db.commit()
     db.refresh(post)
@@ -288,10 +288,11 @@ def _record_version(
     db: Session,
     *,
     post: CardSocialPost,
-    file_id: UUID,
+    file_id: UUID | None,
     prompt_used: str | None,
     kind: str,
     parent_version_id: UUID | None,
+    status: str = "ready",
 ) -> CardSocialPostImageVersion:
     version = CardSocialPostImageVersion(
         post_id=post.id,
@@ -299,10 +300,83 @@ def _record_version(
         prompt_used=(prompt_used or "")[:4000] or None,
         kind=kind,
         parent_version_id=parent_version_id,
+        status=status,
     )
     db.add(version)
     db.flush()
     return version
+
+
+def _user_id_for_post(db: Session, post: CardSocialPost) -> UUID:
+    card = db.get(Card, post.card_id)
+    if card is None:
+        raise RuntimeError("post without card")
+    return card.user_id
+
+
+def _run_image_job(
+    version_id: UUID,
+    *,
+    user_id: UUID,
+    card_id: UUID,
+    post_id: UUID,
+    platform: str,
+    prompt_override: str | None,
+    template_content: str | None,
+    refine_prompt: str | None,
+    source_file_path: str | None,
+) -> None:
+    """Background task body. Opens its own DB session — the request
+    session is closed by the time FastAPI hands the task off. Reads
+    the source file from disk (path passed in) for the refine case
+    because the file row may have moved between request + background
+    work. Updates the version row + post.image_file_id on completion."""
+    from app.services.social_post import refine_post_image as _refine_image_bytes
+    from app.services.social_post import generate_post_image as _generate_image_bytes
+
+    db = SessionLocal()
+    try:
+        version = db.get(CardSocialPostImageVersion, version_id)
+        if version is None:
+            return
+        post = db.get(CardSocialPost, post_id)
+        card = db.get(Card, card_id)
+        if post is None or card is None:
+            return
+        try:
+            if refine_prompt is not None:
+                if source_file_path is None:
+                    raise RuntimeError("refine job missing source file path")
+                from pathlib import Path
+
+                src_bytes = Path(source_file_path).read_bytes()
+                png = _refine_image_bytes(image_bytes=src_bytes, prompt=refine_prompt)
+            else:
+                png = _generate_image_bytes(
+                    title=card.title,
+                    post_text=post.text,
+                    template_content=template_content,
+                    prompt_override=prompt_override,
+                )
+            file_row = get_storage().save(
+                db,
+                user_id=user_id,
+                content=png,
+                original_filename=f"social-{card_id}-{platform}.png",
+                content_type="image/png",
+                purpose="social_post_image",
+            )
+            version.file_id = file_row.id
+            version.status = "ready"
+            post.image_file_id = file_row.id
+            db.commit()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("post image job %s failed: %s", version_id, exc)
+            version.status = "failed"
+            version.error_message = str(exc)[:4000]
+            db.commit()
+    finally:
+        db.close()
 
 
 def _active_version_id(db: Session, post: CardSocialPost) -> UUID | None:
@@ -384,22 +458,24 @@ def preview_post_image(
 
 @router.post(
     "/{card_id}/social-posts/{post_id}/image/generate",
-    response_model=SocialPostOut,
+    response_model=SocialPostImageVersionOut,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 def generate_post_image_endpoint(
     card_id: UUID,
     post_id: UUID,
     payload: SocialPostImageGenerateRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> SocialPostOut:
-    """Generate a fresh image for an existing post — either from a
-    user-edited resolved prompt (Pre-Gen modal commit) or from the
-    chosen / default template. Saved as the new active image plus a
-    new version row."""
+) -> SocialPostImageVersionOut:
+    """Kick off a fresh image generation. Returns immediately with a
+    `processing` version row; the gpt-image-2 call runs in a
+    BackgroundTask and flips the row to `ready` (or `failed`) when
+    done. The frontend polls /image/versions to surface status changes."""
     from app.api.image_templates import resolve_template_content
 
-    card, post = _ensure_post(db, card_id, post_id, current_user.id)
+    _card, post = _ensure_post(db, card_id, post_id, current_user.id)
 
     template_content: str | None = None
     if not payload.resolved_prompt:
@@ -407,54 +483,49 @@ def generate_post_image_endpoint(
             db, current_user.id, template_id=payload.template_id
         )
 
-    try:
-        png = generate_post_image(
-            title=card.title,
-            post_text=post.text,
-            template_content=template_content,
-            prompt_override=payload.resolved_prompt,
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("post image regen failed for %s: %s", post_id, exc)
-        raise HTTPException(status_code=502, detail=f"Image generation failed: {exc}") from exc
-
-    storage = get_storage()
-    file_row = storage.save(
-        db,
-        user_id=current_user.id,
-        content=png,
-        original_filename=f"social-{card_id}-{post.platform}.png",
-        content_type="image/png",
-        purpose="social_post_image",
-    )
-    post.image_file_id = file_row.id
-    _record_version(
+    version = _record_version(
         db,
         post=post,
-        file_id=file_row.id,
+        file_id=None,
         prompt_used=payload.resolved_prompt,
         kind="generate",
         parent_version_id=None,
+        status="processing",
     )
     db.commit()
-    db.refresh(post)
-    return _to_out(post)
+    db.refresh(version)
+
+    background_tasks.add_task(
+        _run_image_job,
+        version.id,
+        user_id=current_user.id,
+        card_id=post.card_id,
+        post_id=post.id,
+        platform=post.platform,
+        prompt_override=payload.resolved_prompt,
+        template_content=template_content,
+        refine_prompt=None,
+        source_file_path=None,
+    )
+    return _version_to_out(version, post.image_file_id)
 
 
 @router.post(
     "/{card_id}/social-posts/{post_id}/image/refine",
-    response_model=SocialPostOut,
+    response_model=SocialPostImageVersionOut,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 def refine_post_image_endpoint(
     card_id: UUID,
     post_id: UUID,
     payload: SocialPostImageRefineRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> SocialPostOut:
-    """Apply gpt-image-2's images.edit to the post's current image with
-    the user's natural-language refinement prompt. Saved as new active
-    + new version chained to the current one."""
+) -> SocialPostImageVersionOut:
+    """Kick off a refine — same async pattern as generate. We resolve
+    the source file's *storage path* here so the BackgroundTask can
+    read the bytes without holding the request DB session open."""
     _card, post = _ensure_post(db, card_id, post_id, current_user.id)
     if post.image_file_id is None:
         raise HTTPException(status_code=400, detail="Post has no image to refine")
@@ -462,34 +533,55 @@ def refine_post_image_endpoint(
     if src_file is None or src_file.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Image file missing")
 
-    parent_version_id = _active_version_id(db, post)
-    src_bytes = get_storage().read(src_file)
-    try:
-        png = refine_post_image(image_bytes=src_bytes, prompt=payload.prompt)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("post image refine failed for %s: %s", post_id, exc)
-        raise HTTPException(status_code=502, detail=f"Image refine failed: {exc}") from exc
+    from pathlib import Path
+    from app.core.config import get_settings as _gs
 
-    file_row = get_storage().save(
-        db,
-        user_id=current_user.id,
-        content=png,
-        original_filename=f"social-{card_id}-{post.platform}-refined.png",
-        content_type="image/png",
-        purpose="social_post_image",
-    )
-    post.image_file_id = file_row.id
-    _record_version(
+    settings_obj = _gs()
+    source_path = str(Path(settings_obj.storage_path).resolve() / src_file.storage_path)
+
+    parent_version_id = _active_version_id(db, post)
+    version = _record_version(
         db,
         post=post,
-        file_id=file_row.id,
+        file_id=None,
         prompt_used=payload.prompt,
         kind="refine",
         parent_version_id=parent_version_id,
+        status="processing",
     )
     db.commit()
-    db.refresh(post)
-    return _to_out(post)
+    db.refresh(version)
+
+    background_tasks.add_task(
+        _run_image_job,
+        version.id,
+        user_id=current_user.id,
+        card_id=post.card_id,
+        post_id=post.id,
+        platform=post.platform,
+        prompt_override=None,
+        template_content=None,
+        refine_prompt=payload.prompt,
+        source_file_path=source_path,
+    )
+    return _version_to_out(version, post.image_file_id)
+
+
+def _version_to_out(
+    version: CardSocialPostImageVersion, active_file_id: UUID | None
+) -> SocialPostImageVersionOut:
+    return SocialPostImageVersionOut(
+        id=version.id,
+        file_id=version.file_id,
+        image_url=f"/api/files/{version.file_id}" if version.file_id else None,
+        prompt_used=version.prompt_used,
+        kind=version.kind,
+        status=version.status,
+        error_message=version.error_message,
+        parent_version_id=version.parent_version_id,
+        is_active=version.file_id is not None and version.file_id == active_file_id,
+        created_at=version.created_at,
+    )
 
 
 @router.get(
@@ -513,19 +605,7 @@ def list_post_image_versions(
         .all()
     )
     active = post.image_file_id
-    return [
-        SocialPostImageVersionOut(
-            id=r.id,
-            file_id=r.file_id,
-            image_url=f"/api/files/{r.file_id}",
-            prompt_used=r.prompt_used,
-            kind=r.kind,
-            parent_version_id=r.parent_version_id,
-            is_active=(r.file_id == active),
-            created_at=r.created_at,
-        )
-        for r in rows
-    ]
+    return [_version_to_out(r, active) for r in rows]
 
 
 @router.post(

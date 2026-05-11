@@ -13,6 +13,7 @@ import {
   api,
   type ImageTemplateOut,
   type PostImagePreview,
+  type PostImageVersion,
   type SocialPostOut,
 } from "../../lib/api";
 
@@ -35,13 +36,15 @@ export function PostImagePregenModal({
   post,
   templates,
   onClose,
-  onGenerated,
+  onJobStarted,
 }: {
   cardId: string;
   post: SocialPostOut;
   templates: ImageTemplateOut[];
   onClose: () => void;
-  onGenerated: (next: SocialPostOut) => void;
+  /** Job kicked off (status="processing"). Modal closes; parent's
+   *  polling hook owns the user-facing notifications. */
+  onJobStarted: (pending: PostImageVersion, loadingMessage: string) => void;
 }) {
   const { t } = useTranslation();
   const defaultTemplate =
@@ -111,10 +114,15 @@ export function PostImagePregenModal({
     setGenerating(true);
     setError(null);
     try {
-      const next = await api.generatePostImage(cardId, post.id, {
+      const pending = await api.generatePostImage(cardId, post.id, {
         resolved_prompt: fullPrompt,
       });
-      onGenerated(next);
+      onJobStarted(
+        pending,
+        t("toasts.imageGenerating", {
+          defaultValue: "Generating image — feel free to keep working…",
+        }) ?? "Generating image…",
+      );
       onClose();
     } catch (err) {
       setError((err as Error).message);

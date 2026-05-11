@@ -866,16 +866,14 @@ export const api = {
     postId: string,
     body: { resolved_prompt?: string | null; template_id?: string | null } = {},
   ) =>
-    request<SocialPostOut>(
+    request<PostImageVersion>(
       `/api/cards/${cardId}/social-posts/${postId}/image/generate`,
       { method: "POST", body: JSON.stringify(body) },
-      { timeoutMs: 120_000 },
     ),
   refinePostImage: (cardId: string, postId: string, prompt: string) =>
-    request<SocialPostOut>(
+    request<PostImageVersion>(
       `/api/cards/${cardId}/social-posts/${postId}/image/refine`,
       { method: "POST", body: JSON.stringify({ prompt }) },
-      { timeoutMs: 120_000 },
     ),
   listPostImageVersions: (cardId: string, postId: string) =>
     request<PostImageVersion[]>(
@@ -1307,10 +1305,12 @@ export interface PostImagePreview {
 
 export interface PostImageVersion {
   id: string;
-  file_id: string;
-  image_url: string;
+  file_id: string | null;
+  image_url: string | null;
   prompt_used: string | null;
   kind: "generate" | "refine";
+  status: "processing" | "ready" | "failed";
+  error_message: string | null;
   parent_version_id: string | null;
   is_active: boolean;
   created_at: string;

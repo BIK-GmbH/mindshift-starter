@@ -31,6 +31,7 @@ import { useAuthedImage } from "../../lib/useAuthedImage";
 import { useDialog } from "../../lib/DialogContext";
 import { PostImagePregenModal } from "./PostImagePregenModal";
 import { PostImageRefineModal } from "./PostImageRefineModal";
+import { usePostImageVersions } from "./usePostImageVersions";
 
 interface Props {
   cardId: string;
@@ -418,6 +419,11 @@ function DraftCard({
   const { src: imageSrc } = useAuthedImage(draft.image_url);
   const [pregenOpen, setPregenOpen] = useState(false);
   const [refineOpen, setRefineOpen] = useState(false);
+  const { versions, registerPending } = usePostImageVersions(
+    cardId,
+    draft,
+    onUpdated,
+  );
 
   // Inline editor state — local-first so typing stays snappy; PATCH
   // is debounced 1.5 s after the last keystroke.
@@ -726,15 +732,17 @@ function DraftCard({
           post={draft}
           templates={imageTemplates}
           onClose={() => setPregenOpen(false)}
-          onGenerated={onUpdated}
+          onJobStarted={registerPending}
         />
       )}
       {refineOpen && (
         <PostImageRefineModal
           cardId={cardId}
           post={draft}
+          versions={versions}
           onClose={() => setRefineOpen(false)}
           onUpdated={onUpdated}
+          onJobStarted={registerPending}
         />
       )}
 

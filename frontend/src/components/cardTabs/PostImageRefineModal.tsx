@@ -6,7 +6,7 @@ import {
   X,
   Wand2,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
@@ -14,42 +14,36 @@ import { api, type PostImageVersion, type SocialPostOut } from "../../lib/api";
 import { useAuthedImage } from "../../lib/useAuthedImage";
 
 /**
- * Refine-Modus: fullscreen view of the current image with a refinement
- * prompt input and a version-history strip. Clicking any prior version
- * makes it the active one (instant — the underlying files stay in
- * storage so it's effectively undo).
+ * Refine-Modus: centred modal showing the active image, a prompt input,
+ * and the version-history strip. The actual refine call is async — the
+ * modal kicks off a job and closes; the parent's polling hook owns the
+ * toast notifications + post refresh. Clicking any prior version makes
+ * it the active one (instant — files stay in storage, so it doubles as
+ * undo).
  */
 export function PostImageRefineModal({
   cardId,
   post,
+  versions,
   onClose,
   onUpdated,
+  onJobStarted,
 }: {
   cardId: string;
   post: SocialPostOut;
+  /** Live versions from the parent's polling hook. */
+  versions: PostImageVersion[];
   onClose: () => void;
   onUpdated: (next: SocialPostOut) => void;
+  onJobStarted: (pending: PostImageVersion, loadingMessage: string) => void;
 }) {
   const { t } = useTranslation();
   const { src: activeImageSrc } = useAuthedImage(post.image_url);
-  const [versions, setVersions] = useState<PostImageVersion[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [refining, setRefining] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [activating, setActivating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const loadVersions = useCallback(async () => {
-    try {
-      const rows = await api.listPostImageVersions(cardId, post.id);
-      setVersions(rows);
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }, [cardId, post.id]);
-
-  useEffect(() => {
-    void loadVersions();
-  }, [loadVersions]);
+  const isJobInFlight = versions.some((v) => v.status === "processing");
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -61,17 +55,23 @@ export function PostImageRefineModal({
 
   const submitRefine = async () => {
     if (!prompt.trim()) return;
-    setRefining(true);
+    setSubmitting(true);
     setError(null);
     try {
-      const next = await api.refinePostImage(cardId, post.id, prompt.trim());
-      onUpdated(next);
+      const pending = await api.refinePostImage(cardId, post.id, prompt.trim());
+      onJobStarted(
+        pending,
+        t("toasts.imageRefining", {
+          defaultValue:
+            "Refining image — you can close this and we'll let you know when it's done.",
+        }) ?? "Refining image…",
+      );
       setPrompt("");
-      await loadVersions();
+      onClose();
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setRefining(false);
+      setSubmitting(false);
     }
   };
 
@@ -81,7 +81,6 @@ export function PostImageRefineModal({
     try {
       const next = await api.activatePostImageVersion(cardId, post.id, versionId);
       onUpdated(next);
-      await loadVersions();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -96,7 +95,6 @@ export function PostImageRefineModal({
       aria-modal="true"
       aria-label={t("posts.refine.title", { defaultValue: "Refine image" }) ?? ""}
     >
-      {/* Backdrop with blur — click to close, like Settings */}
       <button
         type="button"
         onClick={onClose}
@@ -126,17 +124,8 @@ export function PostImageRefineModal({
         </div>
 
         {/* Main image area */}
-        <div className="flex flex-1 min-h-0 items-center justify-center overflow-auto bg-ink-900/40 p-6">
-          {refining ? (
-            <div className="flex flex-col items-center gap-3 text-ink-300">
-              <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
-              <p className="text-sm">
-                {t("posts.refine.applying", {
-                  defaultValue: "Applying your refinement — this takes ~30 s…",
-                })}
-              </p>
-            </div>
-          ) : activeImageSrc ? (
+        <div className="relative flex flex-1 min-h-0 items-center justify-center overflow-auto bg-ink-900/40 p-6">
+          {activeImageSrc ? (
             <img
               src={activeImageSrc}
               alt=""
@@ -148,6 +137,14 @@ export function PostImageRefineModal({
               <p className="mt-2">
                 {t("posts.refine.noImage", { defaultValue: "No image to refine yet." })}
               </p>
+            </div>
+          )}
+          {isJobInFlight && (
+            <div className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-full bg-violet-500/25 px-3 py-1 text-[11px] font-medium text-violet-100 backdrop-blur">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t("posts.refine.inFlight", {
+                defaultValue: "Refinement in progress",
+              })}
             </div>
           )}
         </div>
@@ -165,7 +162,7 @@ export function PostImageRefineModal({
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !refining) {
+                if (e.key === "Enter" && !e.shiftKey && !submitting) {
                   e.preventDefault();
                   void submitRefine();
                 }
@@ -176,16 +173,16 @@ export function PostImageRefineModal({
                     "What should change? e.g. 'Make headline orange. Remove the bottom source line.'",
                 }) ?? ""
               }
-              disabled={refining}
+              disabled={submitting}
               className="flex-1 rounded-md border border-ink-700 bg-ink-900/60 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-violet-400 focus:outline-none disabled:opacity-50"
             />
             <button
               type="button"
               onClick={() => void submitRefine()}
-              disabled={refining || !prompt.trim()}
+              disabled={submitting || !prompt.trim()}
               className="inline-flex items-center gap-1.5 rounded-md bg-violet-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-50"
             >
-              {refining ? (
+              {submitting ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Send className="h-3.5 w-3.5" />
@@ -196,7 +193,7 @@ export function PostImageRefineModal({
           <p className="mt-1.5 text-[10px] text-ink-500">
             {t("posts.refine.hint", {
               defaultValue:
-                "Sends the current image + your prompt to gpt-image-2 (images.edit). The prior version stays in history below.",
+                "Sends the current image + your prompt to gpt-image-2 (images.edit). The job runs in the background — close anytime and we'll notify when it's ready.",
             })}
           </p>
         </div>
@@ -213,9 +210,9 @@ export function PostImageRefineModal({
                 <VersionThumb
                   key={v.id}
                   version={v}
-                  disabled={activating === v.id || refining}
+                  disabled={activating === v.id || submitting}
                   isActivating={activating === v.id}
-                  onClick={() => !v.is_active && void activateVersion(v.id)}
+                  onClick={() => !v.is_active && v.status === "ready" && void activateVersion(v.id)}
                 />
               ))}
             </div>
@@ -242,20 +239,30 @@ function VersionThumb({
   const { src } = useAuthedImage(version.image_url);
   const { t } = useTranslation();
   const kindLabel =
-    version.kind === "refine"
-      ? t("posts.refine.kindRefine", { defaultValue: "Refine" })
-      : t("posts.refine.kindGenerate", { defaultValue: "Generated" });
+    version.status === "processing"
+      ? t("posts.refine.kindProcessing", { defaultValue: "…rendering" })
+      : version.status === "failed"
+        ? t("posts.refine.kindFailed", { defaultValue: "Failed" })
+        : version.kind === "refine"
+          ? t("posts.refine.kindRefine", { defaultValue: "Refine" })
+          : t("posts.refine.kindGenerate", { defaultValue: "Generated" });
+  const isPending = version.status === "processing";
+  const isFailed = version.status === "failed";
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled || version.is_active}
-      title={version.prompt_used ?? kindLabel}
+      disabled={disabled || version.is_active || isPending || isFailed}
+      title={version.error_message ?? version.prompt_used ?? kindLabel}
       className={[
         "relative shrink-0 overflow-hidden rounded-md border-2 transition",
         version.is_active
           ? "border-violet-400 ring-2 ring-violet-400/40"
-          : "border-ink-700 hover:border-ink-500",
+          : isPending
+            ? "border-violet-500/40"
+            : isFailed
+              ? "border-red-500/40"
+              : "border-ink-700 hover:border-ink-500",
         disabled ? "opacity-60" : "",
       ].join(" ")}
     >
@@ -263,7 +270,11 @@ function VersionThumb({
         <img src={src} alt="" className="block h-20 w-20 object-cover" />
       ) : (
         <div className="flex h-20 w-20 items-center justify-center bg-ink-800 text-ink-500">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          {isFailed ? (
+            <X className="h-4 w-4 text-red-400" />
+          ) : (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          )}
         </div>
       )}
       {isActivating && (

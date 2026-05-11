@@ -98,10 +98,12 @@ class SocialPostImageRefineRequest(BaseModel):
 
 class SocialPostImageVersionOut(BaseModel):
     id: UUID
-    file_id: UUID
-    image_url: str
+    file_id: UUID | None
+    image_url: str | None
     prompt_used: str | None
     kind: str
+    status: str
+    error_message: str | None = None
     parent_version_id: UUID | None
     is_active: bool
     created_at: datetime

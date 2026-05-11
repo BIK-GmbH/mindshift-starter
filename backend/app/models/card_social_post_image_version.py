@@ -21,13 +21,17 @@ class CardSocialPostImageVersion(Base):
         index=True,
         nullable=False,
     )
-    file_id: Mapped[UUID] = mapped_column(
+    file_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("files.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
     prompt_used: Mapped[str | None] = mapped_column(Text, nullable=True)
     kind: Mapped[str] = mapped_column(String(20), nullable=False, default="generate")
+    # processing → ready / failed. Lets the API return a placeholder row
+    # immediately and the BackgroundTask flip it once gpt-image-2 finishes.
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="ready", index=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     parent_version_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("card_social_post_image_versions.id", ondelete="SET NULL"),
