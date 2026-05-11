@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, Link as LinkIcon, Loader2, MessageSquare, Moon, Search, StickyNote, Sun, X } from "lucide-react";
+import { ExternalLink, FileText, Link as LinkIcon, Loader2, MessageSquare, Moon, StickyNote, Sun } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -13,7 +13,6 @@ import {
   type Card,
   type CardTranslationOut,
   type Connection,
-  type SearchHit,
   type TranscriptOut,
 } from "../lib/api";
 
@@ -87,7 +86,6 @@ export default function EmbedCardPage() {
   const [copied, setCopied] = useState(false);
   const [embedTheme, setEmbedTheme] = useState<"dark" | "light">(readEmbedTheme);
   const [activeTranslation, setActiveTranslation] = useState<CardTranslationOut | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [defaultLang, setDefaultLang] = useState<string | null>(null);
   const autoTriggeredFor = useRef<Set<string>>(new Set());
 
@@ -326,7 +324,7 @@ export default function EmbedCardPage() {
         </a>
         <button
           type="button"
-          title={copied ? "Copied" : "Copy link"}
+          title={copied ? "Copied" : "Copy share link"}
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(cardLink);
@@ -355,25 +353,14 @@ export default function EmbedCardPage() {
             <Loader2 className="h-3 w-3 animate-spin text-fuchsia-300" />
           </span>
         )}
-        <button
-          type="button"
-          onClick={() => setSearchOpen((v) => !v)}
-          title={t("embed.searchTooltip", { defaultValue: "Search library" }) ?? ""}
-          className={[
-            "ml-auto inline-flex h-7 w-7 items-center justify-center rounded-md transition",
-            searchOpen
-              ? "bg-ink-800 text-ink-100"
-              : "text-ink-300 hover:bg-ink-800 hover:text-ink-100",
-          ].join(" ")}
-        >
-          <Search className="h-3.5 w-3.5" />
-        </button>
         {card.status === "completed" && (
-          <CardLanguagePicker
-            cardId={card.id}
-            onActive={setActiveTranslation}
-            initialActiveLanguage={defaultLang}
-          />
+          <div className="ml-auto">
+            <CardLanguagePicker
+              cardId={card.id}
+              onActive={setActiveTranslation}
+              initialActiveLanguage={defaultLang}
+            />
+          </div>
         )}
         <button
           type="button"
@@ -384,18 +371,6 @@ export default function EmbedCardPage() {
           {embedTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
         </button>
       </div>
-
-      {searchOpen && (
-        <EmbedSearchStrip
-          onClose={() => setSearchOpen(false)}
-          onPick={(hit) => {
-            setSearchOpen(false);
-            if (hit.card_id !== cardId) {
-              navigate(`/embed/cards/${hit.card_id}`);
-            }
-          }}
-        />
-      )}
 
       {/* While the card is still being processed, replace the regular
           tabbed body with the animated skeleton. Polling above flips
@@ -997,142 +972,6 @@ function NotesTab({ card }: { card: Card }) {
   );
 }
 
-/* ------------------------- inline search ------------------------- */
-
-/**
- * Library search strip that drops in below the mini-bar. Debounced
- * keystrokes hit `searchKeyword` (320 chars max snippet, 20 hits).
- * Hover renders a tiny preview snippet; click hands the chosen
- * SearchHit back to the parent which navigates the iframe.
- */
-function EmbedSearchStrip({
-  onClose,
-  onPick,
-}: {
-  onClose: () => void;
-  onPick: (hit: SearchHit) => void;
-}) {
-  const { t } = useTranslation();
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<SearchHit[]>([]);
-  const [loading, setLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  // Autofocus the input on mount so the user can type immediately.
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  // Esc closes the strip.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  // Debounced search. The cleanup runs every time `query` changes, so
-  // an in-flight timer for the previous keystroke gets cancelled —
-  // the API only sees the user's last 250 ms-stable query.
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setHits([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    const timer = window.setTimeout(async () => {
-      try {
-        const result = await api.searchKeyword(q, 12);
-        // Dedup by card_id — transcript-segment hits and card hits
-        // for the same card collapse to one row in the dropdown.
-        const seen = new Set<string>();
-        const deduped: SearchHit[] = [];
-        for (const h of result) {
-          if (seen.has(h.card_id)) continue;
-          seen.add(h.card_id);
-          deduped.push(h);
-        }
-        setHits(deduped);
-      } catch {
-        setHits([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
-
-  return (
-    <div className="flex-shrink-0 border-b border-ink-800 bg-ink-900/95 backdrop-blur">
-      <div className="flex items-center gap-2 px-2 py-1.5">
-        <Search className="h-3.5 w-3.5 flex-shrink-0 text-ink-500" />
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={
-            t("embed.searchPlaceholder", {
-              defaultValue: "Search your library…",
-            }) ?? ""
-          }
-          className="min-w-0 flex-1 bg-transparent text-[12px] text-ink-100 outline-none placeholder:text-ink-500"
-        />
-        {loading && <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin text-ink-500" />}
-        <button
-          type="button"
-          onClick={onClose}
-          title={t("common.close", { defaultValue: "Close" }) ?? ""}
-          className="inline-flex h-6 w-6 items-center justify-center rounded text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
-        >
-          <X className="h-3 w-3" />
-        </button>
-      </div>
-      {hits.length > 0 && (
-        <ul className="max-h-72 overflow-y-auto border-t border-ink-800 py-1">
-          {hits.map((h) => (
-            <li key={h.card_id}>
-              <button
-                type="button"
-                onClick={() => onPick(h)}
-                className="flex w-full items-start gap-2 px-2 py-1.5 text-left transition hover:bg-ink-800/60"
-              >
-                {h.thumbnail_url ? (
-                  <img
-                    src={h.thumbnail_url}
-                    alt=""
-                    className="h-8 w-12 flex-shrink-0 rounded object-cover ring-1 ring-ink-700"
-                  />
-                ) : (
-                  <div className="flex h-8 w-12 flex-shrink-0 items-center justify-center rounded bg-ink-800 text-[8px] uppercase text-ink-500 ring-1 ring-ink-700">
-                    {h.source_type}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12px] font-medium leading-tight text-ink-100">
-                    {h.title}
-                  </p>
-                  {h.snippet && (
-                    <p className="line-clamp-2 text-[10px] leading-snug text-ink-500">
-                      {h.snippet}
-                    </p>
-                  )}
-                </div>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {!loading && query.trim().length >= 2 && hits.length === 0 && (
-        <p className="border-t border-ink-800 px-3 py-2 text-[11px] text-ink-500">
-          {t("embed.searchEmpty", { defaultValue: "No matches." })}
-        </p>
-      )}
-    </div>
-  );
-}
 
 /* ----------------------- responsive container queries ----------------------- */
 
