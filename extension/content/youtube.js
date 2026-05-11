@@ -485,6 +485,34 @@ chrome.runtime.onMessage.addListener((msg) => {
   });
 });
 
+// Seek handler — driven by the embed iframe → side panel bridge.
+// The side panel forwards `mindshift:seekVideo` to every YouTube tab;
+// each tab is responsible for ignoring messages that don't address it.
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type !== "mindshift:seekVideo") return;
+  if (typeof msg.seconds !== "number") return;
+  // Only act if the message is for THIS video — multiple YouTube tabs
+  // may be open and we don't want a pill click in tab A to jump tab B.
+  const here = window.location.href;
+  const myVideoId = videoIdFromUrl(here);
+  if (msg.videoId && myVideoId !== msg.videoId) return;
+  const v = videoElement();
+  if (!v) return;
+  try {
+    v.currentTime = Math.max(0, msg.seconds);
+    const playResult = v.play();
+    if (playResult && typeof playResult.catch === "function") {
+      playResult.catch(() => {
+        /* play() can reject under autoplay rules; the seek still
+           took, so the user will see the new position when they
+           click play themselves. */
+      });
+    }
+  } catch {
+    /* defensive: a stale video element after navigation can throw */
+  }
+});
+
 function sameVideo(a, b) {
   try {
     const ua = new URL(a);

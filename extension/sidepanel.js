@@ -255,4 +255,43 @@ els.openPopupBtn.addEventListener("click", () => {
   setStatus(els.saveStatus, "Click the toolbar icon to open settings.", "err");
 });
 
+// =====================================================================
+// Pill bridge: embed iframe → side panel → YouTube tab
+// =====================================================================
+// The embed iframe lives at the web-app origin; it can't talk to
+// chrome.* APIs directly. When the user clicks a timestamp pill in the
+// summary/transcript, the iframe posts to us via window.parent. We
+// look up the active YouTube tab matching the video ID and send a
+// seek message to its content script.
+window.addEventListener("message", (event) => {
+  // Origin check: only accept from the embed iframe (web-app origin).
+  // We can't pin it tight because dev uses localhost:5173 and prod
+  // uses some other domain — accept any origin but validate the
+  // message shape.
+  const data = event.data;
+  if (!data || data.type !== "mindshift:seekVideo") return;
+  const { videoId, seconds } = data;
+  if (typeof videoId !== "string" || typeof seconds !== "number") return;
+  void chrome.tabs.query({ url: "*://*.youtube.com/watch*" }, (tabs) => {
+    if (!tabs || tabs.length === 0) {
+      // No YouTube tab open — silently ignore. The standalone fallback
+      // in EmbedCardPage handles the no-iframe case; here we just
+      // don't have a video to steer.
+      return;
+    }
+    for (const tab of tabs) {
+      if (typeof tab.id !== "number") continue;
+      chrome.tabs
+        .sendMessage(tab.id, {
+          type: "mindshift:seekVideo",
+          videoId,
+          seconds,
+        })
+        .catch(() => {
+          /* tab may not have our content script — skip */
+        });
+    }
+  });
+});
+
 void refresh();

@@ -1,5 +1,5 @@
-import { ExternalLink, FileText, Loader2, Maximize2, MessageSquare, Minimize2, Moon, Search, StickyNote, Sun, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FC } from "react";
+import { ExternalLink, FileText, Loader2, Maximize2, MessageSquare, Moon, Search, StickyNote, Sun, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -51,22 +51,23 @@ const TAB_ICONS: Record<EmbedTab, FC<{ className?: string }>> = {
 /**
  * Side-panel embed view for the browser extension.
  *
- * Recall-inspired layout:
+ * Recall-inspired layout — every band except the tab content is fixed
+ * so the user always sees the title + tags + tab strip + bottom CTA,
+ * regardless of how far they've scrolled inside a long summary or
+ * transcript.
  *
  *  ┌────────────────────────────────────────┐
  *  │ [Open ↗]  [Copy]              [⚙]      │  always-on-top mini bar
  *  ├────────────────────────────────────────┤
- *  │  ┌──────────────────────────────────┐  │
- *  │  │     hero image (scrolls away)    │  │
- *  │  │  Title overlaid + source pill    │  │
- *  │  └──────────────────────────────────┘  │
- *  │  #tag #tag #tag                         │
- *  ├ — — — — — — — — — — — — — — — — — — —  ┤  sticky once it hits top
- *  │  Summary   Transcript   Notes   Chat    │
+ *  │  Title + #tag #tag        [thumb]      │  compact fixed header
+ *  ├────────────────────────────────────────┤
+ *  │  Summary   Transcript   Notes   Chat   │  fixed tab strip
  *  ├────────────────────────────────────────┤
  *  │                                          │
- *  │  Tab content (scrollable)               │
+ *  │  Tab content (the only scrolling band)  │
  *  │                                          │
+ *  ├────────────────────────────────────────┤
+ *  │  [ Open in Mindshift ↗ ]                │  fixed bottom CTA
  *  └────────────────────────────────────────┘
  *
  * Loaded inside an iframe from the extension; shares localStorage with
@@ -88,15 +89,7 @@ export default function EmbedCardPage() {
   const [activeTranslation, setActiveTranslation] = useState<CardTranslationOut | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [defaultLang, setDefaultLang] = useState<string | null>(null);
-  const [chatMaximized, setChatMaximized] = useState(false);
   const autoTriggeredFor = useRef<Set<string>>(new Set());
-
-  // Reset maximize mode when leaving the chat tab — beim Wiederbetreten
-  // starten wir zurück im Compact-Modus, sonst wäre's irritierend ("warum
-  // ist Hero weg").
-  useEffect(() => {
-    if (tab !== "chat") setChatMaximized(false);
-  }, [tab]);
 
   // Apply the embed theme to the document root. We're effectively
   // racing the global ThemeProvider for the same classList, but we
@@ -230,6 +223,40 @@ export default function EmbedCardPage() {
   }, [tab, cardId, transcript, card]);
 
   const webOrigin = window.location.origin;
+
+  // When the embed iframe runs inside the extension side panel,
+  // `window.parent` is the side panel's HTML document — a privileged
+  // context that can talk to chrome.tabs. When the embed runs as a
+  // standalone tab (the Maximize / popOut link), there's no parent
+  // and we fall back to opening YouTube directly at the timestamp.
+  const isInIframe = typeof window !== "undefined" && window.parent !== window;
+
+  const onTimestampClick = useCallback(
+    (seconds: number) => {
+      const videoId =
+        card?.source_type === "youtube" ? card?.external_id ?? null : null;
+      if (!videoId) return;
+      if (isInIframe) {
+        // Side panel listens for this and forwards it to the active
+        // YouTube tab's content script.
+        window.parent.postMessage(
+          {
+            type: "mindshift:seekVideo",
+            videoId,
+            seconds: Math.floor(seconds),
+          },
+          "*",
+        );
+        return;
+      }
+      window.open(
+        `https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(seconds)}s`,
+        "_blank",
+      );
+    },
+    [card?.external_id, card?.source_type, isInIframe],
+  );
+
   const tabs = useMemo<EmbedTab[]>(() => {
     const list: EmbedTab[] = ["summary"];
     // Only show transcript for sources that actually have one.
@@ -388,106 +415,56 @@ export default function EmbedCardPage() {
             variant="compact"
           />
         </div>
-      ) : tab === "chat" && chatMaximized ? (
-        /* Maximized chat: dedicated layout — full pane, no hero/tags.
-           No outer scroll container — eliminates the scrollHeight
-           collapse that used to clamp scrollTop and pop the hero
-           back into view when switching from a text tab to chat. */
-        <div className="flex flex-1 min-h-0 flex-col">
-          <TabStrip
-            tabs={tabs}
-            tab={tab}
-            setTab={setTab}
-            t={t}
-            sticky={false}
-          />
-          <div className="embed-tab-content flex flex-1 min-h-0 flex-col p-3">
-            <ChatBlock
-              card={card}
-              maximized
-              onToggleMaximize={() => setChatMaximized(false)}
-            />
-          </div>
-        </div>
       ) : (
-      <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
-        {/* Hero — scrolls away */}
-        {card.thumbnail_url ? (
-          <div className="embed-hero relative aspect-video w-full flex-shrink-0 bg-ink-800">
-            <img
-              src={card.thumbnail_url}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-            {/* Gradient + title overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-ink-900 via-ink-900/40 to-transparent" />
-            <h1 className="embed-title absolute bottom-0 left-0 right-0 p-3 text-base font-semibold leading-snug text-ink-100">
-              {activeTranslation?.title ?? card.title}
-            </h1>
-          </div>
-        ) : (
-          <div className="flex-shrink-0 border-b border-ink-800 px-3 py-3">
-            <h1 className="embed-title text-base font-semibold leading-snug text-ink-100">
-              {activeTranslation?.title ?? card.title}
-            </h1>
-          </div>
-        )}
+        <>
+          {/* Compact fixed header — Recall-style. Title + tags on the
+              left, a small thumbnail on the right. Stays put while the
+              tab content below scrolls. */}
+          <CompactHeader
+            title={activeTranslation?.title ?? card.title}
+            tags={card.tags ?? []}
+            thumbnailUrl={card.thumbnail_url ?? null}
+          />
 
-        {/* Tags row — also scrolls */}
-        {card.tags && card.tags.length > 0 && (
-          <div className="flex flex-shrink-0 flex-wrap gap-1 px-3 py-2">
-            {card.tags.map((tg) => (
-              <span
-                key={tg}
-                className="rounded-full bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-300"
-              >
-                #{tg}
-              </span>
-            ))}
+          {/* Fixed tab strip — sticky is no longer needed because the
+              outer flex layout pins us above the scroll container. */}
+          <TabStrip tabs={tabs} tab={tab} setTab={setTab} t={t} />
+
+          {/* The ONLY scrolling band. min-h-0 is load-bearing under a
+              flex parent — without it the child's content would push
+              the container instead of clipping + scrolling. */}
+          <div className="flex flex-1 min-h-0 flex-col overflow-y-auto">
+            <div className="embed-tab-content flex flex-1 min-h-0 flex-col p-3">
+              {tab === "summary" && (
+                <SummaryTab
+                  card={card}
+                  translation={activeTranslation}
+                  depth={summaryDepth}
+                  onDepthChange={setSummaryDepth}
+                  onPickRelated={(c) => navigate(`/embed/cards/${c.card_id}`)}
+                  onTimestampClick={onTimestampClick}
+                />
+              )}
+              {tab === "transcript" && (
+                <TranscriptTab
+                  transcript={transcript}
+                  loading={transcriptLoading}
+                  youtubeVideoId={
+                    card.source_type === "youtube"
+                      ? card.external_id ?? null
+                      : null
+                  }
+                  youtubeUrl={card.source_url ?? null}
+                  onTimestampClick={onTimestampClick}
+                />
+              )}
+              {tab === "notes" && <NotesTab card={card} />}
+              {tab === "chat" && (
+                <ChatTab card={card} showSourceMedia={false} fitParent />
+              )}
+            </div>
           </div>
-        )}
-
-        {/* Sticky tab strip */}
-        <TabStrip tabs={tabs} tab={tab} setTab={setTab} t={t} sticky />
-
-        {/* Tab content. The `min-h-[120vh]` guarantees the scroll
-            container stays scrollable taller than the viewport even
-            when the active tab has very little content (e.g. an
-            empty Notes tab). Without it the browser would clamp
-            scrollTop back to 0 on tab switch — pulling the hero
-            image back into view and forcing the user to re-scroll.
-            Always-on for the text-tab path; chat uses its own
-            non-scrolling layout above. */}
-        <div className="embed-tab-content flex flex-1 min-h-[120vh] flex-col">
-          {tab === "summary" && (
-            <SummaryTab
-              card={card}
-              translation={activeTranslation}
-              depth={summaryDepth}
-              onDepthChange={setSummaryDepth}
-              onPickRelated={(c) => navigate(`/embed/cards/${c.card_id}`)}
-            />
-          )}
-          {tab === "transcript" && (
-            <TranscriptTab
-              transcript={transcript}
-              loading={transcriptLoading}
-              youtubeVideoId={
-                card.source_type === "youtube" ? card.external_id ?? null : null
-              }
-              youtubeUrl={card.source_url ?? null}
-            />
-          )}
-          {tab === "notes" && <NotesTab card={card} />}
-          {tab === "chat" && (
-            <ChatBlock
-              card={card}
-              maximized={false}
-              onToggleMaximize={() => setChatMaximized(true)}
-            />
-          )}
-        </div>
-      </div>
+        </>
       )}
 
       {/* Sticky bottom CTA — opens the full card detail in the main
@@ -509,28 +486,72 @@ export default function EmbedCardPage() {
   );
 }
 
+/* ------------------------- compact header ------------------------- */
+
+/**
+ * Fixed compact header — replaces the old scroll-away hero. Sits above
+ * the tab strip and stays put while the user scrolls through summary
+ * or transcript. Layout: title + tag pills on the left, a small
+ * thumbnail on the right (when available).
+ */
+function CompactHeader({
+  title,
+  tags,
+  thumbnailUrl,
+}: {
+  title: string;
+  tags: string[];
+  thumbnailUrl: string | null;
+}) {
+  return (
+    <div className="flex flex-shrink-0 items-start gap-3 border-b border-ink-800 bg-ink-900/95 px-3 py-2 backdrop-blur">
+      <div className="min-w-0 flex-1">
+        <h1 className="embed-title line-clamp-2 text-[13px] font-semibold leading-snug text-ink-100">
+          {title}
+        </h1>
+        {tags.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {tags.map((tg) => (
+              <span
+                key={tg}
+                className="rounded-full bg-ink-800 px-1.5 py-0.5 text-[10px] text-ink-300"
+              >
+                #{tg}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      {thumbnailUrl && (
+        <img
+          src={thumbnailUrl}
+          alt=""
+          className="aspect-video w-24 flex-shrink-0 rounded-md object-cover ring-1 ring-ink-700"
+        />
+      )}
+    </div>
+  );
+}
+
 /* ------------------------- tab strip ------------------------- */
 
 /**
- * Shared tab strip rendered in both layout paths (scroll-container
- * with hero/tags for text tabs, and chat's dedicated fill-height
- * layout). `sticky` only applies in the scroll-container variant
- * where the nav needs to pin to the top of the scrollable area;
- * in the chat path the nav is already at the top of the flex
- * column and doesn't need stickiness.
+ * Fixed tab strip — sits between the compact header and the scrollable
+ * tab content. The outer layout already pins this band, so the legacy
+ * `sticky` prop is now a no-op kept for callers that still pass it.
  */
 function TabStrip({
   tabs,
   tab,
   setTab,
   t,
-  sticky,
+  sticky = false,
 }: {
   tabs: EmbedTab[];
   tab: EmbedTab;
   setTab: (id: EmbedTab) => void;
   t: ReturnType<typeof useTranslation>["t"];
-  sticky: boolean;
+  sticky?: boolean;
 }) {
   return (
     <nav
@@ -575,53 +596,6 @@ function TabStrip({
   );
 }
 
-/* ------------------------- chat block ------------------------- */
-
-/**
- * Chat container that adapts to two layout contexts:
- *
- *  - Compact (default): rendered inside the scrollable tab content next
- *    to Summary/Transcript/Notes. Fixed 420 px height block with a
- *    border so it reads as a contained card; the maximize button
- *    promotes it to full-pane.
- *  - Maximized: fills the remaining flex space of its parent (the
- *    dedicated chat layout path in EmbedCardPage). Same ChatTab inside,
- *    but no border / fixed height — it owns the whole surface.
- *
- * Both modes render ChatTab with `fitParent` because the outer
- * container is bounded in both: 420 px in compact, flex-1 + min-h-0
- * in maximized.
- */
-interface ChatBlockProps {
-  card: Card;
-  maximized: boolean;
-  onToggleMaximize: () => void;
-}
-
-function ChatBlock({ card, maximized, onToggleMaximize }: ChatBlockProps) {
-  return (
-    <div
-      className={
-        maximized
-          ? "relative flex flex-1 min-h-0 flex-col"
-          : "relative my-4 flex flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900/40"
-      }
-      style={maximized ? undefined : { height: 420 }}
-    >
-      <button
-        type="button"
-        onClick={onToggleMaximize}
-        title={maximized ? "Minimize chat" : "Maximize chat"}
-        aria-label={maximized ? "Minimize chat" : "Maximize chat"}
-        className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md bg-ink-900/85 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
-      >
-        {maximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-      </button>
-      <ChatTab card={card} showSourceMedia={false} fitParent />
-    </div>
-  );
-}
-
 /* ------------------------- tab bodies ------------------------- */
 
 function SummaryTab({
@@ -630,12 +604,14 @@ function SummaryTab({
   depth,
   onDepthChange,
   onPickRelated,
+  onTimestampClick,
 }: {
   card: Card;
   translation: CardTranslationOut | null;
   depth: SummaryDepth;
   onDepthChange: (d: SummaryDepth) => void;
   onPickRelated: (c: Connection) => void;
+  onTimestampClick?: (seconds: number) => void;
 }) {
   const text =
     depth === "concise"
@@ -656,7 +632,12 @@ function SummaryTab({
       </div>
       {text ? (
         <div className="prose prose-invert prose-sm max-w-none text-[13px] leading-relaxed text-ink-200">
-          <MarkdownView source={text} youtubeVideoId={videoId} youtubeUrl={sourceUrl} />
+          <MarkdownView
+            source={text}
+            youtubeVideoId={videoId}
+            youtubeUrl={sourceUrl}
+            onTimestampClick={onTimestampClick}
+          />
         </div>
       ) : (
         <p className="text-xs text-ink-500">No {depth} summary available yet.</p>
@@ -675,6 +656,7 @@ function SummaryTab({
                     source={typeof tk === "string" ? tk : ""}
                     youtubeVideoId={videoId}
                     youtubeUrl={sourceUrl}
+                    onTimestampClick={onTimestampClick}
                   />
                 </span>
               </li>
@@ -806,11 +788,13 @@ function TranscriptTab({
   loading,
   youtubeVideoId,
   youtubeUrl,
+  onTimestampClick,
 }: {
   transcript: TranscriptOut | null;
   loading: boolean;
   youtubeVideoId: string | null;
   youtubeUrl: string | null;
+  onTimestampClick?: (seconds: number) => void;
 }) {
   const [query, setQuery] = useState("");
   if (loading || transcript === null) {
@@ -868,9 +852,20 @@ function TranscriptTab({
         <ol className="space-y-1.5">
           {filtered.map((s, i) => {
             const url = linkFor(s.start);
+            // Prefer steering the host YouTube tab via onTimestampClick
+            // (set by EmbedCardPage when inside the side panel iframe);
+            // fall back to opening the timestamped URL in a new tab.
             return (
               <li key={`${s.start}-${i}`} className="flex gap-2">
-                {url ? (
+                {onTimestampClick ? (
+                  <button
+                    type="button"
+                    onClick={() => onTimestampClick(s.start)}
+                    className="flex-shrink-0 font-mono text-[10px] tabular-nums text-fuchsia-400 hover:underline dark:text-fuchsia-300"
+                  >
+                    {fmt(s.start)}
+                  </button>
+                ) : url ? (
                   <a
                     href={url}
                     target="_blank"
@@ -1172,39 +1167,38 @@ function EmbedResponsiveStyle() {
         container-name: embed;
       }
 
-      /* Narrow: hide the "Open" word, drop the source pill, tighter
-         hero — gives the language picker + theme toggle room to fit
-         on a single line at Chrome's minimum side-panel width. */
+      /* Narrow: hide the "Open" word, drop the source pill, and
+         tighten the compact header type — gives the language picker
+         + theme toggle room to fit on a single line at Chrome's
+         minimum side-panel width. */
       @container embed (max-width: 359px) {
         .embed-bar { gap: 4px !important; padding-left: 6px; padding-right: 6px; }
         .embed-bar .embed-bar-label { display: none; }
         .embed-bar-source { display: none; }
-        .embed-title { font-size: 13px !important; padding: 8px !important; }
-        .embed-hero { aspect-ratio: 16 / 7; }
+        .embed-title { font-size: 12px !important; }
       }
 
       /* Wide: more breathing room — bigger title, wider related-card
          tiles, more padding around the tab content. */
       @container embed (min-width: 520px) {
-        .embed-title { font-size: 18px !important; padding: 16px !important; }
+        .embed-title { font-size: 14px !important; }
         .embed-related-tile { width: 168px !important; }
         .embed-tab-content { padding: 16px !important; }
       }
 
-      /* Wide enough to widen the prose comfortably. Below the
-         readability cap, content fills the panel as the user drags
-         it open — no centred letterbox effect at 720 px. */
+      /* Wide enough to widen the prose comfortably. The tab content
+         now fills the whole panel width past 720 px so the prose
+         doesn't get letterboxed at intermediate widths. */
       @container embed (min-width: 720px) {
-        .embed-title { font-size: 22px !important; }
+        .embed-title { font-size: 15px !important; }
         .embed-tab-content { padding: 24px !important; }
       }
 
-      /* Past ~960 px we'd be in 100+ char-per-line territory which
-         hurts prose readability. From here on cap the tab content
-         and centre it so the rest of the panel stays as background,
-         while bar / hero / title keep filling the full panel width. */
+      /* Larger paddings at very wide widths — but NO max-width clamp,
+         so the prose keeps filling the panel instead of centring in a
+         letterbox the user has to scroll inside of. */
       @container embed (min-width: 960px) {
-        .embed-tab-content { max-width: 960px; margin: 0 auto; padding: 28px !important; }
+        .embed-tab-content { padding: 28px !important; }
       }
     `}</style>
   );
