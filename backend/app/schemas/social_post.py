@@ -18,6 +18,9 @@ class SocialPostCreate(BaseModel):
     # Image generation is opt-in because gpt-image-2 takes ~30 s and
     # adds API cost; defaults off so a "Generate" click is fast + cheap.
     with_image: bool = False
+    # Emoji on by default — they help LinkedIn / X posts scan; toggle
+    # off for stricter / corporate voices.
+    with_emoji: bool = True
 
 
 class SocialPostOut(BaseModel):

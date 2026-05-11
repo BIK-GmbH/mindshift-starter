@@ -14,6 +14,8 @@ import {
   Maximize2,
   MessageSquare,
   Network,
+  ChevronLeft,
+  ChevronRight,
   Megaphone,
   RefreshCw,
   RotateCw,
@@ -119,6 +121,7 @@ export default function CardDetailContent({
   // Mobile mini-player wiring — see MobileMediaPin section below.
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const mediaSentinelRef = useRef<HTMLDivElement>(null);
+  const tabScrollerRef = useRef<HTMLDivElement>(null);
   const [mediaPinned, setMediaPinned] = useState(false);
 
   const fetchCard = useCallback(async () => {
@@ -578,7 +581,9 @@ export default function CardDetailContent({
              * active tab is part-way and tabs overflow.
              */}
           <nav className="flex items-center gap-0.5" aria-label="card sections">
+            <TabScrollChevron direction="left" scrollerRef={tabScrollerRef} />
             <div
+              ref={tabScrollerRef}
               className="no-scrollbar relative flex min-w-0 flex-1 gap-0.5 overflow-x-auto"
               style={{ touchAction: "pan-x", overscrollBehaviorX: "contain" }}
             >
@@ -611,6 +616,7 @@ export default function CardDetailContent({
               aria-hidden="true"
               className="pointer-events-none -ml-6 h-7 w-6 flex-shrink-0 bg-gradient-to-l from-ink-900 to-transparent sm:hidden"
             />
+            <TabScrollChevron direction="right" scrollerRef={tabScrollerRef} />
             <div className="flex-shrink-0 sm:hidden">
               <ActionBar
                 canRegenerate={canRegenerate}
@@ -1023,3 +1029,72 @@ function MenuItem({
   );
 }
 
+
+/* ----------------------------------------------------------------------
+ * Tab-strip chevron — desktop-only paging button on either side of the
+ * horizontal scroller. Hidden on touch viewports (mobile already pans
+ * the strip with a finger). Hidden when the scroll is already pinned
+ * to the matching edge.
+ * -------------------------------------------------------------------- */
+function TabScrollChevron({
+  direction,
+  scrollerRef,
+}: {
+  direction: "left" | "right";
+  scrollerRef: React.RefObject<HTMLDivElement>;
+}) {
+  const [canScroll, setCanScroll] = useState(false);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const update = () => {
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 1) {
+        setCanScroll(false);
+        return;
+      }
+      if (direction === "left") {
+        setCanScroll(el.scrollLeft > 1);
+      } else {
+        setCanScroll(el.scrollLeft < max - 1);
+      }
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [direction, scrollerRef]);
+
+  const onClick = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const step = Math.max(120, el.clientWidth * 0.6);
+    el.scrollBy({ left: direction === "left" ? -step : step, behavior: "smooth" });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={direction === "left" ? "Scroll tabs left" : "Scroll tabs right"}
+      className={[
+        "hidden h-7 w-6 flex-shrink-0 items-center justify-center rounded text-ink-400 transition md:inline-flex",
+        canScroll ? "hover:bg-ink-800 hover:text-ink-200" : "invisible",
+      ].join(" ")}
+      tabIndex={canScroll ? 0 : -1}
+    >
+      {direction === "left" ? (
+        <ChevronLeft className="h-4 w-4" />
+      ) : (
+        <ChevronRight className="h-4 w-4" />
+      )}
+    </button>
+  );
+}

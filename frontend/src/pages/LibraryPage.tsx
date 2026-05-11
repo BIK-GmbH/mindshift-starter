@@ -336,7 +336,8 @@ export default function LibraryPage() {
                       that has something worth rendering alongside the
                       chat: YouTube embed, GitHub repo card + banner. */}
                   {((selectedCard?.source_type === "youtube" && selectedCard.external_id) ||
-                    (selectedCard?.source_type === "github" && selectedCard.source_url)) && (
+                    (selectedCard?.source_type === "github" && selectedCard.source_url) ||
+                    selectedCard?.source_type === "pdf") && (
                     <button
                       type="button"
                       onClick={() => setChatPlayerOpen((v) => !v)}
@@ -381,6 +382,11 @@ export default function LibraryPage() {
                       <CardSourceMedia card={selectedCard} />
                     </div>
                   )}
+                {chatPlayerOpen && selectedCard?.source_type === "pdf" && (
+                  <div className="min-h-0 flex-1">
+                    <CardSourceMedia card={selectedCard} fitHeight />
+                  </div>
+                )}
                 <div className="min-h-0 flex-1">
                   <ChatPanel
                     key={selectedCardId}

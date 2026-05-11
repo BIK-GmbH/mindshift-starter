@@ -111,6 +111,7 @@ def create_social_post(
             language=payload.language,
             with_hashtags=payload.with_hashtags,
             with_cta=payload.with_cta,
+            with_emoji=payload.with_emoji,
         )
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

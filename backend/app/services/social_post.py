@@ -63,6 +63,7 @@ def _build_system_prompt(
     *,
     with_hashtags: bool,
     with_cta: bool,
+    with_emoji: bool,
     language: str | None,
 ) -> str:
     platform_guide = _PLATFORM_GUIDE[platform]
@@ -83,6 +84,12 @@ def _build_system_prompt(
         if with_cta
         else "Don't add a sign-off or CTA."
     )
+    emoji_clause = (
+        "Light, well-placed emoji are welcome — 0–3 across the whole "
+        "post, never at the end of every line."
+        if with_emoji
+        else "Do NOT use ANY emoji or pictographic symbols. Plain text only."
+    )
 
     return (
         "You write polished social-media posts from short knowledge "
@@ -93,6 +100,7 @@ def _build_system_prompt(
         f"## Language\n{lang_clause}\n\n"
         f"## Hashtags\n{hashtags_clause}\n\n"
         f"## CTA\n{cta_clause}\n\n"
+        f"## Emoji\n{emoji_clause}\n\n"
         "Other rules:\n"
         " - Don't quote the source verbatim — paraphrase the key idea.\n"
         " - Avoid generic AI-tells: no 'In conclusion', no 'In today's "
@@ -134,6 +142,7 @@ def generate_post(
     language: str | None = None,
     with_hashtags: bool = True,
     with_cta: bool = True,
+    with_emoji: bool = True,
 ) -> tuple[str, list[str]]:
     """Call OpenAI and return (text, hashtags).
 
@@ -152,6 +161,7 @@ def generate_post(
         tone,
         with_hashtags=with_hashtags,
         with_cta=with_cta,
+        with_emoji=with_emoji,
         language=language,
     )
     user = _build_user_prompt(

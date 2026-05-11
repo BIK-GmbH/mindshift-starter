@@ -1,19 +1,24 @@
 import {
   Check,
+  ChevronDown,
   Copy,
+  ExternalLink,
   Image as ImageIcon,
   Linkedin,
   Loader2,
   Megaphone,
+  Send,
   Sparkles,
   Trash2,
   Twitter,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
   api,
+  type MCPServerOut,
+  type MCPToolOut,
   type SocialPostCreate,
   type SocialPostOut,
   type SocialPostPlatform,
@@ -73,10 +78,20 @@ export default function PostsTab({ cardId }: Props) {
   const [withHashtags, setWithHashtags] = useState(true);
   const [withCta, setWithCta] = useState(true);
   const [withImage, setWithImage] = useState(false);
+  const [withEmoji, setWithEmoji] = useState(true);
+  // Language is free-form so the user can request odd dialects or
+  // mixed-language posts ("German with English tech terms"). Empty =
+  // let the model match the source's dominant language.
+  const [language, setLanguage] = useState("");
   const [drafts, setDrafts] = useState<SocialPostOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // MCP servers + their tools — used by the per-draft "Publish via …"
+  // dropdown. We only show tools whose name / description looks
+  // publish-y; non-publishing tools (file readers, calendar etc) are
+  // filtered client-side.
+  const [mcpServers, setMcpServers] = useState<MCPServerOut[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,6 +112,23 @@ export default function PostsTab({ cardId }: Props) {
     };
   }, [cardId]);
 
+  // Load MCP servers once when the tab mounts. Failures are silently
+  // ignored — the rest of the tab still works without MCP.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listMCPServers()
+      .then((list) => {
+        if (!cancelled) setMcpServers(list);
+      })
+      .catch(() => {
+        /* MCP is optional */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const generate = async () => {
     setGenerating(true);
     setError(null);
@@ -106,6 +138,8 @@ export default function PostsTab({ cardId }: Props) {
       with_hashtags: withHashtags,
       with_cta: withCta,
       with_image: withImage,
+      with_emoji: withEmoji,
+      language: language.trim() || null,
     };
     try {
       const post = await api.createSocialPost(cardId, body);
@@ -189,6 +223,28 @@ export default function PostsTab({ cardId }: Props) {
             </select>
           </label>
           <label className="inline-flex items-center gap-1.5 text-[11px] text-ink-300">
+            <span className="text-ink-400">
+              {t("posts.language.label", { defaultValue: "Language" })}:
+            </span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="rounded-md border border-ink-700 bg-ink-800/40 px-2 py-1 text-xs text-ink-100 focus:border-ink-500 focus:outline-none"
+            >
+              <option value="">
+                {t("posts.language.auto", { defaultValue: "Auto (match source)" })}
+              </option>
+              <option value="Deutsch">Deutsch</option>
+              <option value="English">English</option>
+              <option value="Français">Français</option>
+              <option value="Español">Español</option>
+              <option value="Italiano">Italiano</option>
+              <option value="Português">Português</option>
+              <option value="Nederlands">Nederlands</option>
+              <option value="日本語">日本語</option>
+            </select>
+          </label>
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-ink-300">
             <input
               type="checkbox"
               checked={withHashtags}
@@ -196,6 +252,15 @@ export default function PostsTab({ cardId }: Props) {
               className="h-3.5 w-3.5"
             />
             {t("posts.withHashtags", { defaultValue: "Hashtags" })}
+          </label>
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-ink-300">
+            <input
+              type="checkbox"
+              checked={withEmoji}
+              onChange={(e) => setWithEmoji(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            {t("posts.withEmoji", { defaultValue: "Emoji" })}
           </label>
           <label className="inline-flex items-center gap-1.5 text-[11px] text-ink-300">
             <input
@@ -256,7 +321,11 @@ export default function PostsTab({ cardId }: Props) {
         <ul className="space-y-3">
           {drafts.map((d) => (
             <li key={d.id}>
-              <DraftCard draft={d} onDelete={() => void removeDraft(d.id)} />
+              <DraftCard
+                draft={d}
+                mcpServers={mcpServers}
+                onDelete={() => void removeDraft(d.id)}
+              />
             </li>
           ))}
         </ul>
@@ -270,9 +339,11 @@ export default function PostsTab({ cardId }: Props) {
  * -------------------------------------------------------------------- */
 function DraftCard({
   draft,
+  mcpServers,
   onDelete,
 }: {
   draft: SocialPostOut;
+  mcpServers: MCPServerOut[];
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
@@ -326,6 +397,11 @@ function DraftCard({
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <PublishMenu
+            draft={draft}
+            fullText={fullText}
+            mcpServers={mcpServers}
+          />
           <button
             type="button"
             onClick={() => void copy(fullText, setCopiedAll)}
@@ -408,6 +484,207 @@ function DraftCard({
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+ * "Publish via …" menu — filters configured MCP tools to publish-y
+ * ones, lets the user invoke one with the draft as arguments.
+ * -------------------------------------------------------------------- */
+const _PUBLISH_KEYWORDS = [
+  "publish",
+  "post",
+  "tweet",
+  "share",
+  "social",
+  "linkedin",
+  "twitter",
+  "bluesky",
+  "send",
+  "compose",
+];
+
+function isPublishTool(tool: MCPToolOut): boolean {
+  const haystack = `${tool.name} ${tool.description ?? ""}`.toLowerCase();
+  return _PUBLISH_KEYWORDS.some((kw) => haystack.includes(kw));
+}
+
+interface PublishCandidate {
+  serverId: string;
+  serverName: string;
+  tool: MCPToolOut;
+}
+
+function PublishMenu({
+  draft,
+  fullText,
+  mcpServers,
+}: {
+  draft: SocialPostOut;
+  fullText: string;
+  mcpServers: MCPServerOut[];
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [calling, setCalling] = useState<string | null>(null);
+  const [result, setResult] = useState<
+    | { ok: true; message: string; url: string | null }
+    | { ok: false; message: string }
+    | null
+  >(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const candidates: PublishCandidate[] = useMemo(() => {
+    const out: PublishCandidate[] = [];
+    for (const s of mcpServers) {
+      if (!s.is_active) continue;
+      for (const tool of s.tools) {
+        if (isPublishTool(tool)) {
+          out.push({ serverId: s.id, serverName: s.name, tool });
+        }
+      }
+    }
+    return out;
+  }, [mcpServers]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!result) return;
+    const id = window.setTimeout(() => setResult(null), 6000);
+    return () => window.clearTimeout(id);
+  }, [result]);
+
+  if (candidates.length === 0) {
+    // No matching MCP tool configured — hide the affordance entirely.
+    // The user finds the Settings → MCP servers tab on their own.
+    return null;
+  }
+
+  const invoke = async (cand: PublishCandidate) => {
+    setCalling(cand.tool.name);
+    setResult(null);
+    try {
+      const res = await api.callMCPTool({
+        server_id: cand.serverId,
+        tool_name: cand.tool.name,
+        arguments: {
+          // Send a small, well-named bag — most MCP publishing tools
+          // accept some subset of these. Extra fields are typically
+          // ignored by JSON-Schema validators.
+          platform: draft.platform,
+          text: fullText,
+          body: fullText,
+          content: fullText,
+          hashtags: draft.hashtags,
+        },
+      });
+      if (!res.ok) {
+        setResult({ ok: false, message: res.error ?? "Publish failed" });
+        return;
+      }
+      // Try to pull a posted-URL from the MCP `result.content` array.
+      const contentArr =
+        Array.isArray(res.result?.content) ? (res.result?.content as unknown[]) : [];
+      const text = contentArr
+        .map((c) => {
+          if (c && typeof c === "object" && "text" in c) {
+            return String((c as { text?: string }).text ?? "");
+          }
+          return "";
+        })
+        .filter(Boolean)
+        .join(" ");
+      const url = text.match(/https?:\/\/[^\s)]+/)?.[0] ?? null;
+      setResult({
+        ok: true,
+        message: text || t("posts.published", { defaultValue: "Published." }),
+        url,
+      });
+      setOpen(false);
+    } catch (err) {
+      setResult({ ok: false, message: (err as Error).message });
+    } finally {
+      setCalling(null);
+    }
+  };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 rounded-md border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-[11px] font-medium text-violet-200 transition hover:bg-violet-500/20"
+      >
+        <Send className="h-3 w-3" />
+        {t("posts.publishVia", { defaultValue: "Publish via" })}
+        <ChevronDown className="h-3 w-3" />
+      </button>
+      {open && (
+        <div className="panel-elevated absolute right-0 top-[calc(100%+4px)] z-30 w-72 overflow-hidden rounded-md border border-ink-700 bg-ink-900 shadow-xl">
+          <ul className="max-h-72 overflow-y-auto py-1">
+            {candidates.map((cand) => (
+              <li key={`${cand.serverId}-${cand.tool.name}`}>
+                <button
+                  type="button"
+                  onClick={() => void invoke(cand)}
+                  disabled={calling !== null}
+                  className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-[11px] text-ink-200 transition hover:bg-ink-800 disabled:opacity-50"
+                >
+                  <span className="flex items-center gap-1.5 font-medium text-ink-100">
+                    {calling === cand.tool.name ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Send className="h-3 w-3 text-violet-300" />
+                    )}
+                    {cand.tool.name}
+                  </span>
+                  <span className="text-[10px] text-ink-400">
+                    {cand.serverName}
+                    {cand.tool.description ? ` · ${cand.tool.description}` : ""}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {result && (
+        <div
+          className={[
+            "absolute right-0 top-[calc(100%+4px)] z-30 w-80 rounded-md border p-3 text-[11px] shadow-xl",
+            result.ok
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+              : "border-red-500/40 bg-red-500/10 text-red-200",
+          ].join(" ")}
+        >
+          <p className="font-medium">
+            {result.ok
+              ? t("posts.publishedTitle", { defaultValue: "Published" })
+              : t("posts.publishFailed", { defaultValue: "Publish failed" })}
+          </p>
+          <p className="mt-1 break-words text-ink-300">{result.message}</p>
+          {result.ok && result.url && (
+            <a
+              href={result.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-emerald-200 hover:bg-emerald-500/25"
+            >
+              <ExternalLink className="h-3 w-3" />
+              {t("posts.openPost", { defaultValue: "Open post" })}
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }

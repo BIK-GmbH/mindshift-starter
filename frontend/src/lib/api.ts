@@ -1224,6 +1224,7 @@ export interface SocialPostCreate {
   with_hashtags?: boolean;
   with_cta?: boolean;
   with_image?: boolean;
+  with_emoji?: boolean;
 }
 
 export interface SocialPostOut {
