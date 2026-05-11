@@ -380,7 +380,7 @@
     "edges": "Kanten",
     "reset": "Zurücksetzen",
     "depth": "Tiefe",
-    "settingsHeading": "Graph-Einstellungen",
+    "settingsHeading": "Graph",
     "preset": {
       "heading": "Presets",
       "new": "Neu",
@@ -429,7 +429,7 @@
       "body": "Füge weitere Cards zum gleichen Thema hinzu (gleiche Tags, ähnlicher Inhalt) — die Verbindungen entstehen automatisch."
     },
     "global": {
-      "title": "Graph",
+      "title": "Knowledge Graph",
       "subtitle": "Deine gesamte Bibliothek als Netzwerk.",
       "hint": "Klick auf einen Node öffnet die Card. Linien zeigen geteilte Konzepte, Tags oder semantische Nähe.",
       "hint2": "Klick = Card-Vorschau · Shift-Klick = Focus auf Knoten + Nachbarn · Suchfeld unterstützt ↑↓ und Enter."
