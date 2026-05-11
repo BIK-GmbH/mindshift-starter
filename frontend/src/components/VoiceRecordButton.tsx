@@ -1,4 +1,5 @@
 import { Loader2, Mic } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useVoiceRecording } from "../lib/useVoiceRecording";
@@ -26,7 +27,15 @@ export default function VoiceRecordButton({
   statusClassName,
 }: VoiceRecordButtonProps) {
   const { t } = useTranslation();
-  const voice = useVoiceRecording({ onTranscribed });
+  const [lastError, setLastError] = useState<string | null>(null);
+  const voice = useVoiceRecording({
+    onTranscribed,
+    onError: (msg) => {
+      setLastError(msg);
+      // surface the raw error in the console so we can see DOMException names
+      console.warn("[mindshift voice] error:", msg);
+    },
+  });
 
   if (!voice.supported) return null;
 
@@ -94,7 +103,7 @@ export default function VoiceRecordButton({
           )}
           {voice.state === "error" && (
             <span className="text-red-400">
-              {t("voice.errorGeneric", { defaultValue: "Voice recording failed. Try again." })}
+              {lastError ?? t("voice.errorGeneric", { defaultValue: "Voice recording failed. Try again." })}
             </span>
           )}
         </span>

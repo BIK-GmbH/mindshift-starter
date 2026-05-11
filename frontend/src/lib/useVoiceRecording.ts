@@ -163,9 +163,7 @@ export function useVoiceRecording({
     } catch (e) {
       const msg =
         e instanceof Error
-          ? e.name === "NotAllowedError"
-            ? "Microphone access denied."
-            : e.message
+          ? `${e.name}: ${e.message || "(no message)"}`
           : "Microphone access failed.";
       handleError(msg);
     }
