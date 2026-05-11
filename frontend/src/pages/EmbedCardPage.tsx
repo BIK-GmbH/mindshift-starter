@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, Loader2, Maximize2, MessageSquare, Moon, Search, StickyNote, Sun, X } from "lucide-react";
+import { ExternalLink, FileText, Loader2, Maximize2, MessageSquare, Minimize2, Moon, Search, StickyNote, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -88,7 +88,15 @@ export default function EmbedCardPage() {
   const [activeTranslation, setActiveTranslation] = useState<CardTranslationOut | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [defaultLang, setDefaultLang] = useState<string | null>(null);
+  const [chatMaximized, setChatMaximized] = useState(false);
   const autoTriggeredFor = useRef<Set<string>>(new Set());
+
+  // Reset maximize mode when leaving the chat tab — beim Wiederbetreten
+  // starten wir zurück im Compact-Modus, sonst wäre's irritierend ("warum
+  // ist Hero weg").
+  useEffect(() => {
+    if (tab !== "chat") setChatMaximized(false);
+  }, [tab]);
 
   // Apply the embed theme to the document root. We're effectively
   // racing the global ThemeProvider for the same classList, but we
@@ -380,13 +388,11 @@ export default function EmbedCardPage() {
             variant="compact"
           />
         </div>
-      ) : tab === "chat" ? (
-        /* Chat layout: nav + chat fill the remaining height. Hero and
-           tags are intentionally hidden so the chat surface stays
-           focused, and crucially this path has NO outer scroll
-           container — eliminating the scrollHeight collapse that
-           used to clamp scrollTop and pop the hero back into view
-           when switching from a text tab to chat. */
+      ) : tab === "chat" && chatMaximized ? (
+        /* Maximized chat: dedicated layout — full pane, no hero/tags.
+           No outer scroll container — eliminates the scrollHeight
+           collapse that used to clamp scrollTop and pop the hero
+           back into view when switching from a text tab to chat. */
         <div className="flex flex-1 min-h-0 flex-col">
           <TabStrip
             tabs={tabs}
@@ -396,7 +402,11 @@ export default function EmbedCardPage() {
             sticky={false}
           />
           <div className="embed-tab-content flex flex-1 min-h-0 flex-col p-3">
-            <ChatTab card={card} showSourceMedia={false} fitParent />
+            <ChatBlock
+              card={card}
+              maximized
+              onToggleMaximize={() => setChatMaximized(false)}
+            />
           </div>
         </div>
       ) : (
@@ -469,6 +479,13 @@ export default function EmbedCardPage() {
             />
           )}
           {tab === "notes" && <NotesTab card={card} />}
+          {tab === "chat" && (
+            <ChatBlock
+              card={card}
+              maximized={false}
+              onToggleMaximize={() => setChatMaximized(true)}
+            />
+          )}
         </div>
       </div>
       )}
@@ -555,6 +572,53 @@ function TabStrip({
         );
       })}
     </nav>
+  );
+}
+
+/* ------------------------- chat block ------------------------- */
+
+/**
+ * Chat container that adapts to two layout contexts:
+ *
+ *  - Compact (default): rendered inside the scrollable tab content next
+ *    to Summary/Transcript/Notes. Fixed 420 px height block with a
+ *    border so it reads as a contained card; the maximize button
+ *    promotes it to full-pane.
+ *  - Maximized: fills the remaining flex space of its parent (the
+ *    dedicated chat layout path in EmbedCardPage). Same ChatTab inside,
+ *    but no border / fixed height — it owns the whole surface.
+ *
+ * Both modes render ChatTab with `fitParent` because the outer
+ * container is bounded in both: 420 px in compact, flex-1 + min-h-0
+ * in maximized.
+ */
+interface ChatBlockProps {
+  card: Card;
+  maximized: boolean;
+  onToggleMaximize: () => void;
+}
+
+function ChatBlock({ card, maximized, onToggleMaximize }: ChatBlockProps) {
+  return (
+    <div
+      className={
+        maximized
+          ? "relative flex flex-1 min-h-0 flex-col"
+          : "relative my-4 flex flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900/40"
+      }
+      style={maximized ? undefined : { height: 420 }}
+    >
+      <button
+        type="button"
+        onClick={onToggleMaximize}
+        title={maximized ? "Minimize chat" : "Maximize chat"}
+        aria-label={maximized ? "Minimize chat" : "Maximize chat"}
+        className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md bg-ink-900/85 text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+      >
+        {maximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+      </button>
+      <ChatTab card={card} showSourceMedia={false} fitParent />
+    </div>
   );
 }
 
