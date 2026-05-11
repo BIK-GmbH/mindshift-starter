@@ -1,8 +1,9 @@
 /* Mindshift extension service worker.
  *
- * The toolbar icon opens the popup (default action). The side panel is
- * a separate UI surface — the popup links into it via the runtime
- * messaging below. We also enable the side panel for every tab so the
+ * The toolbar icon opens the side panel directly. The popup (with the
+ * power features — bulk save, toggles, settings) is reachable via
+ * right-click on the extension icon → Options (set via manifest's
+ * options_page). We also enable the side panel for every tab so the
  * user can pin it from Chrome's UI without per-page configuration.
  */
 
@@ -10,11 +11,12 @@ import { canonicalizeUrl } from "./lib/url.js";
 import { shouldRefetch } from "./lib/badge.js";
 
 if (chrome.sidePanel?.setPanelBehavior) {
-  // Available in Chrome 116+. Keeps the side panel open across tab
-  // switches so the user can compare what they're reading with their
-  // saved card.
+  // Chrome 116+. Makes a click on the toolbar icon open the side
+  // panel directly, bypassing the manifest's default_popup. The
+  // popup is still defined as the options_page for the right-click
+  // → Options entry.
   chrome.sidePanel
-    .setPanelBehavior({ openPanelOnActionClick: false })
+    .setPanelBehavior({ openPanelOnActionClick: true })
     .catch(() => {
       /* older Chrome — silently ignore */
     });
