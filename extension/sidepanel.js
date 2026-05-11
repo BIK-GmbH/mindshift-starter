@@ -151,6 +151,19 @@ async function autoAddAndEmbed(url) {
     });
     const cardId = data?.card?.id;
     if (cardId) {
+      // Let the background sync the toolbar badge + notify the
+      // content script on the current tab so its in-page "Save" CTA
+      // (the YouTube button etc.) flips to "Saved" without a reload.
+      try {
+        chrome.runtime.sendMessage({
+          type: "notifyCardSaved",
+          tabId: activeTab?.id,
+          url,
+          cardId,
+        });
+      } catch {
+        /* best-effort — embedded card still loads regardless */
+      }
       embedCard(cardId);
     } else {
       setStatus(els.saveStatus, "Saved.", "ok");

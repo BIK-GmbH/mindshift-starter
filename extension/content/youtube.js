@@ -464,3 +464,40 @@ void attachAutoSaveListener();
     void attachAutoSaveListener();
   }, POLL_INTERVAL_MS);
 }
+
+// Listen for background-broadcast cardSaved messages. Fired whenever
+// any save path (toolbar button, hotkey, side panel auto-add) writes
+// a card for the current tab — we need this on the YouTube content
+// script so the in-page Save button flips to "Saved → Open" without
+// a page reload.
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type !== "cardSaved" || !msg?.cardId) return;
+  // Match URLs loosely: YouTube SPA navigations can keep the cardSaved
+  // URL slightly out of sync with location.href (extra params, fragment
+  // tweaks). Compare just the watch?v=<id> portion.
+  const here = window.location.href;
+  if (!sameVideo(here, msg.url)) return;
+  const btn = document.getElementById(BUTTON_ID);
+  if (!btn) return;
+  setButtonState(btn, "saved", {
+    cardId: msg.cardId,
+    title: "Open in Mindshift",
+  });
+});
+
+function sameVideo(a, b) {
+  try {
+    const ua = new URL(a);
+    const ub = new URL(b);
+    const aId = ua.hostname.includes("youtu.be")
+      ? ua.pathname.slice(1).split("/")[0]
+      : ua.searchParams.get("v");
+    const bId = ub.hostname.includes("youtu.be")
+      ? ub.pathname.slice(1).split("/")[0]
+      : ub.searchParams.get("v");
+    if (aId && bId) return aId === bId;
+    return a === b;
+  } catch {
+    return a === b;
+  }
+}

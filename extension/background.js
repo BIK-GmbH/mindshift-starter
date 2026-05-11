@@ -141,9 +141,11 @@ if (chrome.tabs?.onRemoved) {
   });
 }
 
-/** Optimistically flip the badge to ✓ for a freshly-saved tab —
- *  called from `savePageForUrl` so the user sees confirmation at
- *  popup-close speed, not at next-tab-event speed. */
+/** Optimistically flip the badge to ✓ for a freshly-saved tab AND
+ *  notify the page's content script so its in-page button (the
+ *  YouTube "Save → Saved" CTA, etc.) updates without a page reload.
+ *  Called from every save path — toolbar save, hotkey, side-panel
+ *  auto-add — so the user sees one consistent state everywhere. */
 async function markTabSaved(tabId, url, cardId) {
   if (typeof tabId !== "number") return;
   const canon = canonicalizeUrl(url);
@@ -151,6 +153,18 @@ async function markTabSaved(tabId, url, cardId) {
   cache[tabId] = { url: canon, cardId: cardId || null, ts: Date.now() };
   await writeBadgeCache(cache);
   await applyBadge(tabId, cardId || null);
+  // Best-effort fan-out to the tab's content scripts. The receiver may
+  // not be there (other-origin frame, no content script for this host),
+  // so swallow the "Receiving end does not exist" rejection.
+  if (cardId) {
+    chrome.tabs
+      .sendMessage(tabId, {
+        type: "cardSaved",
+        url: canon,
+        cardId,
+      })
+      .catch(() => {});
+  }
 }
 
 /** True when the URL or tab mimeType points at a PDF. Mirrors the
@@ -390,6 +404,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .open({ tabId })
       .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ ok: false, error: String(err) }));
+    return true;
+  }
+
+  // Side panel uses this to ping the badge cache + content script
+  // after it has saved a card directly against the backend (it doesn't
+  // route through savePageForUrl, so markTabSaved wouldn't fire on its
+  // own). Without this hop the in-page YouTube "Save" button stays in
+  // its un-saved state until a page reload.
+  if (msg?.type === "notifyCardSaved") {
+    const tabId = msg.tabId ?? sender?.tab?.id;
+    const url = msg.url || "";
+    const cardId = msg.cardId || null;
+    if (typeof tabId === "number" && cardId && url) {
+      void markTabSaved(tabId, url, cardId);
+    }
+    sendResponse({ ok: true });
     return true;
   }
 
