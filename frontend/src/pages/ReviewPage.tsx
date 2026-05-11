@@ -289,13 +289,20 @@ function ReviewSidebar({
 
   return (
     <aside className="panel-elevated hidden md:flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
-      <div className="flex-shrink-0 border-b border-ink-800 px-4 py-3">
+      {/* Header row — min-height matches the Library/Graph sidebars which
+          carry an action button next to the title. Without it the Review
+          header sits a few pixels shorter and the page jumps vertically
+          when navigating between sections. */}
+      <div className="flex flex-shrink-0 items-center border-b border-ink-800 px-4 py-3 min-h-[3.25rem]">
         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
           {t("review.sidebar.heading", { defaultValue: "This session" })}
         </span>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto p-4">
+      {/* Top section is fixed — only the History list at the bottom
+          scrolls. Keeps the at-a-glance stats (Mode, Due, Mastery,
+          Tally, Activity) anchored where the user expects them. */}
+      <div className="flex-shrink-0 space-y-5 px-4 pt-4 pb-2">
         {/* Mode toggle — recall vs multiple-choice */}
         <section className="space-y-2">
           <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
@@ -438,22 +445,26 @@ function ReviewSidebar({
             <ActivityHeatmap days={activity} />
           </section>
         )}
+      </div>
 
-        {/* History — past learning sessions */}
-        {pastSessions.length > 0 && (
-          <section className="space-y-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
-              <History className="h-3 w-3" />
-              {t("review.sidebar.history", { defaultValue: "History" })}
-            </div>
+      {/* History — past learning sessions. Lives in its own flex-1 +
+          overflow-y-auto column so only the list scrolls, not the
+          whole sidebar. */}
+      {pastSessions.length > 0 && (
+        <div className="flex min-h-0 flex-1 flex-col border-t border-ink-800 px-4 pt-4">
+          <div className="mb-2 flex flex-shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
+            <History className="h-3 w-3" />
+            {t("review.sidebar.history", { defaultValue: "History" })}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto pb-4">
             <SessionHistoryList
               sessions={pastSessions}
               activeId={activeSessionId}
               onPick={onPickSession}
             />
-          </section>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
