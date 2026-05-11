@@ -496,10 +496,37 @@ export default function LibraryPage() {
               {counts.failed > 0 && (
                 <>
                   <span className="text-ink-600">·</span>
-                  <span className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = new URLSearchParams(params);
+                      if (statusFilter === "failed") {
+                        next.delete("status");
+                      } else {
+                        next.set("status", "failed");
+                      }
+                      setParams(next, { replace: false });
+                    }}
+                    title={
+                      statusFilter === "failed"
+                        ? t("library.stats.failedClear", {
+                            defaultValue: "Show all cards again",
+                          }) ?? "Show all cards again"
+                        : t("library.stats.failedFilter", {
+                            defaultValue: "Filter to failed cards",
+                          }) ?? "Filter to failed cards"
+                    }
+                    className={[
+                      "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 transition",
+                      statusFilter === "failed"
+                        ? "bg-red-500/15 text-red-300 ring-1 ring-red-500/40"
+                        : "text-ink-300 hover:bg-red-500/10 hover:text-red-300",
+                    ].join(" ")}
+                    aria-pressed={statusFilter === "failed"}
+                  >
                     <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
                     {counts.failed} {t("library.stats.failed")}
-                  </span>
+                  </button>
                 </>
               )}
             </span>
