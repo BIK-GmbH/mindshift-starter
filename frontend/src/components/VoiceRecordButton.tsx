@@ -1,5 +1,4 @@
 import { Loader2, Mic } from "lucide-react";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useVoiceRecording } from "../lib/useVoiceRecording";
@@ -19,6 +18,20 @@ function formatElapsed(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+// The Chrome side panel iframe can't surface a getUserMedia prompt
+// (Chrome anchors prompts to a tab's omnibox, which a side panel
+// doesn't have), so the mic button is suppressed in that context.
+// Voice still works everywhere else, including the popped-out embed.
+function isSidepanelEmbed(): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.parent === window) return false;
+  try {
+    return new URLSearchParams(window.location.search).get("sp") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export default function VoiceRecordButton({
   onTranscribed,
   disabled = false,
@@ -27,16 +40,9 @@ export default function VoiceRecordButton({
   statusClassName,
 }: VoiceRecordButtonProps) {
   const { t } = useTranslation();
-  const [lastError, setLastError] = useState<string | null>(null);
-  const voice = useVoiceRecording({
-    onTranscribed,
-    onError: (msg) => {
-      setLastError(msg);
-      // surface the raw error in the console so we can see DOMException names
-      console.warn("[mindshift voice] error:", msg);
-    },
-  });
+  const voice = useVoiceRecording({ onTranscribed });
 
+  if (isSidepanelEmbed()) return null;
   if (!voice.supported) return null;
 
   const onClick = () => {
@@ -101,15 +107,9 @@ export default function VoiceRecordButton({
               {t("voice.transcribing", { defaultValue: "Transcribing…" })}
             </>
           )}
-          {voice.state === "requesting" && voice.statusMessage && (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              <span className="text-amber-300">{voice.statusMessage}</span>
-            </>
-          )}
           {voice.state === "error" && (
             <span className="text-red-400">
-              {lastError ?? t("voice.errorGeneric", { defaultValue: "Voice recording failed. Try again." })}
+              {t("voice.errorGeneric", { defaultValue: "Voice recording failed. Try again." })}
             </span>
           )}
         </span>
