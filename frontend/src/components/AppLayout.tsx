@@ -1,12 +1,15 @@
-import { Brain, Compass, GraduationCap, Headphones, Library, MessageSquare, Network, Rss, Search } from "lucide-react";
+import { Brain, Compass, GraduationCap, Headphones, Library, MessageSquare, Network, Rss, Search, Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { NavLink, Outlet } from "react-router-dom";
 
+import AdminModal from "./AdminModal";
 import GlobalSearchModal from "./GlobalSearchModal";
 import MobileBottomNav from "./MobileBottomNav";
 import MobileTopBar from "./MobileTopBar";
 import RailFooterButtons from "./RailFooterButtons";
 import SettingsModal from "./SettingsModal";
+import { useAdminModal } from "../lib/AdminModalContext";
+import { useAuth } from "../lib/AuthContext";
 import { useSearchModal } from "../lib/SearchModalContext";
 import { playSound } from "../lib/sounds";
 
@@ -23,6 +26,9 @@ const railItems = [
 export default function AppLayout() {
   const { t } = useTranslation();
   const { openModal: openSearch } = useSearchModal();
+  const { openModal: openAdmin } = useAdminModal();
+  const { user } = useAuth();
+  const isAdmin = Boolean(user?.is_admin);
 
   return (
     <div className="flex h-full flex-col bg-ink-900 md:flex-row">
@@ -80,6 +86,22 @@ export default function AppLayout() {
           >
             <Search className="h-4 w-4" />
           </button>
+
+          {/* Admin entry — only shown to admins. Opens the user-CRUD modal. */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                playSound("tick");
+                openAdmin();
+              }}
+              title={t("nav.admin", { defaultValue: "Admin" }) ?? "Admin"}
+              aria-label={t("nav.admin", { defaultValue: "Admin" }) ?? "Admin"}
+              className="group relative flex h-9 w-9 items-center justify-center rounded-xl text-rose-300/80 transition hover:bg-rose-500/10 hover:text-rose-200"
+            >
+              <Shield className="h-4 w-4" />
+            </button>
+          )}
         </nav>
 
         {/* Footer — theme + lang + settings; always visible. */}
@@ -105,6 +127,7 @@ export default function AppLayout() {
       {/* Global modals */}
       <SettingsModal />
       <GlobalSearchModal />
+      {isAdmin && <AdminModal />}
     </div>
   );
 }

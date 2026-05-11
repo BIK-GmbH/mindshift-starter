@@ -10,6 +10,7 @@ interface User {
   bio?: string | null;
   avatar_file_id?: string | null;
   public_profile?: boolean;
+  is_admin?: boolean;
 }
 
 interface AuthState {

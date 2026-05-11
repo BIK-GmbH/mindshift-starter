@@ -785,6 +785,21 @@ export const api = {
   deleteFeed: (id: string) => request<void>(`/api/feeds/${id}`, { method: "DELETE" }),
   refreshFeed: (id: string) =>
     request<FeedRefreshResult>(`/api/feeds/${id}/refresh`, { method: "POST" }),
+
+  // --- Admin user management ---
+  listAdminUsers: () => request<AdminUserRow[]>("/api/admin/users"),
+  createAdminUser: (body: AdminUserCreate) =>
+    request<AdminUserRow>("/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateAdminUser: (id: string, body: AdminUserUpdate) =>
+    request<AdminUserRow>(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteAdminUser: (id: string) =>
+    request<void>(`/api/admin/users/${id}`, { method: "DELETE" }),
 };
 
 export interface FeedOut {
@@ -1092,6 +1107,31 @@ export interface UserOut {
   bio: string | null;
   avatar_file_id: string | null;
   public_profile: boolean;
+  is_admin: boolean;
+}
+
+export interface AdminUserRow extends UserOut {
+  card_count: number;
+  storage_bytes: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUserCreate {
+  email: string;
+  password: string;
+  display_name?: string | null;
+  is_admin?: boolean;
+  public_profile?: boolean;
+}
+
+export interface AdminUserUpdate {
+  email?: string;
+  display_name?: string | null;
+  is_admin?: boolean;
+  public_profile?: boolean;
+  /** Optional password reset; leave undefined to keep the existing one. */
+  password?: string;
 }
 
 export interface UserPreferences {

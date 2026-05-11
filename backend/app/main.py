@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.admin import router as admin_router
 from app.api.ai import router as ai_router
 from app.api.audio import router as audio_router
 from app.api.auth import router as auth_router
@@ -81,6 +82,7 @@ app.add_middleware(
 
 app.include_router(health_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
 app.include_router(cards_router, prefix="/api")
 app.include_router(jobs_router, prefix="/api")
 app.include_router(search_router, prefix="/api")

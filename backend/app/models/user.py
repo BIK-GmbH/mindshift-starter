@@ -24,6 +24,13 @@ class User(Base, TimestampMixin):
     )
     public_profile: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # Site-wide admin flag. Admins can list/create/edit/delete other users
+    # through the /api/admin/users endpoints. There's no public sign-up
+    # for admin — set it explicitly via SQL or via another admin.
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+
     # Per-user preferences blob. Allowlist of keys is enforced at the
     # Pydantic boundary in `app/schemas/preferences.py` so the JSONB
     # doesn't drift into a free-for-all.

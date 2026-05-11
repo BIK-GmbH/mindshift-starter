@@ -28,9 +28,37 @@ class UserOut(BaseModel):
     bio: str | None = None
     avatar_file_id: UUID | None = None
     public_profile: bool = False
+    is_admin: bool = False
 
     class Config:
         from_attributes = True
+
+
+class AdminUserRow(UserOut):
+    """Extra columns we surface only in the admin user list — counts +
+    timestamps that the user themselves doesn't need to know."""
+
+    card_count: int = 0
+    storage_bytes: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    display_name: str | None = Field(default=None, max_length=120)
+    is_admin: bool = False
+    public_profile: bool = False
+
+
+class AdminUserUpdate(BaseModel):
+    email: EmailStr | None = None
+    display_name: str | None = Field(default=None, max_length=120)
+    is_admin: bool | None = None
+    public_profile: bool | None = None
+    # Optional password reset. Empty / None = leave unchanged.
+    password: str | None = Field(default=None, min_length=8, max_length=128)
 
 
 class ProfileUpdate(BaseModel):
