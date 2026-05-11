@@ -490,14 +490,23 @@ chrome.runtime.onMessage.addListener((msg) => {
 // each tab is responsible for ignoring messages that don't address it.
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type !== "mindshift:seekVideo") return;
+  console.warn(
+    "[mindshift youtube] seek-msg received: videoId=" + msg.videoId,
+    "seconds=" + msg.seconds,
+    "myUrl=" + window.location.href,
+  );
   if (typeof msg.seconds !== "number") return;
   // Only act if the message is for THIS video — multiple YouTube tabs
   // may be open and we don't want a pill click in tab A to jump tab B.
   const here = window.location.href;
   const myVideoId = videoIdFromUrl(here);
+  console.warn("[mindshift youtube] myVideoId=" + myVideoId, "matches:", myVideoId === msg.videoId);
   if (msg.videoId && myVideoId !== msg.videoId) return;
   const v = videoElement();
-  if (!v) return;
+  if (!v) {
+    console.warn("[mindshift youtube] no video element found");
+    return;
+  }
   try {
     v.currentTime = Math.max(0, msg.seconds);
     const playResult = v.play();
@@ -508,8 +517,9 @@ chrome.runtime.onMessage.addListener((msg) => {
            click play themselves. */
       });
     }
-  } catch {
-    /* defensive: a stale video element after navigation can throw */
+    console.warn("[mindshift youtube] seeked to", msg.seconds);
+  } catch (e) {
+    console.warn("[mindshift youtube] seek error:", e);
   }
 });
 

@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, Loader2, Maximize2, MessageSquare, Moon, Search, StickyNote, Sun, X } from "lucide-react";
+import { ExternalLink, FileText, Link as LinkIcon, Loader2, MessageSquare, Moon, Search, StickyNote, Sun, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -235,6 +235,11 @@ export default function EmbedCardPage() {
     (seconds: number) => {
       const videoId =
         card?.source_type === "youtube" ? card?.external_id ?? null : null;
+      console.warn(
+        "[mindshift] pill click — videoId:", videoId,
+        "seconds:", seconds,
+        "isInIframe:", isInIframe,
+      );
       if (!videoId) return;
       if (isInIframe) {
         // Side panel listens for this and forwards it to the active
@@ -247,12 +252,14 @@ export default function EmbedCardPage() {
           },
           "*",
         );
+        console.warn("[mindshift] posted to parent");
         return;
       }
       window.open(
         `https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(seconds)}s`,
         "_blank",
       );
+      console.warn("[mindshift] standalone fallback: opened YouTube in new tab");
     },
     [card?.external_id, card?.source_type, isInIframe],
   );
@@ -309,14 +316,13 @@ export default function EmbedCardPage() {
       {/* Always-on-top mini bar */}
       <div className="embed-bar flex flex-shrink-0 flex-wrap items-center gap-1 border-b border-ink-800 bg-ink-900/95 px-2 py-1.5 backdrop-blur">
         <a
-          href={cardLink}
+          href={popOutLink}
           target="_blank"
           rel="noopener noreferrer"
-          title={t("embed.openTooltip", { defaultValue: "Open this card in Mindshift" }) ?? "Open"}
-          className="inline-flex items-center gap-1 rounded-md bg-ink-800/80 px-2 py-1 text-[11px] font-medium text-ink-100 transition hover:bg-ink-800"
+          title={t("embed.openInMindshiftTooltip", { defaultValue: "Open in Mindshift" }) ?? "Open in Mindshift"}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
         >
-          <span className="embed-bar-label">Open</span>
-          <ExternalLink className="h-3 w-3" />
+          <ExternalLink className="h-3.5 w-3.5" />
         </a>
         <button
           type="button"
@@ -331,11 +337,11 @@ export default function EmbedCardPage() {
             }
           }}
           className={[
-            "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition",
-            copied ? "bg-emerald-500/15 text-emerald-300" : "bg-ink-800/80 text-ink-300 hover:bg-ink-800 hover:text-ink-100",
+            "inline-flex h-7 w-7 items-center justify-center rounded-md transition",
+            copied ? "bg-emerald-500/15 text-emerald-300" : "text-ink-300 hover:bg-ink-800 hover:text-ink-100",
           ].join(" ")}
         >
-          {copied ? "✓" : "🔗"}
+          {copied ? <span className="text-[11px]">✓</span> : <LinkIcon className="h-3.5 w-3.5" />}
         </button>
         {(card.status === "queued" || card.status === "processing") && (
           <span
@@ -349,15 +355,12 @@ export default function EmbedCardPage() {
             <Loader2 className="h-3 w-3 animate-spin text-fuchsia-300" />
           </span>
         )}
-        <span className="embed-bar-source ml-auto rounded-full bg-ink-800/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-400">
-          {card.source_type}
-        </span>
         <button
           type="button"
           onClick={() => setSearchOpen((v) => !v)}
           title={t("embed.searchTooltip", { defaultValue: "Search library" }) ?? ""}
           className={[
-            "inline-flex h-7 w-7 items-center justify-center rounded-md transition",
+            "ml-auto inline-flex h-7 w-7 items-center justify-center rounded-md transition",
             searchOpen
               ? "bg-ink-800 text-ink-100"
               : "text-ink-300 hover:bg-ink-800 hover:text-ink-100",
@@ -372,15 +375,6 @@ export default function EmbedCardPage() {
             initialActiveLanguage={defaultLang}
           />
         )}
-        <a
-          href={popOutLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={t("embed.popOut", { defaultValue: "Open at full width in a new tab" }) ?? "Open at full width"}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
-        >
-          <Maximize2 className="h-3.5 w-3.5" />
-        </a>
         <button
           type="button"
           onClick={toggleEmbedTheme}
@@ -1167,14 +1161,11 @@ function EmbedResponsiveStyle() {
         container-name: embed;
       }
 
-      /* Narrow: hide the "Open" word, drop the source pill, and
-         tighten the compact header type — gives the language picker
-         + theme toggle room to fit on a single line at Chrome's
+      /* Narrow: tighten the compact header type — gives the language
+         picker + theme toggle room to fit on a single line at Chrome's
          minimum side-panel width. */
       @container embed (max-width: 359px) {
         .embed-bar { gap: 4px !important; padding-left: 6px; padding-right: 6px; }
-        .embed-bar .embed-bar-label { display: none; }
-        .embed-bar-source { display: none; }
         .embed-title { font-size: 12px !important; }
       }
 

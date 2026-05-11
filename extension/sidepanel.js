@@ -269,10 +269,16 @@ window.addEventListener("message", (event) => {
   // uses some other domain — accept any origin but validate the
   // message shape.
   const data = event.data;
+  console.warn("[mindshift sidepanel] message received:", data, "origin:", event.origin);
   if (!data || data.type !== "mindshift:seekVideo") return;
   const { videoId, seconds } = data;
-  if (typeof videoId !== "string" || typeof seconds !== "number") return;
+  if (typeof videoId !== "string" || typeof seconds !== "number") {
+    console.warn("[mindshift sidepanel] bad shape, ignoring");
+    return;
+  }
+  console.warn("[mindshift sidepanel] querying youtube tabs for videoId=" + videoId);
   void chrome.tabs.query({ url: "*://*.youtube.com/watch*" }, (tabs) => {
+    console.warn("[mindshift sidepanel] tabs found:", tabs?.length, tabs?.map((t) => t.url));
     if (!tabs || tabs.length === 0) {
       // No YouTube tab open — silently ignore. The standalone fallback
       // in EmbedCardPage handles the no-iframe case; here we just
@@ -287,9 +293,10 @@ window.addEventListener("message", (event) => {
           videoId,
           seconds,
         })
-        .catch(() => {
-          /* tab may not have our content script — skip */
-        });
+        .then(
+          () => console.warn("[mindshift sidepanel] sent to tab", tab.id),
+          (err) => console.warn("[mindshift sidepanel] send-error to tab", tab.id, err?.message),
+        );
     }
   });
 });
