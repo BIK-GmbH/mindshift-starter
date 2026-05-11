@@ -17,10 +17,10 @@
         <span>Mindshift</span>
       </div>
       <div class="sp-hdr-actions">
-        <button id="settingsBtn" type="button" class="icon-btn" title="Settings" aria-label="Settings">
+        <button id="settingsBtn" type="button" class="icon-btn" data-i18n-title="header.settings" data-i18n-aria="header.settings" title="Settings" aria-label="Settings">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
-        <button id="reloadBtn" type="button" class="icon-btn" title="Re-detect this page" aria-label="Reload">
+        <button id="reloadBtn" type="button" class="icon-btn" data-i18n-title="header.reload" data-i18n-aria="header.reload" title="Re-detect this page" aria-label="Reload">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
         </button>
       </div>
@@ -30,24 +30,24 @@
     <main id="loadingPane" class="sp-pane">
       <div class="sp-center">
         <div class="sp-spinner"></div>
-        <p class="muted">Detecting page…</p>
+        <p class="muted" data-i18n="loading.text">Detecting page…</p>
       </div>
     </main>
 
     <!-- "Page not in library" state — offer to save it -->
     <main id="savePane" class="sp-pane hidden">
       <div class="sp-pad">
-        <p class="muted small">Not saved yet</p>
+        <p class="muted small" data-i18n="save.notSavedYet">Not saved yet</p>
         <p id="savePageTitle" class="title sp-title"></p>
         <p id="savePageUrl" class="url sp-url"></p>
-        <button id="saveBtn" type="button" class="primary full sp-cta">Save to Mindshift</button>
+        <button id="saveBtn" type="button" class="primary full sp-cta" data-i18n="save.button">Save to Mindshift</button>
         <p id="saveStatus" class="status"></p>
       </div>
     </main>
 
     <!-- "Card already saved" state — embed it via iframe. -->
     <main id="cardPane" class="sp-pane hidden">
-      <iframe id="cardFrame" title="Card" sandbox="allow-same-origin allow-scripts allow-forms allow-popups" allow="clipboard-write"></iframe>
+      <iframe id="cardFrame" data-i18n-title="card.iframeTitle" title="Card" sandbox="allow-same-origin allow-scripts allow-forms allow-popups" allow="clipboard-write"></iframe>
     </main>
 
     <!-- Settings pane — power features that used to live in the popup.
@@ -56,25 +56,36 @@
       <div class="sp-settings-scroll">
         <div id="tokenHealth" class="token-health hidden"></div>
 
+        <!-- Language switcher -->
+        <section class="card sp-lang-card">
+          <div class="row sp-lang-row">
+            <p class="subhead" data-i18n="settings.language">Language</p>
+            <div class="sp-lang-buttons">
+              <button id="langBtnDe" type="button" class="sp-lang-btn" data-lang="de">DE</button>
+              <button id="langBtnEn" type="button" class="sp-lang-btn" data-lang="en">EN</button>
+            </div>
+          </div>
+        </section>
+
         <!-- Connection (API URL + token) -->
         <section class="card">
-          <p class="subhead">Connection</p>
+          <p class="subhead" data-i18n="settings.connection">Connection</p>
           <label class="field">
-            <span>API URL</span>
+            <span data-i18n="settings.apiUrl">API URL</span>
             <input id="apiUrl" type="url" placeholder="http://localhost:8001" />
           </label>
           <label class="field">
-            <span>Token</span>
-            <input id="apiToken" type="password" placeholder="Paste token from Settings → API & Extension" />
+            <span data-i18n="settings.token">Token</span>
+            <input id="apiToken" type="password" data-i18n-ph="settings.tokenPh" placeholder="Paste token from Settings → API & Extension" />
           </label>
-          <button id="saveBtn2" type="button" class="primary full">Save &amp; test</button>
+          <button id="saveBtn2" type="button" class="primary full" data-i18n="settings.saveAndTest">Save &amp; test</button>
           <p id="settingsStatus" class="status"></p>
           <details class="howto">
-            <summary>Where do I get the token?</summary>
+            <summary data-i18n="settings.howto">Where do I get the token?</summary>
             <ol>
-              <li>Open Mindshift in your browser and sign in.</li>
-              <li>Click the gear icon (lower-left) → <strong>API &amp; Extension</strong>.</li>
-              <li>Click <strong>Reveal token</strong> and copy it here.</li>
+              <li data-i18n="settings.howto1">Open Mindshift in your browser and sign in.</li>
+              <li data-i18n="settings.howto2">Click the gear icon (lower-left) → <strong>API &amp; Extension</strong>.</li>
+              <li data-i18n="settings.howto3">Click <strong>Reveal token</strong> and copy it here.</li>
             </ol>
           </details>
         </section>
@@ -82,12 +93,12 @@
         <!-- Bulk: save every open tab -->
         <section class="card">
           <div>
-            <p class="subhead">Open tabs</p>
-            <p class="muted">Save every saveable tab in this window. Duplicates are skipped.</p>
+            <p class="subhead" data-i18n="openTabs.title">Open tabs</p>
+            <p class="muted" data-i18n="openTabs.body">Save every saveable tab in this window. Duplicates are skipped.</p>
           </div>
           <div class="row">
-            <button id="saveAllTabsBtn" type="button" class="secondary" disabled>Save all tabs</button>
-            <button id="cancelSaveAllBtn" type="button" class="ghost hidden">Stop</button>
+            <button id="saveAllTabsBtn" type="button" class="secondary" disabled data-i18n="openTabs.saveAll">Save all tabs</button>
+            <button id="cancelSaveAllBtn" type="button" class="ghost hidden" data-i18n="openTabs.stop">Stop</button>
             <span id="saveAllProgress" class="count"></span>
           </div>
         </section>
@@ -97,15 +108,15 @@
           <label class="autosave-row">
             <input id="readLaterToggle" type="checkbox" />
             <span>
-              <span class="subhead">Save as Read Later (skip AI for now)</span>
-              <span class="muted">Save to the library without spending AI tokens. Process selected cards later from the main app.</span>
+              <span class="subhead" data-i18n="toggles.readLater">Save as Read Later (skip AI for now)</span>
+              <span class="muted" data-i18n="toggles.readLaterBody">Save to the library without spending AI tokens. Process selected cards later from the main app.</span>
             </span>
           </label>
           <label class="autosave-row">
             <input id="autoSaveYTToggle" type="checkbox" />
             <span>
-              <span class="subhead">Auto-save fully-watched YouTube videos</span>
-              <span class="muted">When the video reaches the end, save it to Mindshift. Backend dedup makes replays safe.</span>
+              <span class="subhead" data-i18n="toggles.autoSaveYT">Auto-save fully-watched YouTube videos</span>
+              <span class="muted" data-i18n="toggles.autoSaveYTBody">When the video reaches the end, save it to Mindshift. Backend dedup makes replays safe.</span>
             </span>
           </label>
         </section>
@@ -113,11 +124,11 @@
         <!-- Bookmarks -->
         <section class="card">
           <div>
-            <p class="subhead">Bookmarks</p>
-            <p class="muted">Import every link from your browser's bookmarks tree.</p>
+            <p class="subhead" data-i18n="bookmarks.title">Bookmarks</p>
+            <p class="muted" data-i18n="bookmarks.body">Import every link from your browser's bookmarks tree.</p>
           </div>
           <div class="row">
-            <button id="importBookmarksBtn" type="button" class="secondary">Import all bookmarks</button>
+            <button id="importBookmarksBtn" type="button" class="secondary" data-i18n="bookmarks.import">Import all bookmarks</button>
             <span id="bookmarkCount" class="count"></span>
           </div>
         </section>

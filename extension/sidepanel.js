@@ -20,6 +20,7 @@
  */
 
 import { canonicalizeUrl } from "./lib/url.js";
+import { applyTranslations, getLocale, initLocale, setLocale, t } from "./lib/i18n.js";
 
 const els = {
   loading: document.getElementById("loadingPane"),
@@ -49,6 +50,8 @@ const els = {
   importBtn: document.getElementById("importBookmarksBtn"),
   bookmarkCount: document.getElementById("bookmarkCount"),
   settingsActionStatus: document.getElementById("settingsActionStatus"),
+  langBtnDe: document.getElementById("langBtnDe"),
+  langBtnEn: document.getElementById("langBtnEn"),
 };
 
 let state = { apiUrl: "", token: "", webUrl: "" };
@@ -94,7 +97,7 @@ async function saveStateToStorage() {
 
 class AuthExpiredError extends Error {
   constructor() {
-    super("Your token expired. Reconnect from the settings pane.");
+    super(t("settings.tokenExpiredShort"));
     this.name = "AuthExpiredError";
   }
 }
@@ -140,7 +143,7 @@ function embedCard(cardId) {
 }
 
 function showSaveCta(tab) {
-  els.savePageTitle.textContent = tab.title || "(untitled page)";
+  els.savePageTitle.textContent = tab.title || t("save.untitled");
   els.savePageUrl.textContent = tab.url || "";
   setStatus(els.saveStatus, "");
   show("save");
@@ -174,7 +177,7 @@ function tabLooksLikePdf(tab) {
 async function autoAddAndEmbed(url) {
   showSaveCta({ title: activeTab?.title || "", url });
   els.saveBtn.disabled = true;
-  setStatus(els.saveStatus, "Saving…");
+  setStatus(els.saveStatus, t("save.saving"));
   try {
     const endpoint = tabLooksLikePdf(activeTab)
       ? "/api/cards/from-pdf-url"
@@ -199,10 +202,10 @@ async function autoAddAndEmbed(url) {
       }
       embedCard(cardId);
     } else {
-      setStatus(els.saveStatus, "Saved.", "ok");
+      setStatus(els.saveStatus, t("save.saved"), "ok");
     }
   } catch (err) {
-    setStatus(els.saveStatus, `Failed: ${err.message}`, "err");
+    setStatus(els.saveStatus, t("save.failed", { error: err.message }), "err");
   } finally {
     els.saveBtn.disabled = false;
   }
@@ -237,14 +240,14 @@ async function refresh() {
     }
   } catch (err) {
     showSaveCta(activeTab);
-    setStatus(els.saveStatus, `Lookup failed: ${err.message}`, "err");
+    setStatus(els.saveStatus, t("save.lookupFailed", { error: err.message }), "err");
   }
 }
 
 async function saveActivePage() {
   if (!activeTab?.url) return;
   els.saveBtn.disabled = true;
-  setStatus(els.saveStatus, "Saving…");
+  setStatus(els.saveStatus, t("save.saving"));
   try {
     const endpoint = tabLooksLikePdf(activeTab)
       ? "/api/cards/from-pdf-url"
@@ -259,10 +262,10 @@ async function saveActivePage() {
     if (cardId) {
       embedCard(cardId);
     } else {
-      setStatus(els.saveStatus, "Saved.", "ok");
+      setStatus(els.saveStatus, t("save.saved"), "ok");
     }
   } catch (err) {
-    setStatus(els.saveStatus, `Failed: ${err.message}`, "err");
+    setStatus(els.saveStatus, t("save.failed", { error: err.message }), "err");
   } finally {
     els.saveBtn.disabled = false;
   }
@@ -289,9 +292,12 @@ function toggleSettings() {
   if (els.settings.classList.contains("hidden")) {
     openSettings();
   } else {
-    // Close settings → re-run the standard detection so we land on the
-    // right pane (saved card / save CTA) based on the current tab.
-    void refresh();
+    // Close settings → restore the pane we were on before, without
+    // re-fetching anything. Re-running refresh() here causes a brief
+    // 'loading…' flicker + a full iframe reload, both wasteful since
+    // the underlying card/save state hasn't changed.
+    show(lastNonSettingsPane || "loading");
+    if (lastNonSettingsPane === "loading") void refresh();
   }
 }
 
@@ -324,18 +330,16 @@ function renderTokenHealth() {
     node.classList.remove("hidden");
     node.classList.add("expired");
     node.innerHTML =
-      '<span class="token-health-dot"></span>' +
-      "<span>Token expired — paste a fresh one below.</span>";
+      '<span class="token-health-dot"></span><span></span>';
+    node.querySelector("span:last-child").textContent = t("settings.tokenExpired");
     return;
   }
   const days = Math.ceil(remaining / 86_400);
   if (days > TOKEN_WARN_DAYS) return;
   node.classList.remove("hidden");
   node.classList.add("warn");
-  const dayLabel = days === 1 ? "day" : "days";
-  node.innerHTML =
-    '<span class="token-health-dot"></span>' +
-    `<span>Token expires in ${days} ${dayLabel} — refresh it below.</span>`;
+  node.innerHTML = '<span class="token-health-dot"></span><span></span>';
+  node.querySelector("span:last-child").textContent = t("settings.tokenExpiresIn", { days });
 }
 
 async function discoverWebUrl() {
@@ -354,10 +358,10 @@ async function trySave() {
   const url = els.apiUrl.value.trim().replace(/\/$/, "");
   const token = els.apiToken.value.trim();
   if (!url || !token) {
-    setStatus(els.settingsStatus, "Both fields are required.", "err");
+    setStatus(els.settingsStatus, t("settings.bothRequired"), "err");
     return;
   }
-  setStatus(els.settingsStatus, "Testing connection…");
+  setStatus(els.settingsStatus, t("settings.testing"));
   try {
     const res = await fetch(`${url}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -366,12 +370,12 @@ async function trySave() {
     state = { apiUrl: url, token, webUrl: "" };
     state.webUrl = await discoverWebUrl();
     await saveStateToStorage();
-    setStatus(els.settingsStatus, "Connected.", "ok");
+    setStatus(els.settingsStatus, t("settings.connected"), "ok");
     renderTokenHealth();
     await refreshOpenTabsCount();
     await refreshBookmarkCount();
   } catch (err) {
-    setStatus(els.settingsStatus, `Could not reach API: ${err.message}`, "err");
+    setStatus(els.settingsStatus, t("settings.couldNotReach", { error: err.message }), "err");
   }
 }
 
@@ -381,11 +385,13 @@ let saveAllCancel = false;
 async function refreshOpenTabsCount() {
   try {
     const tabs = await chrome.tabs.query({ currentWindow: true });
+    // (t) shadows the imported i18n t() helper inside this closure — use a
+    // different identifier so we can keep calling t(key) below.
     const eligible = tabs.filter(
-      (t) => t.url && /^https?:\/\//i.test(t.url),
+      (tab) => tab.url && /^https?:\/\//i.test(tab.url),
     );
     const n = eligible.length;
-    els.saveAllBtn.textContent = n > 0 ? `Save all tabs (${n})` : "Save all tabs";
+    els.saveAllBtn.textContent = n > 0 ? t("openTabs.saveAllN", { n }) : t("openTabs.saveAll");
     els.saveAllBtn.disabled = n < 1 || !state.token;
   } catch {
     els.saveAllBtn.disabled = true;
@@ -397,12 +403,16 @@ async function saveAllTabs() {
   try {
     tabs = await chrome.tabs.query({ currentWindow: true });
   } catch (err) {
-    setStatus(els.settingsActionStatus, `Could not read tabs: ${err.message}`, "err");
+    setStatus(
+      els.settingsActionStatus,
+      t("openTabs.couldNotRead", { error: err.message }),
+      "err",
+    );
     return;
   }
-  const eligible = tabs.filter((t) => t.url && /^https?:\/\//i.test(t.url));
+  const eligible = tabs.filter((tab) => tab.url && /^https?:\/\//i.test(tab.url));
   if (eligible.length === 0) {
-    setStatus(els.settingsActionStatus, "No saveable tabs in this window.", "err");
+    setStatus(els.settingsActionStatus, t("openTabs.noneSaveable"), "err");
     return;
   }
 
@@ -439,10 +449,10 @@ async function saveAllTabs() {
   els.saveAllBtn.disabled = false;
   els.cancelSaveAllBtn.classList.add("hidden");
   els.saveAllProgress.textContent = "";
-  const parts = [`Saved ${saved}`];
-  if (failed) parts.push(`failed ${failed}`);
-  if (stopped) parts.push(`stopped (${stopped} skipped)`);
-  setStatus(els.settingsActionStatus, `${parts.join(", ")}.`, failed ? "err" : "ok");
+  let summary = t("openTabs.progress", { saved });
+  if (failed) summary += t("openTabs.progressFailed", { failed });
+  if (stopped) summary += t("openTabs.progressStopped", { stopped });
+  setStatus(els.settingsActionStatus, summary + ".", failed ? "err" : "ok");
 }
 
 // ---------- Bookmarks ----------
@@ -456,7 +466,7 @@ async function refreshBookmarkCount() {
       if (n.children) for (const c of n.children) walk(c);
     };
     for (const node of tree) walk(node);
-    els.bookmarkCount.textContent = `${count} link${count === 1 ? "" : "s"}`;
+    els.bookmarkCount.textContent = t("bookmarks.count", { n: count });
   } catch {
     els.bookmarkCount.textContent = "";
   }
@@ -485,12 +495,12 @@ function escapeText(s) {
 
 async function importAllBookmarks() {
   els.importBtn.disabled = true;
-  setStatus(els.settingsActionStatus, "Reading bookmarks…");
+  setStatus(els.settingsActionStatus, t("bookmarks.reading"));
   try {
     const tree = await chrome.bookmarks.getTree();
     const items = collectBookmarkUrls(tree);
     if (items.length === 0) {
-      setStatus(els.settingsActionStatus, "No http(s) bookmarks found.", "err");
+      setStatus(els.settingsActionStatus, t("bookmarks.none"), "err");
       return;
     }
     const html = [
@@ -511,18 +521,18 @@ async function importAllBookmarks() {
       body: form,
     });
     if (res.status === 401 || res.status === 403) {
-      setStatus(els.settingsActionStatus, "Token expired. Reconnect above.", "err");
+      setStatus(els.settingsActionStatus, t("settings.tokenExpiredShort"), "err");
       return;
     }
     if (!res.ok) throw new Error((await res.text()).slice(0, 120));
     const data = await res.json();
     setStatus(
       els.settingsActionStatus,
-      `Queued ${data.queued} bookmark${data.queued === 1 ? "" : "s"} for ingestion.`,
+      t("bookmarks.queued", { n: data.queued }),
       "ok",
     );
   } catch (err) {
-    setStatus(els.settingsActionStatus, `Failed: ${err.message}`, "err");
+    setStatus(els.settingsActionStatus, t("save.failed", { error: err.message }), "err");
   } finally {
     els.importBtn.disabled = false;
   }
@@ -581,7 +591,7 @@ els.readLaterToggle.addEventListener("change", async () => {
       [READ_LATER_KEY]: els.readLaterToggle.checked,
     });
   } catch (err) {
-    setStatus(els.settingsActionStatus, `Could not save toggle: ${err.message}`, "err");
+    setStatus(els.settingsActionStatus, t("toggles.savingFailed", { error: err.message }), "err");
   }
 });
 els.autoSaveYTToggle.addEventListener("change", async () => {
@@ -590,7 +600,7 @@ els.autoSaveYTToggle.addEventListener("change", async () => {
       [AUTO_SAVE_YT_KEY]: els.autoSaveYTToggle.checked,
     });
   } catch (err) {
-    setStatus(els.settingsActionStatus, `Could not save toggle: ${err.message}`, "err");
+    setStatus(els.settingsActionStatus, t("toggles.savingFailed", { error: err.message }), "err");
   }
 });
 
@@ -679,4 +689,37 @@ window.addEventListener("message", (event) => {
   chrome.storage.local.set({ panelTheme: theme }).catch(() => undefined);
 });
 
+// =====================================================================
+// i18n — initialise locale, hydrate every data-i18n element, wire the
+// DE/EN toggle in the settings pane.
+// =====================================================================
+function renderLangButtonState() {
+  const loc = getLocale();
+  els.langBtnDe.classList.toggle("is-active", loc === "de");
+  els.langBtnEn.classList.toggle("is-active", loc === "en");
+}
+
+async function bootI18n() {
+  await initLocale();
+  applyTranslations();
+  renderLangButtonState();
+}
+
+els.langBtnDe.addEventListener("click", async () => {
+  await setLocale("de");
+  renderLangButtonState();
+  // Re-render bits the data-i18n attributes don't cover.
+  void refreshOpenTabsCount();
+  void refreshBookmarkCount();
+  renderTokenHealth();
+});
+els.langBtnEn.addEventListener("click", async () => {
+  await setLocale("en");
+  renderLangButtonState();
+  void refreshOpenTabsCount();
+  void refreshBookmarkCount();
+  renderTokenHealth();
+});
+
+void bootI18n();
 void refresh();

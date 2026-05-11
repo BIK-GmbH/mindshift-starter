@@ -128,6 +128,46 @@ html, body { height: 100%; width: 100%; min-width: 100%; max-width: none; }
   width: 100%;
 }
 
+/* Language switcher — two pill buttons aligned right inside its card. */
+.sp-lang-card { padding: 8px 12px; }
+.sp-lang-row { padding: 0; }
+.sp-lang-buttons {
+  display: inline-flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--sp-border);
+}
+.sp-lang-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--sp-url-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.sp-lang-btn:hover {
+  color: var(--sp-text);
+}
+.sp-lang-btn.is-active {
+  background: rgba(139, 92, 246, 0.18);
+  color: #c4b5fd;
+}
+:root.light .sp-lang-buttons {
+  background: rgba(0, 0, 0, 0.03);
+}
+:root.light .sp-lang-btn.is-active {
+  background: #1a1a1f;
+  color: #fff;
+}
+
 /* Light-theme overrides for the cards/inputs/text colors that popup.css
    hardcodes for the dark popup. Without these the settings pane stays
    dark even when the user toggled the embed theme to light. */
