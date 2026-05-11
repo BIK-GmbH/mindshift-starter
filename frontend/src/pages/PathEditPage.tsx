@@ -20,9 +20,11 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import CardPickerModal from "../components/CardPickerModal";
+import VoiceRecordButton from "../components/VoiceRecordButton";
 import { useAuth } from "../lib/AuthContext";
 import { useDialog } from "../lib/DialogContext";
 import { api, type PathDetail } from "../lib/api";
+import { insertAtCaret } from "../lib/insertAtCaret";
 import { useAuthedImage } from "../lib/useAuthedImage";
 
 /**
@@ -559,20 +561,42 @@ function InlineDescription({
   onCommit: (v: string) => void;
 }) {
   const [draft, setDraft] = useState(value);
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => setDraft(value), [value]);
+
+  const onVoiceDescription = useCallback(
+    (text: string) => {
+      const ta = descriptionRef.current;
+      const { next, caret } = insertAtCaret(ta, draft, text);
+      setDraft(next);
+      if (next !== value) onCommit(next);
+      setTimeout(() => {
+        if (ta) {
+          ta.setSelectionRange(caret, caret);
+          ta.focus();
+        }
+      }, 0);
+    },
+    [draft, value, onCommit],
+  );
+
   return (
-    <textarea
-      ref={ref}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        if (draft !== value) onCommit(draft);
-      }}
-      placeholder="Describe what someone will learn from this path…"
-      rows={3}
-      className="w-full rounded-md border border-ink-700 bg-ink-800/40 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none"
-    />
+    <div className="space-y-1">
+      <textarea
+        ref={descriptionRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft !== value) onCommit(draft);
+        }}
+        placeholder="Describe what someone will learn from this path…"
+        rows={3}
+        className="w-full rounded-md border border-ink-700 bg-ink-800/40 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none"
+      />
+      <div className="flex justify-end">
+        <VoiceRecordButton onTranscribed={onVoiceDescription} showStatusLine={true} />
+      </div>
+    </div>
   );
 }
 
@@ -584,17 +608,39 @@ function LessonField({
   onCommit: (v: string) => void;
 }) {
   const [draft, setDraft] = useState(value);
+  const lessonNoteRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => setDraft(value), [value]);
+
+  const onVoiceLesson = useCallback(
+    (text: string) => {
+      const ta = lessonNoteRef.current;
+      const { next, caret } = insertAtCaret(ta, draft, text);
+      setDraft(next);
+      if (next !== value) onCommit(next);
+      setTimeout(() => {
+        if (ta) {
+          ta.setSelectionRange(caret, caret);
+          ta.focus();
+        }
+      }, 0);
+    },
+    [draft, value, onCommit],
+  );
+
   return (
-    <textarea
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        if (draft !== value) onCommit(draft);
-      }}
-      placeholder="Optional note for this step…"
-      rows={1}
-      className="w-full resize-none rounded border border-ink-800 bg-ink-900/60 px-2 py-1 text-[11px] text-ink-200 placeholder:text-ink-600 focus:border-ink-500 focus:outline-none"
-    />
+    <div className="flex items-start gap-1">
+      <textarea
+        ref={lessonNoteRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft !== value) onCommit(draft);
+        }}
+        placeholder="Optional note for this step…"
+        rows={1}
+        className="flex-1 resize-none rounded border border-ink-800 bg-ink-900/60 px-2 py-1 text-[11px] text-ink-200 placeholder:text-ink-600 focus:border-ink-500 focus:outline-none"
+      />
+      <VoiceRecordButton onTranscribed={onVoiceLesson} showStatusLine={true} />
+    </div>
   );
 }

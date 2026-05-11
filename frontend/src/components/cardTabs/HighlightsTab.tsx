@@ -1,9 +1,11 @@
 import { ExternalLink, Highlighter, Loader2, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import VoiceRecordButton from "../VoiceRecordButton";
 import { useDialog } from "../../lib/DialogContext";
 import { api, type HighlightOut } from "../../lib/api";
+import { insertAtCaret } from "../../lib/insertAtCaret";
 
 const HIGHLIGHT_COLORS: { value: string; label: string; ring: string; bar: string }[] = [
   { value: "yellow", label: "Yellow", ring: "ring-amber-400", bar: "bg-amber-400" },
@@ -191,18 +193,9 @@ export default function HighlightsTab({ cardId, sourceUrl }: Props) {
               )}
             </p>
 
-            <textarea
-              defaultValue={h.note}
-              onBlur={(e) => {
-                const next = e.currentTarget.value;
-                if (next !== h.note) void updateNote(h, next);
-              }}
-              placeholder={
-                t("card.highlightsNotePlaceholder", {
-                  defaultValue: "Annotate this quote (optional)…",
-                }) ?? ""
-              }
-              className="mt-2 w-full resize-y rounded border border-transparent bg-transparent px-2 py-1 text-[12px] italic leading-relaxed text-ink-300 transition focus:border-ink-700 focus:bg-ink-900/60 focus:not-italic focus:outline-none"
+            <NoteField
+              note={h.note}
+              onCommit={(next) => void updateNote(h, next)}
             />
 
             <div className="mt-2 flex items-center gap-1.5">
@@ -247,6 +240,58 @@ export default function HighlightsTab({ cardId, sourceUrl }: Props) {
           </div>
         </article>
       ))}
+    </div>
+  );
+}
+
+function NoteField({
+  note,
+  onCommit,
+}: {
+  note: string;
+  onCommit: (next: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState(note);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => setDraft(note), [note]);
+
+  const onVoice = useCallback(
+    (text: string) => {
+      const ta = textareaRef.current;
+      const { next, caret } = insertAtCaret(ta, draft, text);
+      setDraft(next);
+      if (next !== note) onCommit(next);
+      setTimeout(() => {
+        if (ta) {
+          ta.setSelectionRange(caret, caret);
+          ta.focus();
+        }
+      }, 0);
+    },
+    [draft, note, onCommit],
+  );
+
+  return (
+    <div className="mt-2 space-y-1">
+      <textarea
+        ref={textareaRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft !== note) onCommit(draft);
+        }}
+        placeholder={
+          t("card.highlightsNotePlaceholder", {
+            defaultValue: "Annotate this quote (optional)…",
+          }) ?? ""
+        }
+        className="w-full resize-y rounded border border-transparent bg-transparent px-2 py-1 text-[12px] italic leading-relaxed text-ink-300 transition focus:border-ink-700 focus:bg-ink-900/60 focus:not-italic focus:outline-none"
+      />
+      <div className="flex justify-end">
+        <VoiceRecordButton onTranscribed={onVoice} showStatusLine={true} />
+      </div>
     </div>
   );
 }

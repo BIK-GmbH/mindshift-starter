@@ -1,10 +1,12 @@
 import { Bot, Lightbulb, Loader2, Send, User } from "lucide-react";
 import { marked } from "marked";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import VoiceRecordButton from "./VoiceRecordButton";
 import type { ChatMessage, ChatResponse, Citation, PersistedChatMessage } from "../lib/api";
+import { insertAtCaret } from "../lib/insertAtCaret";
 
 interface Props {
   send: (history: ChatMessage[]) => Promise<ChatResponse>;
@@ -49,6 +51,22 @@ export default function ChatPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const onVoice = useCallback(
+    (text: string) => {
+      const ta = textareaRef.current;
+      const { next, caret } = insertAtCaret(ta, input, text);
+      setInput(next);
+      setTimeout(() => {
+        if (ta) {
+          ta.setSelectionRange(caret, caret);
+          ta.focus();
+        }
+      }, 0);
+    },
+    [input],
+  );
 
   // When the parent swaps in a different session, replace the message list.
   useEffect(() => {
@@ -137,6 +155,7 @@ export default function ChatPanel({
         className="surface-soft flex items-end gap-2 rounded-2xl border border-transparent bg-ink-800/40 p-2 focus-within:border-ink-500"
       >
         <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -150,6 +169,7 @@ export default function ChatPanel({
           className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
           style={{ minHeight: "1.75rem", maxHeight: "10rem" }}
         />
+        <VoiceRecordButton onTranscribed={onVoice} showStatusLine={false} />
         <button
           type="submit"
           disabled={busy || !input.trim()}

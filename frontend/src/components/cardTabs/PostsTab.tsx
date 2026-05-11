@@ -14,9 +14,10 @@ import {
   Twitter,
   Wand2,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import VoiceRecordButton from "../VoiceRecordButton";
 import {
   api,
   type ImageTemplateOut,
@@ -27,6 +28,7 @@ import {
   type SocialPostPlatform,
   type SocialPostTone,
 } from "../../lib/api";
+import { insertAtCaret } from "../../lib/insertAtCaret";
 import { useAuthedImage } from "../../lib/useAuthedImage";
 import { useDialog } from "../../lib/DialogContext";
 import { PostImagePregenModal } from "./PostImagePregenModal";
@@ -436,6 +438,21 @@ function DraftCard({
   const [rewriteError, setRewriteError] = useState<string | null>(null);
   const saveTimerRef = useRef<number | null>(null);
 
+  const onVoice = useCallback(
+    (voiceText: string) => {
+      const ta = editorRef.current;
+      const { next, caret } = insertAtCaret(ta, text, voiceText);
+      setText(next);
+      setTimeout(() => {
+        if (ta) {
+          ta.setSelectionRange(caret, caret);
+          ta.focus();
+        }
+      }, 0);
+    },
+    [text],
+  );
+
   // Sync local text when the draft prop changes (e.g. a regeneration
   // bumps the version externally).
   useEffect(() => {
@@ -568,6 +585,7 @@ function DraftCard({
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <VoiceRecordButton onTranscribed={onVoice} showStatusLine={true} />
           <PublishMenu
             draft={draft}
             fullText={fullText}
