@@ -345,6 +345,16 @@ export default function GraphPage() {
     return visited;
   }, [selectedNodeId, data, selectedLevel]);
 
+  // Only feed highlightedNodeIds into the graphData memo when we're
+  // actually going to drop nodes from the dataset (hide-mode). In
+  // dim-mode the level filter is purely a visual overlay — the
+  // canvas callbacks pick up the new highlightedNodeIds on the next
+  // paint anyway. Without this gate, every Level 1 ↔ Level 2 switch
+  // produced a new graphData object even though the contents were
+  // identical, which made react-force-graph restart the force
+  // simulation and visibly "reload" the whole layout.
+  const levelFilterIds = hideOutsideLevel ? highlightedNodeIds : null;
+
   const graphData = useMemo(() => {
     if (!data) return { nodes: [] as UiNode[], links: [] as UiLink[] };
     const positionsRaw = locked ? localStorage.getItem(POSITIONS_KEY) : null;
@@ -358,7 +368,7 @@ export default function GraphPage() {
       // frontier entirely. (Dim-mode is handled later in the canvas
       // renderer via globalAlpha — we still want those nodes in the
       // dataset so the layout stays stable.)
-      if (hideOutsideLevel && highlightedNodeIds && !highlightedNodeIds.has(id)) {
+      if (levelFilterIds && !levelFilterIds.has(id)) {
         return false;
       }
       return true;
@@ -402,7 +412,7 @@ export default function GraphPage() {
         reasons: e.reasons,
       }));
     return { nodes, links };
-  }, [data, focusedNeighbours, focusedNodeId, hideIsolated, locked, hideOutsideLevel, highlightedNodeIds]);
+  }, [data, focusedNeighbours, focusedNodeId, hideIsolated, locked, levelFilterIds]);
 
   // Selected node detail — pulls neighbours from the full edge list
   // (not the focus-restricted view) so the sidebar always shows what
