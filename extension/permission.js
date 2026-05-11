@@ -1,16 +1,23 @@
 // One-shot mic-permission acquisition page.
 //
-// Loaded by extension/content/highlight.js as an invisible iframe into
-// the active web page. Because the host page is a regular tab, Chrome
-// has the omnibox-anchored UX surface to show the getUserMedia prompt.
-// Once the user clicks Allow, the permission is persisted for the
-// extension's origin and the offscreen document can record on demand.
+// Opened as a regular browser tab by background.js whenever the
+// offscreen recorder reports a missing mic permission. A full tab
+// (not an iframe) is necessary because page-level CSP frame-src
+// directives — YouTube being the worst offender — silently block
+// chrome-extension:// iframes from loading at all. As a top-level
+// tab the page has the omnibox UX surface for the getUserMedia
+// prompt, and Chrome persists the resulting decision against the
+// extension origin (chrome-extension://<id>).
 //
-// We tell background the outcome via chrome.runtime.sendMessage and
-// signal the parent (content script) via window.postMessage so it can
-// remove the iframe.
+// On success or denial we send the outcome to background and close
+// our own tab.
 
 (async () => {
+  document.body.style.cssText =
+    "font:14px/1.5 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding:24px;color:#1a1a1f;background:#fff;";
+  document.body.innerHTML =
+    "<p>Mikrofon-Zugriff für Mindshift wird angefordert.<br>Bitte oben auf <strong>„Zulassen"</strong> klicken — dieses Fenster schließt sich danach automatisch.</p>";
+
   let result;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -24,7 +31,7 @@
     };
   }
   try {
-    chrome.runtime.sendMessage({
+    await chrome.runtime.sendMessage({
       origin: "permission",
       type: "result",
       ...result,
@@ -32,9 +39,15 @@
   } catch {
     /* extension may have unloaded — give up silently */
   }
+  // Close our own tab. Requires chrome.tabs permission (we have it).
   try {
-    window.parent.postMessage({ type: "mindshift:permission:done" }, "*");
+    const tab = await chrome.tabs.getCurrent();
+    if (tab?.id != null) {
+      await chrome.tabs.remove(tab.id);
+    } else {
+      window.close();
+    }
   } catch {
-    /* parent may be cross-origin; sending to "*" still works */
+    window.close();
   }
 })();

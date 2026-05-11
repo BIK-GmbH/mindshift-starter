@@ -28,6 +28,45 @@ from typing import Optional
 from app.core.config import get_settings
 
 
+# Prepended to every gpt-image-2 prompt the service emits. Centralises
+# the rules that gpt-image-2 reliably honours but every template would
+# otherwise repeat (and inevitably drift on):
+#
+#   - the "render text verbatim" lock — single highest-leverage line
+#     against duplicate / smeared on-image typography (OpenAI cookbook,
+#     fal.ai prompting guide, both confirmed 2026-05);
+#   - colour-drift defence via hex enforcement;
+#   - typography rule that descriptive font language ("heavy geometric
+#     sans-serif") outperforms naming brands ("Inter") because the
+#     model substitutes shapes, not names — naming triggers
+#     trademark-avoidance and weight inconsistency;
+#   - negative list as an enumerated tail (vague negatives are ignored
+#     by the model; itemised ones land).
+#
+# Templates keep their own layout-specific instructions; the preamble
+# only carries non-negotiable rendering rules that apply to all of
+# them. If you need a template to break a rule (e.g. the Vintage
+# Newspaper template *wants* a serif), that's still doable — the
+# template's explicit override beats the preamble's general guidance.
+GLOBAL_BRAND_PREAMBLE = """RENDERING CONSTRAINTS (always apply):
+- Render every quoted string VERBATIM. No duplicate text, no substitutions, no paraphrasing.
+- Strict adherence to specified hex codes — no colour drift.
+- Default typography is heavy geometric sans-serif, tight tracking. Do NOT name specific font families; describe weight, width, and tracking instead.
+- No human faces, no portraits, no people unless the template explicitly composes a scene with people.
+- No third-party logos, no brand marks, no trademarks.
+- No watermark, no signature, no border frame, no Lorem Ipsum.
+- No stock-photo clichés, no AI-art gradient overlays, no decorative scribble.
+- No vague style tags ("cinematic", "8k", "trending", "masterpiece"). Describe visual facts only.
+"""
+
+
+def _with_global_preamble(prompt: str) -> str:
+    """Prepend the global preamble to a prompt with a clear separator
+    so the model treats the two blocks as ordered context, not a single
+    run-on instruction."""
+    return f"{GLOBAL_BRAND_PREAMBLE}\n---\n\n{prompt}"
+
+
 COVER_PROMPT_BASE = (
     "Podcast cover artwork for an episode titled '{title}'. "
     "Square aspect ratio, suitable as a thumbnail at 200×200 px and "
@@ -412,6 +451,12 @@ def generate_cover_image(
             prompt = f"{resolved}\n\n---\n\n{built}"
     else:
         prompt = built
+
+    # Prepend the global rendering preamble (verbatim text lock, hex
+    # enforcement, negative list). Doing it here means every template
+    # path — variable-driven, style-only, or no template — gets the
+    # same baseline rules without each template having to repeat them.
+    prompt = _with_global_preamble(prompt)
 
     # gpt-image-2 returns base64 by default. 1024x1024 is the canonical
     # square podcast cover size.

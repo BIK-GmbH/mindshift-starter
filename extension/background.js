@@ -800,100 +800,45 @@ async function startPermissionFlow() {
   pendingStartAfterPermission = true;
   setVoiceState("requesting", {
     hint: "permission",
-    message: "Bitte erlaube den Mikrofon-Zugriff im aktiven Tab oben.",
+    message: "Bitte „Zulassen" im geöffneten Tab klicken.",
   });
-
-  // Find a tab where we can inject the permission iframe — must be
-  // http(s) so the content script is loaded there.
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const activeTab = tabs[0];
-  const canInject =
-    activeTab && /^https?:/i.test(activeTab.url || "") && typeof activeTab.id === "number";
-  console.warn(
-    "[mindshift voice] active tab:",
-    activeTab?.url,
-    "canInject:",
-    canInject,
-  );
-
-  if (canInject) {
-    // Make sure the user is actually looking at the tab where the
-    // prompt will appear. The side panel keeps focus by default,
-    // so if we don't switch they'll miss the omnibox bubble.
-    try {
-      await chrome.tabs.update(activeTab.id, { active: true });
-      if (activeTab.windowId !== undefined) {
-        await chrome.windows.update(activeTab.windowId, { focused: true });
-      }
-    } catch {
-      /* ignore */
-    }
-    await injectPermissionIframe(activeTab.id);
-    return;
-  }
-  {
-    // Fall back: try any http(s) tab.
-    const anyTab = (await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }))[0];
-    if (!anyTab || typeof anyTab.id !== "number") {
-      permissionFlowInFlight = false;
-      pendingStartAfterPermission = false;
-      setVoiceState("error", {
-        message:
-          "Microphone permission needs a regular browser tab to confirm. Open any website and try again.",
-      });
-      return;
-    }
-    console.warn("[mindshift voice] no active http tab — focusing fallback tab", anyTab.id);
-    try {
-      await chrome.tabs.update(anyTab.id, { active: true });
-    } catch {
-      /* ignore */
-    }
-    await injectPermissionIframe(anyTab.id);
-    return;
-  }
+  await openPermissionTab();
 }
 
-async function injectPermissionIframe(tabId) {
-  console.warn("[mindshift voice] injectPermissionIframe → tab", tabId);
-  // Always use scripting.executeScript — independent of which (if any)
-  // content script is registered for the URL. Some pages (YouTube
-  // watch URLs) match the dedicated youtube.js content script which
-  // synchronously replies undefined to unknown messages, defeating
-  // the tabs.sendMessage path silently.
+let permissionTabId = null;
+
+async function openPermissionTab() {
+  console.warn("[mindshift voice] opening permission tab");
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: (iframeUrl) => {
-        const f = document.createElement("iframe");
-        f.style.cssText = "display:none;width:0;height:0;border:0;";
-        f.setAttribute("allow", "microphone");
-        f.src = iframeUrl;
-        const remove = (e) => {
-          if (e?.data?.type === "mindshift:permission:done") {
-            try {
-              f.remove();
-            } catch {
-              /* already gone */
-            }
-            window.removeEventListener("message", remove);
-          }
-        };
-        window.addEventListener("message", remove);
-        document.body.appendChild(f);
-      },
-      args: [chrome.runtime.getURL("permission.html")],
+    const tab = await chrome.tabs.create({
+      url: chrome.runtime.getURL("permission.html"),
+      active: true,
     });
-    console.warn("[mindshift voice] scripting.executeScript ok");
+    permissionTabId = tab?.id ?? null;
+    console.warn("[mindshift voice] permission tab created id=", permissionTabId);
   } catch (err) {
-    console.warn("[mindshift voice] scripting.executeScript failed:", err?.message);
+    console.warn("[mindshift voice] permission tab failed:", err?.message);
     permissionFlowInFlight = false;
     pendingStartAfterPermission = false;
     setVoiceState("error", {
-      message: `Could not show permission prompt: ${err?.message || "unknown"}`,
+      message: `Could not open permission tab: ${err?.message || "unknown"}`,
     });
   }
 }
+
+// If the user closes the permission tab manually before granting, we
+// have to reset the in-flight flag or the flow stays jammed.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId !== permissionTabId) return;
+  permissionTabId = null;
+  if (permissionFlowInFlight) {
+    permissionFlowInFlight = false;
+    pendingStartAfterPermission = false;
+    setVoiceState("error", {
+      message: "Permission window was closed before granting microphone access.",
+    });
+  }
+});
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
   if (!msg) return;
@@ -944,9 +889,14 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     return;
   }
 
-  // ---- permission iframe → background ----
+  // ---- permission page → background ----
   if (msg.origin === "permission" && msg.type === "result") {
+    console.warn("[mindshift voice] permission result:", msg.ok ? "granted" : "denied");
     permissionFlowInFlight = false;
+    // Permission.js will close its own tab immediately after this
+    // message; clear the tracked id so onRemoved doesn't fire a
+    // spurious error state.
+    permissionTabId = null;
     if (msg.ok && pendingStartAfterPermission) {
       pendingStartAfterPermission = false;
       void startRecording();
