@@ -44,7 +44,6 @@ from app.schemas.social_post import (
 )
 from app.services.social_post import (
     generate_post,
-    generate_post_image,
     rewrite_selection,
 )
 from app.services.storage import get_storage
@@ -132,9 +131,16 @@ def list_social_posts(
 def create_social_post(
     card_id: UUID,
     payload: SocialPostCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SocialPostOut:
+    """Create a draft + (optionally) kick off image generation in the
+    background. The HTTP response returns as soon as the caption is
+    ready (a handful of seconds); the image lands later via the same
+    polling channel as a dedicated /image/generate call. This avoids
+    blocking the request for the 150–235 s gpt-image-2 high-quality
+    pass that most LinkedIn templates now route to."""
     card = _ensure_card(db, card_id, current_user.id)
     if card.status != "completed":
         raise HTTPException(
@@ -158,36 +164,17 @@ def create_social_post(
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    image_file_id: UUID | None = None
+    # Resolve the chosen image template once now (the request session
+    # still has it cheap), so the background task doesn't need to
+    # re-resolve and the user's choice is locked even if they change
+    # the default mid-generation.
+    template_content: str | None = None
     if payload.with_image:
-        # Resolve the image template the user wants applied — explicit
-        # template_id wins, else the user's default, else None (raw
-        # gpt-image-2 prompt).
         from app.api.image_templates import resolve_template_content
 
         template_content = resolve_template_content(
             db, current_user.id, template_id=payload.image_template_id
         )
-        try:
-            png = generate_post_image(
-                title=card.title,
-                post_text=text,
-                template_content=template_content,
-            )
-        except Exception as exc:  # noqa: BLE001 — image is optional
-            logger.warning("social-post image generation failed for %s: %s", card_id, exc)
-            png = None
-        if png:
-            storage = get_storage()
-            file_row = storage.save(
-                db,
-                user_id=current_user.id,
-                content=png,
-                original_filename=f"social-{card_id}-{payload.platform}.png",
-                content_type="image/png",
-                purpose="social_post_image",
-            )
-            image_file_id = file_row.id
 
     post = CardSocialPost(
         card_id=card.id,
@@ -195,25 +182,47 @@ def create_social_post(
         text=text,
         hashtags=hashtags or None,
         character_count=len(text),
-        image_file_id=image_file_id,
+        image_file_id=None,  # filled in by the background image job
         tone=payload.tone,
         language=payload.language,
     )
-    _ensure_image_share_token(post)
     db.add(post)
     db.flush()
-    if image_file_id is not None:
-        _record_version(
+
+    if payload.with_image:
+        # Record a processing version row so the frontend's existing
+        # usePostImageVersions polling hook picks the image up the
+        # moment it lands — same UX path as the dedicated
+        # /image/generate endpoint.
+        version = _record_version(
             db,
             post=post,
-            file_id=image_file_id,
-            prompt_used=None,  # Original template-based generation
+            file_id=None,
+            prompt_used=None,
             kind="generate",
             parent_version_id=None,
-            status="ready",
+            status="processing",
         )
-    db.commit()
-    db.refresh(post)
+        db.commit()
+        db.refresh(post)
+        db.refresh(version)
+
+        background_tasks.add_task(
+            _run_image_job,
+            version.id,
+            user_id=current_user.id,
+            card_id=post.card_id,
+            post_id=post.id,
+            platform=post.platform,
+            prompt_override=None,
+            template_content=template_content,
+            refine_prompt=None,
+            source_file_path=None,
+        )
+    else:
+        db.commit()
+        db.refresh(post)
+
     return _to_out(post)
 
 

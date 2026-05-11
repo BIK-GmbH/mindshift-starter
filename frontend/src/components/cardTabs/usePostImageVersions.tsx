@@ -44,6 +44,27 @@ export function usePostImageVersions(
       next.set(v.id, v.status);
       const oldStatus = prev.get(v.id);
       const toastId = toastIdsRef.current.get(v.id);
+      // First-sight of a processing version that the user didn't open
+      // a modal for (e.g. an image job kicked off by create_social_post
+      // running asynchronously in the background): mint a sticky
+      // "rendering" toast so the user knows something is in flight.
+      // Without this they'd see the draft appear instantly with no
+      // image and assume nothing's happening for the ~3 minutes that
+      // gpt-image-2's high-quality pass takes.
+      if (oldStatus === undefined && v.status === "processing" && !toastIdsRef.current.has(v.id)) {
+        const id = `image-${v.id}`;
+        toastIdsRef.current.set(v.id, id);
+        toast.show({
+          id,
+          kind: "loading",
+          message:
+            t("toasts.imageRendering", {
+              defaultValue:
+                "Image is rendering in the background — this can take 2–3 min for text-heavy templates.",
+            }) ?? "Image is rendering in the background.",
+          duration: null,
+        });
+      }
       if (oldStatus === "processing" && v.status === "ready") {
         const id = toastId ?? `image-${v.id}`;
         toast.show({
