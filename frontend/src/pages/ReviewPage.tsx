@@ -292,8 +292,10 @@ function ReviewSidebar({
       {/* Header row — min-height matches the Library/Graph sidebars which
           carry an action button next to the title. Without it the Review
           header sits a few pixels shorter and the page jumps vertically
-          when navigating between sections. */}
-      <div className="flex flex-shrink-0 items-center border-b border-ink-800 px-4 py-3 min-h-[3.25rem]">
+          when navigating between sections. sticky top-0 keeps it pinned
+          when the outer aside scrolls on short viewports (matches the
+          behaviour of the TagsTree / Graph-settings headers). */}
+      <div className="sticky top-0 z-10 flex flex-shrink-0 items-center border-b border-ink-800 bg-ink-900/60 px-4 py-3 min-h-[3.25rem] backdrop-blur">
         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
           {t("review.sidebar.heading", { defaultValue: "This session" })}
         </span>
