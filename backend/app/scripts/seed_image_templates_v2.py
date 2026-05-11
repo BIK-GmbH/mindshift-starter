@@ -215,10 +215,13 @@ Image style:
 ]
 
 
-def seed(email: str) -> int:
-    """Insert templates that don't yet exist. Returns the number of
-    rows inserted. Never touches `is_default` — the user's existing
-    default stays the default."""
+def seed(email: str, *, update: bool = False) -> tuple[int, int]:
+    """Insert templates that don't yet exist. With `update=True`, also
+    refresh the `content` of existing rows so users pick up template
+    revisions (e.g. the 4:5 portrait switch). Never touches
+    `is_default` — the user's existing default stays the default.
+
+    Returns (inserted, updated)."""
     db = SessionLocal()
     try:
         user = db.execute(
@@ -226,9 +229,10 @@ def seed(email: str) -> int:
         ).scalar_one_or_none()
         if user is None:
             print(f"user not found: {email}", file=sys.stderr)
-            return 0
+            return 0, 0
 
         inserted = 0
+        updated = 0
         for name, content in TEMPLATES:
             existing = db.execute(
                 select(ImageTemplate).where(
@@ -237,7 +241,15 @@ def seed(email: str) -> int:
                 )
             ).scalar_one_or_none()
             if existing is not None:
-                print(f"  skip (exists): {name}")
+                if not update:
+                    print(f"  skip (exists):    {name}")
+                    continue
+                if existing.content == content:
+                    print(f"  unchanged:        {name}")
+                    continue
+                existing.content = content
+                updated += 1
+                print(f"  refreshed:        {name}")
                 continue
             row = ImageTemplate(
                 user_id=user.id,
@@ -247,9 +259,9 @@ def seed(email: str) -> int:
             )
             db.add(row)
             inserted += 1
-            print(f"  seeded:        {name}")
+            print(f"  seeded:           {name}")
         db.commit()
-        return inserted
+        return inserted, updated
     finally:
         db.close()
 
@@ -257,9 +269,17 @@ def seed(email: str) -> int:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--email", default="chris@example.com")
+    parser.add_argument(
+        "--update",
+        action="store_true",
+        help="Refresh content of existing rows. Default is insert-only.",
+    )
     args = parser.parse_args()
-    inserted = seed(args.email)
-    print(f"\ndone — inserted {inserted} of {len(TEMPLATES)} templates")
+    inserted, updated = seed(args.email, update=args.update)
+    print(
+        f"\ndone — inserted {inserted} of {len(TEMPLATES)} templates"
+        + (f", refreshed {updated}" if args.update else "")
+    )
 
 
 if __name__ == "__main__":
