@@ -1,5 +1,8 @@
-/* Side panel takes the full available height + width Chrome gives it. */
-html, body { height: 100%; }
+/* Side panel takes the full available height + width Chrome gives it.
+   `popup.css` (loaded first, shared with the toolbar popup) pins the
+   body to 360 px wide so the popup chrome lines up — we have to
+   override that here so the panel can stretch as the user drags it. */
+html, body { height: 100%; width: 100%; min-width: 100%; max-width: none; }
 .sp-body {
   margin: 0;
   display: flex;

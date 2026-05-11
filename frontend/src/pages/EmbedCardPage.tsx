@@ -1083,12 +1083,20 @@ function EmbedResponsiveStyle() {
         .embed-tab-content { padding: 16px !important; }
       }
 
-      /* Extra-wide: only relevant when the user pop-out'd into a
-         full tab. Centre the content so it doesn't stretch into a
-         300-char-line eyestrain monster. */
+      /* Wide enough to widen the prose comfortably. Below the
+         readability cap, content fills the panel as the user drags
+         it open — no centred letterbox effect at 720 px. */
       @container embed (min-width: 720px) {
         .embed-title { font-size: 22px !important; }
-        .embed-tab-content { padding: 24px !important; max-width: 720px; margin: 0 auto; }
+        .embed-tab-content { padding: 24px !important; }
+      }
+
+      /* Past ~960 px we'd be in 100+ char-per-line territory which
+         hurts prose readability. From here on cap the tab content
+         and centre it so the rest of the panel stays as background,
+         while bar / hero / title keep filling the full panel width. */
+      @container embed (min-width: 960px) {
+        .embed-tab-content { max-width: 960px; margin: 0 auto; padding: 28px !important; }
       }
     `}</style>
   );
