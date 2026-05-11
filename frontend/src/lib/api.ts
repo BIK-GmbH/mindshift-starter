@@ -814,6 +814,15 @@ export const api = {
     }),
   deleteImageTemplate: (id: string) =>
     request<void>(`/api/image-templates/${id}`, { method: "DELETE" }),
+  listImageTemplateVariables: () =>
+    request<{ variables: ImageTemplateVariable[] }>(
+      "/api/image-templates/variables"
+    ),
+  previewImageTemplate: (body: { content: string; card_id?: string }) =>
+    request<ImageTemplatePreview>("/api/image-templates/preview", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   // --- Posts (per-card draft) edit + rewrite ---
   updateSocialPost: (cardId: string, postId: string, text: string) =>
@@ -1203,6 +1212,19 @@ export interface ImageTemplateUpdate {
   name?: string;
   content?: string;
   is_default?: boolean;
+}
+
+export interface ImageTemplateVariable {
+  name: string;
+  description: string;
+}
+
+export interface ImageTemplatePreview {
+  detected: string[];
+  unknown: string[];
+  extracted: Record<string, string>;
+  resolved: string;
+  card_title: string | null;
 }
 
 export type MCPTransport = "http" | "sse";

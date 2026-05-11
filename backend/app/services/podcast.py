@@ -437,24 +437,23 @@ Rules:
 - Return ONLY valid JSON with the requested keys."""
 
 
-def _resolve_template_vars(
-    template: str, *, title: str, body: str
-) -> str:
-    """Detect {{VAR}} placeholders, extract values via gpt-5.4-mini, substitute."""
-    variables = _extract_template_vars(template)
+def extract_template_values(
+    variables: list[str], *, title: str, body: str
+) -> dict[str, str]:
+    """Call gpt-5.4-mini to fill placeholder variables from source content.
+    Returns a {VAR_NAME: value} dict. Empty dict on no API key / failure."""
     if not variables:
-        return template
-
+        return {}
     settings = get_settings()
     if not settings.openai_api_key:
-        # No API key — leave placeholders intact rather than failing the image.
-        return template
+        return {}
 
     from openai import OpenAI
 
     client = OpenAI(api_key=settings.openai_api_key)
-    current_month = datetime.now().strftime("%B %Y")
-    system = _TEMPLATE_FILL_PROMPT.format(current_month=current_month)
+    system = _TEMPLATE_FILL_PROMPT.format(
+        current_month=datetime.now().strftime("%B %Y")
+    )
     user_msg = (
         f"SOURCE TITLE:\n{title}\n\n"
         f"SOURCE BODY:\n{body[:4000]}\n\n"
@@ -472,18 +471,36 @@ def _resolve_template_vars(
         )
         data = json.loads(response.choices[0].message.content or "{}")
     except Exception:
-        # Extraction failure — leave placeholders so we can see the issue
-        # in the generated image rather than silently dropping context.
-        return template
+        return {}
+    return {str(k): str(v) for k, v in data.items()}
+
+
+def substitute_template_values(template: str, values: dict[str, str]) -> str:
+    """Replace every `{{VAR}}` in `template` with values[VAR]. Unknown
+    keys are left intact so the issue is visible rather than silent."""
 
     def _replace(match: re.Match[str]) -> str:
         var = match.group(1)
-        value = data.get(var)
-        if value is None:
+        if var not in values:
             return match.group(0)
-        return str(value).strip()
+        return str(values[var]).strip()
 
     return _TEMPLATE_VAR_RE.sub(_replace, template)
+
+
+def _resolve_template_vars(
+    template: str, *, title: str, body: str
+) -> str:
+    """Detect `{{VAR}}` placeholders, extract values, substitute. Returns
+    the template unchanged when no placeholders exist or extraction
+    fails — failures stay visible in the generated image."""
+    variables = _extract_template_vars(template)
+    if not variables:
+        return template
+    values = extract_template_values(variables, title=title, body=body)
+    if not values:
+        return template
+    return substitute_template_values(template, values)
 
 
 def generate_cover_image(

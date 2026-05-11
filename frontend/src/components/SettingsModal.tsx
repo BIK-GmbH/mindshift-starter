@@ -23,6 +23,7 @@ import {
   Star,
   RefreshCw,
   SlidersHorizontal,
+  Sparkles,
   Sun,
   Trash2,
   UserRound,
@@ -40,7 +41,9 @@ import {
   api,
   type ImageTemplateCreate,
   type ImageTemplateOut,
+  type ImageTemplatePreview,
   type ImageTemplateUpdate,
+  type ImageTemplateVariable,
   type MCPServerCreate,
   type MCPServerOut,
   type MCPServerUpdate,
@@ -1829,6 +1832,16 @@ function ImageTemplateRow({
   );
 }
 
+const TEMPLATE_VAR_RE = /\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}/g;
+
+function detectTemplateVars(text: string): string[] {
+  const seen: string[] = [];
+  for (const match of text.matchAll(TEMPLATE_VAR_RE)) {
+    if (!seen.includes(match[1])) seen.push(match[1]);
+  }
+  return seen;
+}
+
 function ImageTemplateForm({
   mode,
   initial,
@@ -1845,6 +1858,58 @@ function ImageTemplateForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [content, setContent] = useState(initial?.content ?? "");
   const [isDefault, setIsDefault] = useState(initial?.is_default ?? false);
+  const [knownVars, setKnownVars] = useState<ImageTemplateVariable[]>([]);
+  const [previewing, setPreviewing] = useState(false);
+  const [preview, setPreview] = useState<ImageTemplatePreview | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    void api
+      .listImageTemplateVariables()
+      .then((res) => setKnownVars(res.variables))
+      .catch(() => setKnownVars([]));
+  }, []);
+
+  // Height-only auto-grow so the outer pane handles all scrolling.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [content]);
+
+  const detected = useMemo(() => detectTemplateVars(content), [content]);
+  const knownNames = useMemo(() => new Set(knownVars.map((v) => v.name)), [knownVars]);
+
+  const insertVar = (varName: string) => {
+    const el = textareaRef.current;
+    const snippet = `{{${varName}}}`;
+    if (!el) {
+      setContent((c) => c + snippet);
+      return;
+    }
+    const start = el.selectionStart ?? content.length;
+    const end = el.selectionEnd ?? content.length;
+    const next = content.slice(0, start) + snippet + content.slice(end);
+    setContent(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + snippet.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const runPreview = async () => {
+    setPreviewing(true);
+    try {
+      const result = await api.previewImageTemplate({ content });
+      setPreview(result);
+    } catch {
+      setPreview(null);
+    } finally {
+      setPreviewing(false);
+    }
+  };
 
   const submit = async () => {
     setBusy(true);
@@ -1877,19 +1942,153 @@ function ImageTemplateForm({
           className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 text-sm text-ink-100 focus:border-ink-500 focus:outline-none"
         />
       </FieldLabel>
-      <FieldLabel
-        label={t("settings.imageTemplates.content", {
-          defaultValue: "Markdown prompt template",
-        })}
-      >
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={16}
-          placeholder="# Look-and-Feel …"
-          className="w-full resize-none rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 font-mono text-[12px] leading-relaxed text-ink-100 focus:border-ink-500 focus:outline-none min-h-[20rem] [field-sizing:content]"
-        />
-      </FieldLabel>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_15rem]">
+        <FieldLabel
+          label={t("settings.imageTemplates.content", {
+            defaultValue: "Markdown prompt template",
+          })}
+        >
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={16}
+            placeholder="# Look-and-Feel …"
+            className="block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 font-mono text-[12px] leading-relaxed text-ink-100 focus:border-ink-500 focus:outline-none min-h-[20rem]"
+          />
+        </FieldLabel>
+
+        <div className="rounded-md border border-ink-700 bg-ink-900/30 p-2.5">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+            {t("settings.imageTemplates.varsPaletteTitle", {
+              defaultValue: "Click to insert",
+            })}
+          </div>
+          <ul className="space-y-1.5">
+            {knownVars.map((v) => {
+              const used = detected.includes(v.name);
+              return (
+                <li key={v.name}>
+                  <button
+                    type="button"
+                    onClick={() => insertVar(v.name)}
+                    className={[
+                      "block w-full rounded-md border px-2 py-1.5 text-left transition",
+                      used
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                        : "border-ink-700 bg-ink-800/40 text-ink-200 hover:border-ink-500 hover:bg-ink-800",
+                    ].join(" ")}
+                    title={v.description}
+                  >
+                    <code className="block font-mono text-[11px] font-semibold">{`{{${v.name}}}`}</code>
+                    <span className="mt-0.5 block text-[10px] leading-tight text-ink-400">
+                      {v.description}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+
+      {detected.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-ink-400">
+            {t("settings.imageTemplates.detected", { defaultValue: "Detected" })}:
+          </span>
+          {detected.map((v) => {
+            const known = knownNames.has(v);
+            return (
+              <span
+                key={v}
+                className={[
+                  "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-mono text-[10px]",
+                  known
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                    : "border-amber-500/50 bg-amber-500/10 text-amber-200",
+                ].join(" ")}
+                title={
+                  known
+                    ? t("settings.imageTemplates.detectedKnown", {
+                        defaultValue: "Recognised variable — will be filled.",
+                      }) ?? ""
+                    : t("settings.imageTemplates.detectedUnknown", {
+                        defaultValue:
+                          "Unknown variable — the extractor has no rule for this name.",
+                      }) ?? ""
+                }
+              >
+                {known ? <Check className="h-2.5 w-2.5" /> : <span>!</span>}
+                {`{{${v}}}`}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void runPreview()}
+          disabled={previewing || !content.trim()}
+          className="inline-flex items-center gap-1.5 rounded-md border border-ink-600 px-2 py-1 text-[11px] text-ink-200 transition hover:bg-ink-800 disabled:opacity-50"
+        >
+          {previewing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+          {t("settings.imageTemplates.previewBtn", {
+            defaultValue: "Preview with last card",
+          })}
+        </button>
+      </div>
+
+      {preview && (
+        <div className="mt-2 rounded-md border border-ink-700 bg-ink-900/30 p-2.5 text-[11px]">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="text-ink-300">
+              {preview.card_title ? (
+                <>
+                  {t("settings.imageTemplates.previewFrom", {
+                    defaultValue: "Grounded in",
+                  })}
+                  : <span className="font-medium text-ink-100">{preview.card_title}</span>
+                </>
+              ) : (
+                t("settings.imageTemplates.previewNoCard", {
+                  defaultValue: "No completed card found — used demo content.",
+                })
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreview(null)}
+              className="text-ink-500 transition hover:text-ink-200"
+              aria-label={t("common.close") ?? "Close"}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          {Object.keys(preview.extracted).length > 0 && (
+            <ul className="mb-2 space-y-0.5">
+              {Object.entries(preview.extracted).map(([k, v]) => (
+                <li key={k} className="flex items-baseline gap-2">
+                  <code className="font-mono text-[10px] text-ink-400">{k}</code>
+                  <span className="font-medium text-ink-100">{v || "—"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="text-[10px] uppercase tracking-wide text-ink-400">
+            {t("settings.imageTemplates.previewResolved", {
+              defaultValue: "Resolved prompt sent to the image model",
+            })}
+          </div>
+          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-ink-900/60 p-2 font-mono text-[10px] leading-snug text-ink-200">
+            {preview.resolved}
+          </pre>
+        </div>
+      )}
+
       <label className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-ink-300">
         <input
           type="checkbox"
