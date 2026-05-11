@@ -24,7 +24,9 @@ interface PdfReaderProps {
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 3.0;
 const SCALE_STEP = 0.1;
-const FIT_WIDTH_SCALE = 1.1; // close to "fit-width" for typical containers
+// 1.0 = render at 100% of the measured container width (fit-to-width).
+// User can zoom past 1.0 with +/- afterwards.
+const FIT_WIDTH_SCALE = 1.0;
 
 export default function PdfReader({ card, mode, compact = false }: PdfReaderProps) {
   const { t } = useTranslation();
@@ -36,6 +38,29 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
   const [jumpInput, setJumpInput] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Track the document area's pixel width so we can render the PDF
+  // page at exactly that width — fixes right-side clipping in narrow
+  // panes (e.g. the library's right chat pane at ~390 px).
+  const docAreaRef = useRef<HTMLDivElement>(null);
+  const [docAreaWidth, setDocAreaWidth] = useState(0);
+  useEffect(() => {
+    const el = docAreaRef.current;
+    if (!el) return;
+    const update = () => {
+      // Subtract the padding (p-3 = 12 px each side) so the page itself
+      // doesn't extend into the scrollbar gutter.
+      const padding = 24;
+      setDocAreaWidth(Math.max(0, el.clientWidth - padding));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [blobUrl, fullscreen, compact]);
 
   // Fetch the PDF blob on mount (and whenever the card or mode changes).
   useEffect(() => {
@@ -168,9 +193,15 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
     );
   }
 
+  // Non-fullscreen wrapper needs `h-full min-h-0` so it fills the
+  // 50% slot the parent flex column gives it (the right-pane split
+  // with chat below). Without it the canvas dictates the height and
+  // the chat panel below collapses. Fullscreen escapes the parent
+  // flex via `fixed inset-0 z-[60]` — z is bumped above the chat's
+  // Send button (z-50) so a maximized PDF blocks chat input.
   const wrapperClass = fullscreen
-    ? "fixed inset-0 z-50 flex flex-col bg-ink-950"
-    : "flex flex-col rounded-lg border border-ink-700 bg-ink-900/40";
+    ? "fixed inset-0 z-[60] flex flex-col bg-ink-950"
+    : "flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900/40";
 
   return (
     <div ref={containerRef} className={wrapperClass} style={{ viewTransitionName: "pdf-reader" } as React.CSSProperties}>
@@ -249,10 +280,19 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
       </div>
 
       {/* Document area */}
-      <div className="flex-1 overflow-auto bg-ink-950 p-3">
+      <div ref={docAreaRef} className="flex min-h-0 flex-1 justify-center overflow-auto bg-ink-950 p-3">
         {blobUrl ? (
           <Document file={blobUrl} onLoadSuccess={onDocumentLoad} onLoadError={onDocumentLoadError}>
-            <Page pageNumber={pageNumber} scale={scale} renderAnnotationLayer={false} renderTextLayer={false} />
+            <Page
+              pageNumber={pageNumber}
+              // Render the page at exactly the measured container width
+              // × the user's scale; passing `width` to react-pdf lets
+              // it compute its own scale relative to the page's native
+              // size, which is the only reliable fit-to-width path.
+              width={docAreaWidth > 0 ? docAreaWidth * scale : undefined}
+              renderAnnotationLayer={false}
+              renderTextLayer={false}
+            />
           </Document>
         ) : (
           <div className="flex h-40 items-center justify-center text-xs text-ink-400">
