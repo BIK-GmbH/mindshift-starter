@@ -104,7 +104,7 @@ export function PostImageRefineModal({
 
       <div className="relative flex h-[100vh] w-[100vw] max-h-none max-w-none flex-col overflow-hidden border-0 bg-ink-800 surface-elevated sm:h-[85vh] sm:w-[920px] sm:max-h-[85vh] sm:max-w-[92vw] sm:rounded-2xl sm:border sm:border-ink-700 sm:shadow-2xl">
         {/* Top bar */}
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-700 px-5 py-3">
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-ink-700 px-5 py-3">
           <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-ink-100">
             <Wand2 className="h-4 w-4 text-violet-400" />
             {t("posts.refine.title", { defaultValue: "Refine image" })}
@@ -113,14 +113,24 @@ export function PostImageRefineModal({
               {versions.length} {t("posts.refine.versions", { defaultValue: "versions" })}
             </span>
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-1.5 text-ink-400 transition hover:bg-ink-700 hover:text-ink-100"
-            aria-label={t("common.close") ?? "Close"}
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            {isJobInFlight && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/20 px-2.5 py-1 text-[11px] font-medium text-violet-300 ring-1 ring-violet-500/30">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {t("posts.refine.inFlight", {
+                  defaultValue: "Refinement in progress",
+                })}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-1.5 text-ink-400 transition hover:bg-ink-700 hover:text-ink-100"
+              aria-label={t("common.close") ?? "Close"}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Main image area */}
@@ -137,14 +147,6 @@ export function PostImageRefineModal({
               <p className="mt-2">
                 {t("posts.refine.noImage", { defaultValue: "No image to refine yet." })}
               </p>
-            </div>
-          )}
-          {isJobInFlight && (
-            <div className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-full bg-violet-500/25 px-3 py-1 text-[11px] font-medium text-violet-100 backdrop-blur">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              {t("posts.refine.inFlight", {
-                defaultValue: "Refinement in progress",
-              })}
             </div>
           )}
         </div>
@@ -219,12 +221,23 @@ export function PostImageRefineModal({
                 // react to activation instantly.
                 const isActive =
                   v.image_url !== null && v.image_url === post.image_url;
+                // Mark the source thumb when a refinement is running.
+                // While the BG job is in flight, post.image_file_id
+                // still points at the old image — so the "active"
+                // thumb IS the parent / source of the refinement. A
+                // small loader badge on it signals "this is what's
+                // being worked on" alongside the processing thumb
+                // (which is the destination, rendered with a spinner
+                // already because it has no image yet).
+                const isRefineSource =
+                  isActive && isJobInFlight && v.status === "ready";
                 return (
                   <VersionThumb
                     key={v.id}
                     version={{ ...v, is_active: isActive }}
                     disabled={activating === v.id || submitting}
                     isActivating={activating === v.id}
+                    isRefineSource={isRefineSource}
                     onClick={() =>
                       !isActive &&
                       v.status === "ready" &&
@@ -247,11 +260,15 @@ function VersionThumb({
   version,
   disabled,
   isActivating,
+  isRefineSource = false,
   onClick,
 }: {
   version: PostImageVersion;
   disabled: boolean;
   isActivating: boolean;
+  /** This thumb is the parent of an in-flight refinement — show a
+   *  small loader badge in the corner to mark it as the source. */
+  isRefineSource?: boolean;
   onClick: () => void;
 }) {
   const { src } = useAuthedImage(version.image_url);
@@ -299,6 +316,16 @@ function VersionThumb({
         <div className="absolute inset-0 flex items-center justify-center bg-ink-900/70">
           <Loader2 className="h-4 w-4 animate-spin text-white" />
         </div>
+      )}
+      {isRefineSource && !isActivating && (
+        <span
+          className="absolute bottom-1 right-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-violet-500/90 text-white ring-2 ring-ink-900/80"
+          title={t("posts.refine.sourceBadge", {
+            defaultValue: "Refinement in progress — this is the source image",
+          }) ?? ""}
+        >
+          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+        </span>
       )}
       <span className="absolute bottom-0 left-0 right-0 bg-ink-900/80 px-1 py-0.5 text-[9px] text-ink-200">
         {kindLabel}
