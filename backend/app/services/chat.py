@@ -96,6 +96,11 @@ def chat_with_card(
     latest message are added as a second context block. Web citations
     use a [W#1], [W#2] sequence so the LLM can cite them inline
     distinguishably from card citations.
+
+    In card chat the user's question often references "this" or "the
+    topic" implicitly (e.g. "was findest du dazu im web?") — search
+    engines have no clue what that refers to. We prefix the Brave
+    query with the card's title so results stay on-topic.
     """
     if not history:
         raise ValueError("History cannot be empty")
@@ -109,7 +114,8 @@ def chat_with_card(
     web_citations: list[WebCitation] = []
     web_block = ""
     if use_web_search:
-        web_citations = _web_lookup(last_user.content)
+        web_query = _build_card_web_query(card, last_user.content)
+        web_citations = _web_lookup(web_query)
         web_block = _format_web_context(web_citations)
 
     system_prompt = (
@@ -230,6 +236,48 @@ def _format_web_context(web_citations: list[WebCitation]) -> str:
         + (f"\n  Age: {c.age}" if c.age else "")
         for c in web_citations
     )
+
+
+# Words that, on their own, carry no topical signal — stripping them
+# from a search query stops Brave from anchoring on filler. Order
+# matters: longer phrases must come before shorter overlapping ones.
+_QUERY_NOISE = (
+    "was findest du dazu im web",
+    "was findest du den thema im web",
+    "was findest du den thema",
+    "was findest du dazu",
+    "was sagt das web dazu",
+    "was sagt das web",
+    "was steht im web dazu",
+    "im web dazu",
+    "what does the web say",
+    "what does the internet say",
+    "tell me more about this",
+    "tell me about this",
+)
+
+
+def _build_card_web_query(card: Card, user_message: str) -> str:
+    """Compose a search query that has the card's topic baked in.
+
+    The user's chat message in card mode often references "this" or
+    "the topic" implicitly. Prefixing the card's title makes Brave
+    return on-topic results for sloppy phrasing like "was findest du
+    dazu im web?". Generic question-starters are stripped so the
+    remaining keywords don't dilute the signal.
+    """
+    cleaned = (user_message or "").lower().strip()
+    for noise in _QUERY_NOISE:
+        if cleaned.startswith(noise) or cleaned == noise.rstrip("?!. ") + "?":
+            cleaned = cleaned[len(noise):].strip(" ?.,!:")
+            break
+    # Heuristic: if what remains is < 3 chars (e.g. user just asked
+    # "?"), treat the whole utterance as filler and search only the
+    # card title.
+    parts = [card.title or ""]
+    if len(cleaned) >= 3:
+        parts.append(cleaned)
+    return " ".join(p for p in parts if p).strip()
 
 
 # --- Retrieval --------------------------------------------------------------
