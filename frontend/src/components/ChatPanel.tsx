@@ -164,6 +164,13 @@ export default function ChatPanel({
         nextHistory.map(({ role, content }) => ({ role, content })),
         { useWebSearch: liveWebSearch },
       );
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[mindshift chat] response — web_citations:",
+        response.web_citations?.length ?? 0,
+        "citations:",
+        response.citations?.length ?? 0,
+      );
       setMessages((prev) => [
         ...prev,
         {
