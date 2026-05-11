@@ -48,36 +48,10 @@
       </div>
     </main>
 
-    <!-- "Card already saved" state — embed it via iframe + chat below -->
+    <!-- "Card already saved" state — embed it via iframe. Chat now lives
+         inside the iframe as a tab in EmbedCardPage. -->
     <main id="cardPane" class="sp-pane hidden">
       <iframe id="cardFrame" title="Card" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
-      <section id="chat-pane" hidden>
-        <header class="chat-header">
-          <span class="chat-title" id="chat-title">Chat</span>
-          <button id="chat-new" type="button" class="chat-new-btn" title="New chat">+ New</button>
-        </header>
-        <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
-        <form id="chat-form" class="chat-input-form">
-          <textarea
-            id="chat-input"
-            rows="2"
-            placeholder="Ask anything about this card…"
-            maxlength="4000"
-          ></textarea>
-          <div class="chat-input-actions">
-            <button type="button" id="chat-voice" class="chat-voice-btn" title="Record voice" aria-label="Record voice">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="23"></line>
-                <line x1="8" y1="23" x2="16" y2="23"></line>
-              </svg>
-            </button>
-            <button type="submit" id="chat-send" class="chat-send-btn" title="Send">Send</button>
-          </div>
-        </form>
-        <p id="chat-status" class="chat-status" aria-live="polite"></p>
-      </section>
     </main>
 
     <script type="module" src="sidepanel.js"></script>

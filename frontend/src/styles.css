@@ -66,10 +66,20 @@
     outline: none;
   }
 
-  /* Custom scrollbars — subtle, themed, behave on both Firefox and WebKit. */
+  /* Custom scrollbars — subtle, themed, behave on both Firefox and WebKit.
+     Theme-aware via CSS custom properties: dark defaults on `:root`,
+     overridden by `:root.light` (the project's light-mode selector). */
+  :root {
+    --scrollbar-thumb: rgba(56, 65, 85, 0.7);
+    --scrollbar-thumb-hover: rgba(90, 100, 120, 0.95);
+  }
+  :root.light {
+    --scrollbar-thumb: rgba(15, 23, 42, 0.22);
+    --scrollbar-thumb-hover: rgba(15, 23, 42, 0.42);
+  }
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(56, 65, 85, 0.7) transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
   }
   *::-webkit-scrollbar {
     width: 10px;
@@ -79,14 +89,14 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background-color: rgba(56, 65, 85, 0.7);
+    background-color: var(--scrollbar-thumb);
     border-radius: 999px;
     border: 2px solid transparent;
     background-clip: padding-box;
     transition: background-color 0.18s ease;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(90, 100, 120, 0.95);
+    background-color: var(--scrollbar-thumb-hover);
     background-clip: padding-box;
   }
   *::-webkit-scrollbar-corner {

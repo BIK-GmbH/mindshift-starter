@@ -1,9 +1,10 @@
-import { ExternalLink, FileText, Loader2, Maximize2, Moon, Search, StickyNote, Sun, X } from "lucide-react";
+import { ExternalLink, FileText, Loader2, Maximize2, MessageSquare, Moon, Search, StickyNote, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import CardLanguagePicker from "../components/CardLanguagePicker";
+import ChatTab from "../components/cardTabs/ChatTab";
 import IngestionSkeleton from "../components/IngestionSkeleton";
 import MarkdownView from "../components/MarkdownView";
 import {
@@ -37,13 +38,14 @@ function readEmbedTheme(): "dark" | "light" {
     : "dark";
 }
 
-type EmbedTab = "summary" | "transcript" | "notes";
+type EmbedTab = "summary" | "transcript" | "notes" | "chat";
 type SummaryDepth = "concise" | "detailed";
 
 const TAB_ICONS: Record<EmbedTab, FC<{ className?: string }>> = {
   summary: FileText,
   transcript: FileText,
   notes: StickyNote,
+  chat: MessageSquare,
 };
 
 /**
@@ -232,6 +234,7 @@ export default function EmbedCardPage() {
       list.push("transcript");
     }
     list.push("notes");
+    list.push("chat");
     return list;
   }, [card?.source_type]);
 
@@ -438,7 +441,9 @@ export default function EmbedCardPage() {
                         ? "Summary"
                         : id === "transcript"
                           ? "Transcript"
-                          : "Notes",
+                          : id === "notes"
+                            ? "Notes"
+                            : "Chat",
                   })}
                 </span>
                 {active && (
@@ -476,6 +481,11 @@ export default function EmbedCardPage() {
             />
           )}
           {tab === "notes" && <NotesTab card={card} />}
+          {tab === "chat" && (
+            <div className="p-3">
+              <ChatTab card={card} showSourceMedia={false} />
+            </div>
+          )}
         </div>
       </div>
       )}
