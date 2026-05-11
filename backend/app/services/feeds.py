@@ -30,10 +30,13 @@ from app.services.url_normalize import canonicalize_url
 
 logger = logging.getLogger(__name__)
 
-# Cap the number of brand-new entries we ingest from a single feed in one
-# poll — protects against backfilled / republished feeds dumping hundreds
-# of cards at once.
-MAX_NEW_PER_POLL = 25
+# Cap the number of brand-new entries we ingest from a single feed in
+# one poll. Card rows are created immediately; the YouTube ingestion
+# itself is serialised at `_YT_DRAIN_DELAY_SECONDS` between items so
+# YouTube doesn't IP-block the transcript endpoint. 100 covers most
+# courses / podcast back-catalogues without making mega-playlists
+# (5000-video uploads channel) silently torch the queue.
+MAX_NEW_PER_POLL = 100
 # A feed page is meant to be small. Refuse anything obviously not.
 MAX_BYTES = 5 * 1024 * 1024
 
