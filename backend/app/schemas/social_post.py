@@ -63,3 +63,45 @@ class SocialPostOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class SocialPostImagePreviewRequest(BaseModel):
+    """Body for the per-post image-preview endpoint. Empty body means
+    'use the user's current default template' — handy when the user
+    just clicks the preview button without typing anything."""
+
+    template_content: str | None = None
+    template_id: UUID | None = None
+
+
+class SocialPostImagePreviewResponse(BaseModel):
+    detected: list[str]
+    unknown: list[str]
+    extracted: dict[str, str]
+    resolved: str
+    template_id: UUID | None = None
+
+
+class SocialPostImageGenerateRequest(BaseModel):
+    """Generate a fresh image for the post. If `resolved_prompt` is set
+    it goes straight to gpt-image-2 with no template work. Otherwise we
+    resolve the chosen / default template just like the original POST
+    flow does."""
+
+    resolved_prompt: str | None = Field(default=None, max_length=20000)
+    template_id: UUID | None = None
+
+
+class SocialPostImageRefineRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=2000)
+
+
+class SocialPostImageVersionOut(BaseModel):
+    id: UUID
+    file_id: UUID
+    image_url: str
+    prompt_used: str | None
+    kind: str
+    parent_version_id: UUID | None
+    is_active: bool
+    created_at: datetime

@@ -7,10 +7,12 @@ import {
   Linkedin,
   Loader2,
   Megaphone,
+  RefreshCw,
   Send,
   Sparkles,
   Trash2,
   Twitter,
+  Wand2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,6 +29,8 @@ import {
 } from "../../lib/api";
 import { useAuthedImage } from "../../lib/useAuthedImage";
 import { useDialog } from "../../lib/DialogContext";
+import { PostImagePregenModal } from "./PostImagePregenModal";
+import { PostImageRefineModal } from "./PostImageRefineModal";
 
 interface Props {
   cardId: string;
@@ -372,6 +376,7 @@ export default function PostsTab({ cardId }: Props) {
                 draft={d}
                 cardId={cardId}
                 mcpServers={mcpServers}
+                imageTemplates={imageTemplates}
                 onUpdated={(next) =>
                   setDrafts((prev) =>
                     prev.map((p) => (p.id === next.id ? next : p)),
@@ -394,12 +399,14 @@ function DraftCard({
   draft,
   cardId,
   mcpServers,
+  imageTemplates,
   onUpdated,
   onDelete,
 }: {
   draft: SocialPostOut;
   cardId: string;
   mcpServers: MCPServerOut[];
+  imageTemplates: ImageTemplateOut[];
   onUpdated: (next: SocialPostOut) => void;
   onDelete: () => void;
 }) {
@@ -409,6 +416,8 @@ function DraftCard({
   const [, setCopiedText] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
   const { src: imageSrc } = useAuthedImage(draft.image_url);
+  const [pregenOpen, setPregenOpen] = useState(false);
+  const [refineOpen, setRefineOpen] = useState(false);
 
   // Inline editor state — local-first so typing stays snappy; PATCH
   // is debounced 1.5 s after the last keystroke.
@@ -656,15 +665,77 @@ function DraftCard({
         </div>
       )}
 
-      {/* Image preview */}
-      {imageSrc && (
-        <div className="mt-3 overflow-hidden rounded-md border border-ink-700 bg-ink-900">
+      {/* Image preview — clickable to open Refine-Modus; floating action
+          buttons let the user regenerate from scratch or refine the
+          current image without leaving the draft list. */}
+      {imageSrc ? (
+        <div className="group relative mt-3 overflow-hidden rounded-md border border-ink-700 bg-ink-900">
           <img
             src={imageSrc}
             alt={t("posts.coverAlt", { defaultValue: "Generated cover" }) ?? ""}
-            className="w-full"
+            className="w-full cursor-zoom-in"
+            onClick={() => setRefineOpen(true)}
           />
+          <div className="absolute right-2 top-2 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setRefineOpen(true);
+              }}
+              title={t("posts.image.refineTitle", {
+                defaultValue: "Refine this image",
+              }) ?? ""}
+              className="inline-flex items-center gap-1 rounded-md bg-ink-900/85 px-2 py-1 text-[11px] font-medium text-ink-100 backdrop-blur transition hover:bg-violet-500"
+            >
+              <Wand2 className="h-3 w-3" />
+              {t("posts.image.refine", { defaultValue: "Refine" })}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPregenOpen(true);
+              }}
+              title={t("posts.image.regenerateTitle", {
+                defaultValue: "Regenerate from template with editable variables",
+              }) ?? ""}
+              className="inline-flex items-center gap-1 rounded-md bg-ink-900/85 px-2 py-1 text-[11px] font-medium text-ink-100 backdrop-blur transition hover:bg-ink-700"
+            >
+              <RefreshCw className="h-3 w-3" />
+              {t("posts.image.regenerate", { defaultValue: "Regenerate" })}
+            </button>
+          </div>
         </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setPregenOpen(true)}
+          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-ink-700 px-3 py-3 text-xs text-ink-300 transition hover:border-violet-400 hover:bg-violet-500/5 hover:text-violet-200"
+        >
+          <ImageIcon className="h-4 w-4" />
+          {t("posts.image.addImage", {
+            defaultValue: "Add an image with editable variables",
+          })}
+        </button>
+      )}
+
+      {pregenOpen && (
+        <PostImagePregenModal
+          cardId={cardId}
+          post={draft}
+          templates={imageTemplates}
+          onClose={() => setPregenOpen(false)}
+          onGenerated={onUpdated}
+        />
+      )}
+      {refineOpen && (
+        <PostImageRefineModal
+          cardId={cardId}
+          post={draft}
+          onClose={() => setRefineOpen(false)}
+          onUpdated={onUpdated}
+        />
       )}
 
       {/* Footer meta — live character counter + save state */}

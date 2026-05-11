@@ -267,7 +267,11 @@ def rewrite_selection(
 
 
 def generate_post_image(
-    *, title: str, post_text: str, template_content: str | None = None
+    *,
+    title: str,
+    post_text: str,
+    template_content: str | None = None,
+    prompt_override: str | None = None,
 ) -> bytes:
     """Generate a cover image (PNG bytes) for the post via gpt-image-2.
 
@@ -275,12 +279,22 @@ def generate_post_image(
     uses so we don't duplicate the call logic. `template_content`
     forwards the user's image-template (from the image_templates table)
     so the look is consistent with their other Mindshift covers.
+
+    `prompt_override`, when set, replaces the entire prompt pipeline —
+    no template prepend, no variable resolution, the override goes
+    straight to gpt-image-2. The Pre-Gen modal uses this to commit a
+    user-edited resolved prompt.
     """
     from app.services.podcast import generate_cover_image
 
-    # Pass enough body that the variable-extraction pass inside
-    # generate_cover_image can pick up numeric stats buried deeper in
-    # the post. The downstream call caps internally.
+    if prompt_override and prompt_override.strip():
+        return generate_cover_image(
+            title=title,
+            custom_prompt=prompt_override.strip(),
+            # Skip template resolution — the override IS the final prompt.
+            template_content=None,
+        )
+
     snippet = post_text.strip()
     if len(snippet) > 3500:
         snippet = snippet[:3500] + " …"
@@ -289,3 +303,32 @@ def generate_post_image(
         summary_hint=snippet,
         template_content=template_content,
     )
+
+
+def refine_post_image(*, image_bytes: bytes, prompt: str) -> bytes:
+    """Edit an existing image with a natural-language refinement prompt
+    via gpt-image-2's images.edit endpoint. Returns the new PNG bytes."""
+    from io import BytesIO
+
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY not configured")
+
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.openai_api_key)
+    # SDK accepts a single file-like, bytes, or (filename, bytes) tuple
+    # for `image` — a list is reserved for multi-image edits. Pass a
+    # tuple so the MIME type is detected from the .png filename.
+    response = client.images.edit(
+        model="gpt-image-2",
+        image=("current.png", BytesIO(image_bytes), "image/png"),
+        prompt=prompt.strip(),
+        size="1024x1024",
+    )
+    b64 = response.data[0].b64_json
+    if not b64:
+        raise RuntimeError("images.edit returned no data")
+    import base64 as _b64
+
+    return _b64.b64decode(b64)

@@ -341,15 +341,34 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ query, limit }),
     }),
-  chatCard: (cardId: string, messages: ChatMessage[], sessionId?: string) =>
+  chatCard: (
+    cardId: string,
+    messages: ChatMessage[],
+    sessionId?: string,
+    useWebSearch?: boolean,
+  ) =>
     request<ChatResponse>(`/api/cards/${cardId}/chat`, {
       method: "POST",
-      body: JSON.stringify({ messages, session_id: sessionId }),
+      body: JSON.stringify({
+        messages,
+        session_id: sessionId,
+        use_web_search: !!useWebSearch,
+      }),
     }),
-  chatKb: (messages: ChatMessage[], topK = 5, sessionId?: string) =>
+  chatKb: (
+    messages: ChatMessage[],
+    topK = 5,
+    sessionId?: string,
+    useWebSearch?: boolean,
+  ) =>
     request<ChatResponse>("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ messages, top_k: topK, session_id: sessionId }),
+      body: JSON.stringify({
+        messages,
+        top_k: topK,
+        session_id: sessionId,
+        use_web_search: !!useWebSearch,
+      }),
     }),
   listChatSessions: (cardId?: string) => {
     const qs = cardId ? `?card_id=${cardId}` : "";
@@ -830,6 +849,47 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ text }),
     }),
+
+  // --- Posts (per-card draft) image: preview / generate / refine / versions ---
+  previewPostImage: (
+    cardId: string,
+    postId: string,
+    body: { template_content?: string | null; template_id?: string | null } = {},
+  ) =>
+    request<PostImagePreview>(
+      `/api/cards/${cardId}/social-posts/${postId}/image/preview`,
+      { method: "POST", body: JSON.stringify(body) },
+      { timeoutMs: 60_000 },
+    ),
+  generatePostImage: (
+    cardId: string,
+    postId: string,
+    body: { resolved_prompt?: string | null; template_id?: string | null } = {},
+  ) =>
+    request<SocialPostOut>(
+      `/api/cards/${cardId}/social-posts/${postId}/image/generate`,
+      { method: "POST", body: JSON.stringify(body) },
+      { timeoutMs: 120_000 },
+    ),
+  refinePostImage: (cardId: string, postId: string, prompt: string) =>
+    request<SocialPostOut>(
+      `/api/cards/${cardId}/social-posts/${postId}/image/refine`,
+      { method: "POST", body: JSON.stringify({ prompt }) },
+      { timeoutMs: 120_000 },
+    ),
+  listPostImageVersions: (cardId: string, postId: string) =>
+    request<PostImageVersion[]>(
+      `/api/cards/${cardId}/social-posts/${postId}/image/versions`,
+    ),
+  activatePostImageVersion: (
+    cardId: string,
+    postId: string,
+    versionId: string,
+  ) =>
+    request<SocialPostOut>(
+      `/api/cards/${cardId}/social-posts/${postId}/image/versions/${versionId}/activate`,
+      { method: "POST" },
+    ),
   rewriteSocialPostSelection: (
     cardId: string,
     postId: string,
@@ -1120,9 +1180,18 @@ export interface Citation {
   snippet: string;
 }
 
+export interface WebCitation {
+  index: number;
+  title: string;
+  url: string;
+  description: string;
+  age: string | null;
+}
+
 export interface ChatResponse {
   answer: string;
   citations: Citation[];
+  web_citations: WebCitation[];
   session_id: string | null;
 }
 
@@ -1140,6 +1209,7 @@ export interface PersistedChatMessage {
   role: "user" | "assistant";
   content: string;
   citations_json: Citation[] | null;
+  web_citations_json: WebCitation[] | null;
   created_at: string;
 }
 
@@ -1225,6 +1295,25 @@ export interface ImageTemplatePreview {
   extracted: Record<string, string>;
   resolved: string;
   card_title: string | null;
+}
+
+export interface PostImagePreview {
+  detected: string[];
+  unknown: string[];
+  extracted: Record<string, string>;
+  resolved: string;
+  template_id: string | null;
+}
+
+export interface PostImageVersion {
+  id: string;
+  file_id: string;
+  image_url: string;
+  prompt_used: string | null;
+  kind: "generate" | "refine";
+  parent_version_id: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
 export type MCPTransport = "http" | "sse";
