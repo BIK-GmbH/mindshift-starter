@@ -693,14 +693,14 @@ function DraftCard({
           buttons let the user regenerate from scratch or refine the
           current image without leaving the draft list. */}
       {imageSrc ? (
-        <div className="group relative mt-3 overflow-hidden rounded-md border border-ink-700 bg-ink-900">
+        <div className="group relative mt-3 inline-block overflow-hidden rounded-md border border-ink-700 bg-ink-900 shadow-md">
           <img
             src={imageSrc}
             alt={t("posts.coverAlt", { defaultValue: "Generated cover" }) ?? ""}
-            className="w-full cursor-zoom-in"
+            className="block h-40 w-40 cursor-zoom-in object-cover transition hover:opacity-90"
             onClick={() => setRefineOpen(true)}
           />
-          <div className="absolute right-2 top-2 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             <button
               type="button"
               onClick={(e) => {
@@ -710,10 +710,10 @@ function DraftCard({
               title={t("posts.image.refineTitle", {
                 defaultValue: "Refine this image",
               }) ?? ""}
-              className="inline-flex items-center gap-1 rounded-md bg-ink-900/85 px-2 py-1 text-[11px] font-medium text-ink-100 backdrop-blur transition hover:bg-violet-500"
+              aria-label={t("posts.image.refine", { defaultValue: "Refine" }) ?? "Refine"}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900/85 text-ink-100 backdrop-blur transition hover:bg-violet-500"
             >
               <Wand2 className="h-3 w-3" />
-              {t("posts.image.refine", { defaultValue: "Refine" })}
             </button>
             <button
               type="button"
@@ -724,10 +724,10 @@ function DraftCard({
               title={t("posts.image.regenerateTitle", {
                 defaultValue: "Regenerate from template with editable variables",
               }) ?? ""}
-              className="inline-flex items-center gap-1 rounded-md bg-ink-900/85 px-2 py-1 text-[11px] font-medium text-ink-100 backdrop-blur transition hover:bg-ink-700"
+              aria-label={t("posts.image.regenerate", { defaultValue: "Regenerate" }) ?? "Regenerate"}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900/85 text-ink-100 backdrop-blur transition hover:bg-ink-700"
             >
               <RefreshCw className="h-3 w-3" />
-              {t("posts.image.regenerate", { defaultValue: "Regenerate" })}
             </button>
           </div>
         </div>
