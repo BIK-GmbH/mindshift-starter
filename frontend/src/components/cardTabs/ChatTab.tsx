@@ -56,6 +56,7 @@ export default function ChatTab({ card, showSourceMedia = false, fitParent = fal
           }
           placeholder={t("chat.placeholderCard") ?? ""}
           emptyHint={t("chat.cardEmpty") ?? ""}
+          exportTarget={{ cardId: card.id, cardTitle: card.title }}
         />
       </div>
     </div>

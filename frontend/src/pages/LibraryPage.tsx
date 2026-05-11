@@ -438,6 +438,19 @@ export default function LibraryPage() {
                     }
                     placeholder={t("chat.placeholderCard") ?? ""}
                     emptyHint={t("chat.cardEmpty") ?? ""}
+                    exportTarget={
+                      selectedCard
+                        ? {
+                            cardId: selectedCard.id,
+                            cardTitle: selectedCard.title,
+                            // Re-fetch the library list so the row's
+                            // "has notes" indicator updates if we ever
+                            // grow one. For now this just keeps the
+                            // selected card's in-memory notes_md fresh.
+                            onSaved: () => void fetchCards(),
+                          }
+                        : undefined
+                    }
                   />
                 </div>
               </div>

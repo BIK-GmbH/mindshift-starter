@@ -550,6 +550,26 @@
       "wrong": "Wrong"
     }
   },
+  "chatExport": {
+    "button": "Export to notes",
+    "openTitle": "Export selected chat messages to this card's notes",
+    "title": "Export chat to notes",
+    "target": "Will be appended to",
+    "selected": "Selected",
+    "selectAll": "All",
+    "selectNone": "None",
+    "formatQa": "Q&A pairs",
+    "formatPlain": "Plain",
+    "preview": "Preview",
+    "previewEmpty": "(nothing selected)",
+    "you": "You",
+    "assistant": "Assistant",
+    "webSources": "web",
+    "sources": "cards",
+    "empty": "No messages yet — send something first.",
+    "append": "Append to notes",
+    "fromChat": "From chat"
+  },
   "chat": {
     "send": "Send",
     "placeholder": "Ask a question…",

@@ -550,6 +550,26 @@
       "wrong": "Falsch"
     }
   },
+  "chatExport": {
+    "button": "An Notizen anhängen",
+    "openTitle": "Ausgewählte Chat-Nachrichten an die Notizen dieser Card anhängen",
+    "title": "Chat in Notizen exportieren",
+    "target": "Wird angehängt an",
+    "selected": "Ausgewählt",
+    "selectAll": "Alle",
+    "selectNone": "Keine",
+    "formatQa": "Q&A-Paare",
+    "formatPlain": "Plain",
+    "preview": "Vorschau",
+    "previewEmpty": "(nichts ausgewählt)",
+    "you": "Du",
+    "assistant": "Assistent",
+    "webSources": "Web",
+    "sources": "Cards",
+    "empty": "Noch keine Nachrichten — frag erst was.",
+    "append": "An Notizen anhängen",
+    "fromChat": "Aus Chat"
+  },
   "chat": {
     "send": "Senden",
     "placeholder": "Frage eingeben…",

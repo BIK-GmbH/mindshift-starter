@@ -1,9 +1,10 @@
-import { Bot, ExternalLink, Globe, Lightbulb, Loader2, Send, User } from "lucide-react";
+import { Bot, ExternalLink, Globe, Lightbulb, Loader2, NotebookPen, Send, User } from "lucide-react";
 import { marked } from "marked";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import ExportChatModal, { type ExportableMessage } from "./ExportChatModal";
 import VoiceRecordButton from "./VoiceRecordButton";
 import type {
   ChatMessage,
@@ -30,6 +31,15 @@ interface Props {
   /** Fire when the backend assigns/echoes a session id (so the page can
    *  refresh the sidebar listing or pin the URL). */
   onSessionId?: (id: string) => void;
+  /** When provided, an Export-to-Notes button appears in the toolbar.
+   *  Click → modal where the user picks messages to append to this
+   *  card's notes_md. Omit for surfaces with no obvious target (e.g.
+   *  the /chat global KB panel — for now). */
+  exportTarget?: {
+    cardId: string;
+    cardTitle: string;
+    onSaved?: (newNotesMd: string) => void;
+  };
 }
 
 interface UiMessage extends ChatMessage {
@@ -57,6 +67,7 @@ export default function ChatPanel({
   suggestions,
   initialMessages,
   onSessionId,
+  exportTarget,
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -194,8 +205,37 @@ export default function ChatPanel({
     await submitText(input);
   };
 
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportableMessages: ExportableMessage[] = useMemo(
+    () =>
+      messages.map((m) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        citations: m.citations,
+        webCitations: m.webCitations,
+      })),
+    [messages],
+  );
+
   return (
     <div className="flex h-full flex-col">
+      {/* Toolbar — shown when there's at least one message AND an
+          export target was provided. Stays out of the way on empty
+          chats so first-impression UI isn't cluttered. */}
+      {exportTarget && messages.length > 0 && (
+        <div className="flex flex-shrink-0 items-center justify-end gap-2 pb-2">
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            title={t("chatExport.openTitle", { defaultValue: "Export selected messages to this card's notes" }) ?? ""}
+            className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-800/40 px-2.5 py-1 text-[11px] text-ink-300 transition hover:border-ink-600 hover:bg-ink-800 hover:text-ink-100"
+          >
+            <NotebookPen className="h-3 w-3" />
+            {t("chatExport.button", { defaultValue: "Export to notes" })}
+          </button>
+        </div>
+      )}
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-3 pr-1">
         {messages.length === 0 && (
           <EmptyState
@@ -280,6 +320,16 @@ export default function ChatPanel({
           {t("chat.send")}
         </button>
       </form>
+      {exportTarget && (
+        <ExportChatModal
+          open={exportOpen}
+          onClose={() => setExportOpen(false)}
+          messages={exportableMessages}
+          cardId={exportTarget.cardId}
+          cardTitle={exportTarget.cardTitle}
+          onSaved={exportTarget.onSaved}
+        />
+      )}
     </div>
   );
 }
