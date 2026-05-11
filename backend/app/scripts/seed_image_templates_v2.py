@@ -92,7 +92,7 @@ Image style:
     ),
     (
         "Concept Morph",
-        """A 1:1 square studio product photograph (1024x1024 pixels) of a single physical object that gradually transforms from left to right.
+        """A 16:9 landscape studio product photograph (1536x1024 pixels) of a single physical object that gradually transforms from left to right. The wide canvas gives each half breathing room and reads as a natural left-to-right scan.
 
 The LEFT HALF of the object is "{{LEFT_OBJECT}}", rendered in hyper-detailed photorealistic studio quality.
 The RIGHT HALF of the object is "{{RIGHT_OBJECT}}", also hyper-detailed and photorealistic.
@@ -107,7 +107,7 @@ Bottom of the image, small light-grey text, centered:
 "Source: {{SOURCES}} | {{DATE}}"
 
 Image style:
-- 1:1 SQUARE (1024x1024). NEVER 16:9.
+- 16:9 LANDSCAPE (1536x1024). NEVER 1:1 or portrait.
 - Dark navy background hex 000e22.
 - Electric blue rim-light and glow on the seam hex 00aaff.
 - Orange/gold accent only on the subtitle hex ffaa3a.
@@ -178,7 +178,7 @@ Image style:
     ),
     (
         "Landscape Map",
-        """A 1:1 square illustrated landscape map (1024x1024 pixels) showing the ecosystem of "{{DOMAIN}}".
+        """A 16:9 landscape illustrated map (1536x1024 pixels) showing the ecosystem of "{{DOMAIN}}". The wide canvas lets each region have room to breathe with all its items legibly listed.
 
 The map is rendered like a stylized strategic territory diagram — abstract continents, regions and zones, NOT a geographic map. Each region is a softly glowing area on a dark navy backdrop, separated by thin glowing electric-blue borders that look like circuit traces.
 
@@ -188,20 +188,20 @@ Each region contains:
   - a bold orange region name (color #ffaa3a) at its center
   - a short list of items beneath, each on its own line in smaller white text
 
-Regions and items:
+Regions and items, distributed horizontally across the wide canvas (rough left-to-right placement, with slight vertical offset so the map feels organic, not a strict 5-column grid):
 Region 1 — name: "{{CLUSTER_1_NAME}}"   items: "{{CLUSTER_1_ITEMS}}"
 Region 2 — name: "{{CLUSTER_2_NAME}}"   items: "{{CLUSTER_2_ITEMS}}"
 Region 3 — name: "{{CLUSTER_3_NAME}}"   items: "{{CLUSTER_3_ITEMS}}"
 Region 4 — name: "{{CLUSTER_4_NAME}}"   items: "{{CLUSTER_4_ITEMS}}"
 Region 5 — name: "{{CLUSTER_5_NAME}}"   items: "{{CLUSTER_5_ITEMS}}"
 
-The composition should feel balanced and readable, not chaotic — items must be legible at 1024x1024. Avoid overlapping regions. Place a faint cyan grid behind everything for a "strategic map" feel.
+The composition should feel balanced and readable, not chaotic — items must be legible at 1536x1024. Avoid overlapping regions. Place a faint cyan grid behind everything for a "strategic map" feel.
 
 Bottom of the image, small light-grey text, centered:
 "Source: {{SOURCES}} | {{DATE}}"
 
 Image style:
-- 1:1 SQUARE (1024x1024). NEVER 16:9.
+- 16:9 LANDSCAPE (1536x1024). NEVER 1:1 or portrait.
 - Dark navy background hex 000e22 with faint cyan grid hex 00aaff at 10% opacity.
 - Region borders glowing electric blue hex 00aaff.
 - Region names in orange/gold hex ffaa3a.

@@ -86,18 +86,18 @@ Image style:
     ),
     (
         "Screenshot Mockup",
-        """A 4:5 portrait image (1024x1280 pixels) showing a hyper-realistic SaaS-product screenshot, framed as if captured directly from a shipped web app. The visual register is "real product demo", not "concept mockup" — no wireframe lines, no Lorem Ipsum, no placeholder rectangles.
+        """A 16:9 landscape image (1536x1024 pixels) showing a hyper-realistic SaaS-product screenshot, framed as if captured directly from a shipped web app. The wide canvas matches how real desktop dashboards are designed and read. The visual register is "real product demo", not "concept mockup" — no wireframe lines, no Lorem Ipsum, no placeholder rectangles.
 
-Top of the image, above the screenshot frame: the headline "{{HEADLINE}}" in heavy geometric sans-serif, weight 800, white hex FFFFFF, on the dark navy hex 000e22 outer background. ~64px from top.
+Top of the image, in a thin band above the screenshot frame: the headline "{{HEADLINE}}" in heavy geometric sans-serif, weight 800, white hex FFFFFF, on the dark navy hex 000e22 outer background. ~48px from top.
 
-The screenshot itself occupies the central ~75% of the canvas, with browser chrome at the top of the frame:
+The screenshot itself occupies the central ~88% of the canvas (the dashboard reads as the hero — barely any outer padding), with browser chrome at the top of the frame:
   - URL bar reads "{{LEFT_OBJECT}}" (reuse this variable for the fake URL — e.g. "app.cdbrain.io/agents")
   - Three traffic-light dots in the top-left of the chrome (red, yellow, green)
 
-Inside the screenshot canvas, render a believable SaaS dashboard layout:
-  - Left sidebar (~20% width) with a navigation list including the items from "{{RIGHT_OBJECT}}" (reuse for nav-list contents — e.g. "Inbox, Agents, Knowledge, Settings")
-  - Main canvas: a kanban board with three columns. Column 1 titled "{{BEFORE_LABEL}}", column 2 "{{AFTER_LABEL}}", column 3 "{{HEADLINE}}" (reused). Each column has 2–3 frosted glass cards with short, believable task titles drawn from the source content. No Lorem Ipsum.
-  - Right side panel (~25% width) showing a single area chart trending up-and-to-the-right, with two visible axis labels.
+Inside the screenshot canvas, render a believable SaaS dashboard layout — laid out HORIZONTALLY to use the wide aspect:
+  - Left sidebar (~16% width) with a navigation list including the items from "{{RIGHT_OBJECT}}" (reuse for nav-list contents — e.g. "Inbox, Agents, Knowledge, Settings")
+  - Main canvas (~58% width, centre): a kanban board with three columns side by side. Column 1 titled "{{BEFORE_LABEL}}", column 2 "{{AFTER_LABEL}}", column 3 "{{HEADLINE}}" (reused). Each column has 2–3 frosted glass cards with short, believable task titles drawn from the source content. No Lorem Ipsum.
+  - Right side panel (~26% width) showing a single area chart trending up-and-to-the-right, with two visible axis labels and a small KPI tile above the chart.
 
 Palette inside the screenshot: dark navy surfaces hex 000e22 / 001e42, electric blue accents hex 00aaff, ONE orange CTA button hex ffaa3a labelled "{{BEFORE_DESCRIPTION}}" (reused; e.g. "RUN AGENT") visible in the top-right of the dashboard.
 
@@ -105,7 +105,7 @@ Footer below the screenshot frame, small white-grey 12px text:
 "Source: {{SOURCES}} | {{DATE}}"
 
 Image style:
-- 4:5 PORTRAIT (1024x1280). NEVER 1:1 or 16:9.
+- 16:9 LANDSCAPE (1536x1024). NEVER 1:1 or portrait.
 - Outer background dark navy hex 000e22.
 - Screenshot interior uses navy + cyan + orange palette as specified above.
 - Realistic shipped-product feel — sharp screenshot lines, real-looking type.
