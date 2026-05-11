@@ -623,13 +623,19 @@ function ActivityHeatmap({ days }: { days: ActivityDay[] }) {
 
   return (
     <div className="space-y-1.5">
-      <div className="grid grid-flow-col grid-rows-7 gap-[2px]">
+      <div
+        className="grid grid-flow-col gap-[2px]"
+        style={{
+          gridTemplateColumns: `repeat(${weeks}, minmax(0, 1fr))`,
+          gridTemplateRows: "repeat(7, minmax(0, 1fr))",
+        }}
+      >
         {grid.flatMap((col, wi) =>
           col.map(({ date, count }, di) => (
             <span
               key={`${wi}-${di}`}
               title={`${date.toLocaleDateString()} — ${count}`}
-              className={`h-[10px] w-[10px] rounded-[2px] ${intensity(count)}`}
+              className={`aspect-square rounded-[2px] ${intensity(count)}`}
             />
           )),
         )}
