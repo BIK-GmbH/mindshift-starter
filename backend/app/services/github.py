@@ -133,13 +133,26 @@ def fetch_repo(url: str) -> GithubRepo | None:
     except (httpx.HTTPError, ValueError):
         return None
 
-    # Prefer the owner's avatar (served from GitHub's CDN — no rate
-    # limiting, square, small) over opengraph.githubassets.com's auto-
-    # generated social preview. The OG endpoint is throttled to 100
-    # requests / 15 minutes per browser IP and starts returning 429
-    # as soon as a library page renders a handful of GH cards at once.
-    avatar = (data.get("owner") or {}).get("avatar_url") or ""
-    thumbnail = avatar or f"https://opengraph.githubassets.com/1/{full}"
+    # Thumbnail resolution — try the wide header image first, fall back
+    # to the owner's avatar when we can't get one.
+    #
+    # The naive `opengraph.githubassets.com/1/<owner>/<repo>` URL is
+    # rate-limited (100 req / 15 min per browser IP — kills a library
+    # full of GH cards). The HASH-keyed URL it redirects to (e.g.
+    # `opengraph.githubassets.com/<sha256>/<owner>/<repo>`) is aggressively
+    # CDN-cached and effectively unthrottled. Same hostname, very
+    # different infrastructure.
+    #
+    # The hash is generated server-side from the rendered card content.
+    # We can grab it (and any custom social preview the maintainer
+    # uploaded — those serve from `repository-images.githubusercontent.com`)
+    # by scraping the repo's HTML page for its `<meta property="og:image">`
+    # tag. One extra HTTP request per ingestion, no GitHub API quota
+    # cost, no auth required.
+    thumbnail = _resolve_og_image(full, client_headers=_client_headers())
+    if not thumbnail:
+        avatar = (data.get("owner") or {}).get("avatar_url") or ""
+        thumbnail = avatar  # last-resort: owner avatar (CDN, square)
 
     return GithubRepo(
         owner=owner,
@@ -159,6 +172,64 @@ def fetch_repo(url: str) -> GithubRepo | None:
         thumbnail_url=thumbnail,
         canonical_url=f"https://github.com/{full}",
     )
+
+
+_OG_RE = re.compile(
+    r'<meta\s+property="og:image"\s+content="([^"]+)"', re.IGNORECASE
+)
+
+
+def _resolve_og_image(full_name: str, *, client_headers: dict) -> str:
+    """Scrape the repo HTML once for its og:image meta tag.
+
+    Returns the hash-keyed CDN URL on success. Rejects the simple
+    `/1/<owner>/<repo>` form (which IS rate-limited even though the
+    hash form isn't) and any non-image URL. Returns "" on failure so
+    the caller can fall back to the owner avatar.
+    """
+    # Don't reuse _client_headers' Accept which prefers JSON.
+    headers = dict(client_headers)
+    headers["Accept"] = "text/html,application/xhtml+xml"
+    headers.setdefault("User-Agent", "Mozilla/5.0 (compatible; Mindshift/0.1)")
+    try:
+        with httpx.Client(timeout=10.0, follow_redirects=True, headers=headers) as client:
+            resp = client.get(f"https://github.com/{full_name}")
+            if resp.status_code != 200:
+                return ""
+            m = _OG_RE.search(resp.text)
+            if not m:
+                return ""
+            url = m.group(1).strip()
+    except (httpx.HTTPError, ValueError):
+        return ""
+
+    # Reject the rate-limited simple-form URL — only the long hash-keyed
+    # variant is CDN-cached. /1/owner/repo would 429 just like before.
+    if "/opengraph.githubassets.com/1/" in url:
+        return ""
+    # Sanity: only http(s) image URLs.
+    if not url.startswith(("https://", "http://")):
+        return ""
+
+    # Pre-flight the URL with a GET so we (a) confirm the CDN actually
+    # serves it (some cold hash URLs still 429 if the cache is empty)
+    # and (b) warm the cache for the user's subsequent browser fetch.
+    try:
+        with httpx.Client(
+            timeout=8.0,
+            follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; Mindshift/0.1)"},
+        ) as client:
+            head = client.get(url)
+            if head.status_code != 200:
+                return ""
+            ctype = (head.headers.get("content-type") or "").lower()
+            if not ctype.startswith("image/"):
+                return ""
+    except httpx.HTTPError:
+        return ""
+
+    return url
 
 
 def build_summary_block(repo: GithubRepo) -> str:
