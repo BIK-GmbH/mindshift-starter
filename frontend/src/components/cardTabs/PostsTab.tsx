@@ -743,42 +743,64 @@ function DraftCard({
             prose wrap around it like a magazine layout. The dashed
             "Add image" CTA stays as a separate block below for the
             no-image case. */}
-        {imageSrc && (
-          <div className="group relative float-right ml-3 mb-2 inline-block overflow-hidden rounded-md border border-ink-700 bg-ink-900 shadow-md">
-            <img
-              src={imageSrc}
-              alt={t("posts.coverAlt", { defaultValue: "Generated cover" }) ?? ""}
-              className="block h-40 w-40 cursor-zoom-in object-cover transition hover:opacity-90"
-              onClick={() => setRefineOpen(true)}
-            />
-            <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setRefineOpen(true);
-                }}
-                title={t("posts.image.refineTitle", { defaultValue: "Refine this image" }) ?? ""}
-                aria-label={t("posts.image.refine", { defaultValue: "Refine" }) ?? "Refine"}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900/85 text-ink-100 backdrop-blur transition hover:bg-violet-500"
-              >
-                <Wand2 className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPregenOpen(true);
-                }}
-                title={t("posts.image.regenerateTitle", { defaultValue: "Regenerate from template with editable variables" }) ?? ""}
-                aria-label={t("posts.image.regenerate", { defaultValue: "Regenerate" }) ?? "Regenerate"}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900/85 text-ink-100 backdrop-blur transition hover:bg-ink-700"
-              >
-                <RefreshCw className="h-3 w-3" />
-              </button>
+        {imageSrc && (() => {
+          // Any in-flight image job for this post — generation or
+          // refinement. When a refinement is running, post.image_url
+          // still points at the SOURCE image (the destination's file
+          // doesn't exist yet); we want to mark the visible cover as
+          // "currently being worked on" so the user sees the same
+          // signal here as inside the refine modal, even after they
+          // closed it and went back to the overview.
+          const jobInFlight = versions.some((v) => v.status === "processing");
+          return (
+            <div className="group relative float-right ml-3 mb-2 inline-block overflow-hidden rounded-md border border-ink-700 bg-ink-900 shadow-md">
+              <img
+                src={imageSrc}
+                alt={t("posts.coverAlt", { defaultValue: "Generated cover" }) ?? ""}
+                className="block h-40 w-40 cursor-zoom-in object-cover transition hover:opacity-90"
+                onClick={() => setRefineOpen(true)}
+              />
+              {jobInFlight && (
+                <span
+                  className="absolute bottom-1.5 right-1.5 inline-flex items-center gap-1 rounded-full bg-violet-500/90 px-2 py-0.5 text-[10px] font-medium text-white ring-2 ring-ink-900/80"
+                  title={t("posts.image.workingBadge", {
+                    defaultValue:
+                      "Image is being refined in the background — click to open the version history",
+                  }) ?? ""}
+                >
+                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                  {t("posts.image.workingLabel", { defaultValue: "Working" })}
+                </span>
+              )}
+              <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRefineOpen(true);
+                  }}
+                  title={t("posts.image.refineTitle", { defaultValue: "Refine this image" }) ?? ""}
+                  aria-label={t("posts.image.refine", { defaultValue: "Refine" }) ?? "Refine"}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900/85 text-ink-100 backdrop-blur transition hover:bg-violet-500"
+                >
+                  <Wand2 className="h-3 w-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPregenOpen(true);
+                  }}
+                  title={t("posts.image.regenerateTitle", { defaultValue: "Regenerate from template with editable variables" }) ?? ""}
+                  aria-label={t("posts.image.regenerate", { defaultValue: "Regenerate" }) ?? "Regenerate"}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900/85 text-ink-100 backdrop-blur transition hover:bg-ink-700"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         <div
           ref={editorRef}
           contentEditable
