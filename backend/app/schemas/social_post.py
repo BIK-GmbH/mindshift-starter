@@ -57,6 +57,10 @@ class SocialPostOut(BaseModel):
     hashtags: list[str] = []
     character_count: int
     image_url: str | None = None
+    # Absolute URL that external services (MCP publishers like Reepl)
+    # can fetch without auth. None when the post has no image OR the
+    # PUBLIC_BASE_URL env var isn't configured.
+    public_image_url: str | None = None
     tone: str | None = None
     language: str | None = None
     created_at: datetime

@@ -1430,6 +1430,7 @@ export interface SocialPostOut {
   hashtags: string[];
   character_count: number;
   image_url: string | null;
+  public_image_url: string | null;
   tone: string | null;
   language: string | null;
   created_at: string;

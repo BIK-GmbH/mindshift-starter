@@ -53,6 +53,14 @@ class CardSocialPost(Base):
         ForeignKey("files.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Unguessable share token for the post's image. When set, the bytes
+    # are reachable WITHOUT auth at /api/public/post-images/{token}.png
+    # so external systems (e.g. Reepl's MCP server pulling mediaUrls)
+    # can fetch the image during a publish. Auto-generated the first
+    # time an image is attached to the post.
+    image_share_token: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True, unique=True, index=True, default=None
+    )
     # Generation parameters echoed back so the UI can show them next to
     # each saved draft (and so a "Variation" click can start from the
     # same tone). All optional.

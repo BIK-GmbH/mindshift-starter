@@ -98,6 +98,50 @@ your.host {
 - **Migrations**: add a release/start hook that runs
   `python -m alembic upgrade head` before uvicorn boots.
 
+## Publish-via-MCP image attachments
+
+When a draft has a generated image and is published through an MCP
+publisher (Reepl, Buffer, …), the backend can hand the external service
+a URL to the image so the published post carries it. The external
+service fetches the bytes directly — they aren't streamed through your
+Mindshift instance. For this to work, Reepl's servers (or whichever
+MCP publisher you use) must be able to reach your backend.
+
+Set `PUBLIC_BASE_URL` to the externally-fetchable origin of your
+backend, e.g.
+
+```
+PUBLIC_BASE_URL=https://your-machine.tail-abc123.ts.net
+```
+
+The publish flow then attaches `mediaUrls: ["<base>/api/public/post-images/<token>.png"]`
+to draft-creation calls on any tool whose schema declares an
+appropriate field. Leave `PUBLIC_BASE_URL` empty to publish text-only.
+
+### Local dev via Tailscale Funnel
+
+If you're already on Tailscale (`tailscale status` works), Funnel
+exposes a tailnet service to the public internet. One-time setup:
+
+```bash
+# (Run once per device.)
+sudo tailscale set --funnel=true
+sudo tailscale funnel --bg --https=443 http://127.0.0.1:8001
+```
+
+The command prints something like `Available on the internet:
+https://your-machine.tail-abc123.ts.net/`. Put that URL into
+`backend/.env` as `PUBLIC_BASE_URL=...` (no trailing slash) and
+restart the backend.
+
+To stop: `sudo tailscale funnel --bg off`. Funnel respects your tailnet
+ACLs — see <https://tailscale.com/kb/1223/funnel> for the full reference.
+
+### Production (Railway / your host)
+
+Just set `PUBLIC_BASE_URL` to the same domain users hit, e.g.
+`https://mindshift.example.com`. No tunnel needed.
+
 ## First-run checklist
 
 1. `alembic upgrade head` against your production DB.

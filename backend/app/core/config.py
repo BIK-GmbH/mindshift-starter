@@ -17,6 +17,13 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
+    # Externally reachable base URL of this backend, used to mint image
+    # URLs we hand to third-party services that need to fetch our assets
+    # (e.g. Reepl's MCP server pulling `mediaUrls` when publishing a
+    # draft). Leave empty in dev to disable image-attach on publish.
+    # Examples: "https://<machine>.<tailnet>.ts.net" (Tailscale Funnel),
+    # "https://mindshift.example.com" (Cloud deploy).
+    public_base_url: str = Field(default="", alias="PUBLIC_BASE_URL")
 
     jwt_secret: str = Field(default="change-me-in-production", alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")

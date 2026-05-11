@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.db.session import SessionLocal, get_db
 from app.models.card import Card
 from app.models.card_social_post import CardSocialPost
@@ -60,7 +61,31 @@ def _ensure_card(db: Session, card_id: UUID, user_id: UUID) -> Card:
     return card
 
 
+def _ensure_image_share_token(post: CardSocialPost) -> None:
+    """Lazily mint the unguessable share token the first time a post
+    has an image attached. Stored on the post row so the public URL is
+    stable across re-renders (cached by Reepl / LinkedIn / etc.)."""
+    if post.image_file_id is not None and post.image_share_token is None:
+        from uuid import uuid4
+
+        post.image_share_token = uuid4()
+
+
+def _public_image_url_for(post: CardSocialPost) -> str | None:
+    """Build the externally-fetchable URL Reepl-style MCP servers can
+    use as `mediaUrls`. Returns None when the post has no image OR when
+    no PUBLIC_BASE_URL is configured (dev default) — the publish flow
+    treats None as "skip image attachment, post text only"."""
+    settings = get_settings()
+    base = settings.public_base_url.rstrip("/")
+    if not base or post.image_file_id is None:
+        return None
+    _ensure_image_share_token(post)
+    return f"{base}/api/public/post-images/{post.image_share_token}.png"
+
+
 def _to_out(post: CardSocialPost) -> SocialPostOut:
+    _ensure_image_share_token(post)
     image_url = (
         f"/api/files/{post.image_file_id}" if post.image_file_id else None
     )
@@ -72,6 +97,7 @@ def _to_out(post: CardSocialPost) -> SocialPostOut:
         hashtags=list(post.hashtags or []),
         character_count=post.character_count,
         image_url=image_url,
+        public_image_url=_public_image_url_for(post),
         tone=post.tone,
         language=post.language,
         created_at=post.created_at,
@@ -173,6 +199,7 @@ def create_social_post(
         tone=payload.tone,
         language=payload.language,
     )
+    _ensure_image_share_token(post)
     db.add(post)
     db.flush()
     if image_file_id is not None:
@@ -369,6 +396,7 @@ def _run_image_job(
             version.file_id = file_row.id
             version.status = "ready"
             post.image_file_id = file_row.id
+            _ensure_image_share_token(post)
             db.commit()
         except Exception as exc:  # noqa: BLE001
             logger.warning("post image job %s failed: %s", version_id, exc)
@@ -626,6 +654,7 @@ def activate_post_image_version(
     if version is None or version.post_id != post.id:
         raise HTTPException(status_code=404, detail="Version not found")
     post.image_file_id = version.file_id
+    _ensure_image_share_token(post)
     db.commit()
     db.refresh(post)
     return _to_out(post)

@@ -927,23 +927,43 @@ function PublishMenu({
     return null;
   }
 
+  // Detect whether the chosen tool's JSON-Schema exposes a media-URL
+  // array param (Reepl uses `mediaUrls`, others may use `media_urls`,
+  // `images`, `attachments`). When yes AND the draft has a public image
+  // URL configured (requires PUBLIC_BASE_URL on the backend), we append
+  // the URL so the published draft carries the image.
+  const mediaParamFor = (tool: MCPToolOut): string | null => {
+    const props = (tool.input_schema as { properties?: Record<string, unknown> } | null)
+      ?.properties;
+    if (!props) return null;
+    for (const candidate of ["mediaUrls", "media_urls", "images", "attachments"]) {
+      if (candidate in props) return candidate;
+    }
+    return null;
+  };
+
   const invoke = async (cand: PublishCandidate) => {
     setCalling(cand.tool.name);
     setResult(null);
     try {
+      const args: Record<string, unknown> = {
+        // Send a small, well-named bag — most MCP publishing tools
+        // accept some subset of these. Extra fields are typically
+        // ignored by JSON-Schema validators.
+        platform: draft.platform,
+        text: fullText,
+        body: fullText,
+        content: fullText,
+        hashtags: draft.hashtags,
+      };
+      const mediaParam = mediaParamFor(cand.tool);
+      if (mediaParam && draft.public_image_url) {
+        args[mediaParam] = [draft.public_image_url];
+      }
       const res = await api.callMCPTool({
         server_id: cand.serverId,
         tool_name: cand.tool.name,
-        arguments: {
-          // Send a small, well-named bag — most MCP publishing tools
-          // accept some subset of these. Extra fields are typically
-          // ignored by JSON-Schema validators.
-          platform: draft.platform,
-          text: fullText,
-          body: fullText,
-          content: fullText,
-          hashtags: draft.hashtags,
-        },
+        arguments: args,
       });
       if (!res.ok) {
         setResult({ ok: false, message: res.error ?? "Publish failed" });

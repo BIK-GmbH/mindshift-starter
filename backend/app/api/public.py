@@ -568,6 +568,32 @@ def get_public_avatar(file_id: UUID, db: Session = Depends(get_db)) -> Response:
     )
 
 
+@router.get("/post-images/{token}.png")
+def get_public_post_image(token: UUID, db: Session = Depends(get_db)) -> Response:
+    """Public, no-auth fetch of a generated post image, keyed by an
+    unguessable token stored on the social-post row. Used so third-party
+    MCP publishers (Reepl, Buffer, etc.) can pull the image as
+    `mediaUrls` during a draft creation. The token only resolves when
+    it matches the row AND a file is attached — rotating the image or
+    deleting the post invalidates old links."""
+    from app.models.card_social_post import CardSocialPost
+
+    post = db.execute(
+        select(CardSocialPost).where(CardSocialPost.image_share_token == token)
+    ).scalar_one_or_none()
+    if post is None or post.image_file_id is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+    file = db.get(File, post.image_file_id)
+    if file is None:
+        raise HTTPException(status_code=404, detail="Image file not found")
+    blob = get_storage().read(file)
+    return Response(
+        content=blob,
+        media_type=file.content_type or "image/png",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
 # --- Public podcast playlists -----------------------------------------------
 
 
