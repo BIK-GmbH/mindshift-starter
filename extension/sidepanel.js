@@ -276,27 +276,59 @@ window.addEventListener("message", (event) => {
     console.warn("[mindshift sidepanel] bad shape, ignoring");
     return;
   }
-  console.warn("[mindshift sidepanel] querying youtube tabs for videoId=" + videoId);
-  void chrome.tabs.query({ url: "*://*.youtube.com/watch*" }, (tabs) => {
-    console.warn("[mindshift sidepanel] tabs found:", tabs?.length, tabs?.map((t) => t.url));
-    if (!tabs || tabs.length === 0) {
-      // No YouTube tab open — silently ignore. The standalone fallback
-      // in EmbedCardPage handles the no-iframe case; here we just
-      // don't have a video to steer.
-      return;
+  // Helper — extract `v=...` ID from a YouTube watch URL.
+  const videoIdFromTabUrl = (urlStr) => {
+    try {
+      const u = new URL(urlStr);
+      if (u.hostname === "youtu.be") {
+        return u.pathname.slice(1).split("/")[0] || null;
+      }
+      return u.searchParams.get("v");
+    } catch {
+      return null;
     }
-    for (const tab of tabs) {
-      if (typeof tab.id !== "number") continue;
+  };
+
+  void chrome.tabs.query({ url: "*://*.youtube.com/watch*" }, async (tabs) => {
+    console.warn("[mindshift sidepanel] tabs found:", tabs?.length);
+    // Find a tab already showing the target video.
+    const matchingTab = (tabs || []).find(
+      (tab) => videoIdFromTabUrl(tab.url || "") === videoId,
+    );
+    if (matchingTab && typeof matchingTab.id === "number") {
+      console.warn(
+        "[mindshift sidepanel] matching tab found, focusing + seeking:",
+        matchingTab.id,
+      );
+      // Focus that tab so the user actually sees the seek happen.
+      try {
+        await chrome.tabs.update(matchingTab.id, { active: true });
+        if (matchingTab.windowId !== undefined) {
+          await chrome.windows.update(matchingTab.windowId, { focused: true });
+        }
+      } catch (err) {
+        console.warn("[mindshift sidepanel] focus error:", err?.message);
+      }
       chrome.tabs
-        .sendMessage(tab.id, {
+        .sendMessage(matchingTab.id, {
           type: "mindshift:seekVideo",
           videoId,
           seconds,
         })
         .then(
-          () => console.warn("[mindshift sidepanel] sent to tab", tab.id),
-          (err) => console.warn("[mindshift sidepanel] send-error to tab", tab.id, err?.message),
+          () => console.warn("[mindshift sidepanel] seek sent to tab", matchingTab.id),
+          (err) => console.warn("[mindshift sidepanel] send-error:", err?.message),
         );
+      return;
+    }
+
+    // No matching tab — open a new YouTube tab at the timestamp.
+    const url = `https://www.youtube.com/watch?v=${videoId}&t=${seconds}s`;
+    console.warn("[mindshift sidepanel] no matching tab — opening new:", url);
+    try {
+      await chrome.tabs.create({ url, active: true });
+    } catch (err) {
+      console.warn("[mindshift sidepanel] create-tab error:", err?.message);
     }
   });
 });
