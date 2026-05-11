@@ -76,16 +76,23 @@ def _parse_sse_response(body: bytes) -> dict:
     return json.loads(text)
 
 
+_SESSION_HEADER = "Mcp-Session-Id"
+
+
 def _rpc(
     *,
     url: str,
     method: str,
     params: dict | None = None,
     headers: dict[str, str],
+    session_id: str | None = None,
     timeout: float = 20.0,
-) -> dict:
-    """Single JSON-RPC request to an MCP HTTP endpoint. Raises
-    MCPError on transport or protocol failure."""
+) -> tuple[dict, str | None]:
+    """Single JSON-RPC request to an MCP HTTP endpoint. Returns the
+    `result` block plus any `Mcp-Session-Id` the server attached to the
+    response (Streamable-HTTP transport spec: the server hands out a
+    session id on `initialize` and expects it back on every subsequent
+    request). Raises MCPError on transport or protocol failure."""
     payload: dict[str, Any] = {
         "jsonrpc": "2.0",
         "id": _next_id(),
@@ -94,9 +101,13 @@ def _rpc(
     if params is not None:
         payload["params"] = params
 
+    req_headers = dict(headers)
+    if session_id:
+        req_headers[_SESSION_HEADER] = session_id
+
     try:
         with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-            resp = client.post(url, json=payload, headers=headers)
+            resp = client.post(url, json=payload, headers=req_headers)
     except httpx.HTTPError as exc:
         raise MCPError(f"Couldn't reach MCP server: {exc}") from exc
 
@@ -106,6 +117,8 @@ def _rpc(
         raise MCPError(f"MCP server error (HTTP {resp.status_code}).")
     if resp.status_code >= 400:
         raise MCPError(f"MCP server refused the request (HTTP {resp.status_code}).")
+
+    new_session_id = resp.headers.get(_SESSION_HEADER) or None
 
     body = resp.content
     if not body:
@@ -123,16 +136,19 @@ def _rpc(
         raise MCPError(f"MCP error: {msg}")
     if not isinstance(data, dict) or "result" not in data:
         raise MCPError("Malformed JSON-RPC response (no `result`).")
-    return data["result"]
+    return data["result"], new_session_id
 
 
-def _initialize(url: str, headers: dict[str, str]) -> None:
-    """MCP handshake. Most servers require this before tools/list works.
+def _initialize(url: str, headers: dict[str, str]) -> str | None:
+    """MCP handshake. Most servers require this before tools/list works,
+    and Streamable-HTTP servers return an `Mcp-Session-Id` we MUST send
+    back on every later request. Returns the session id or None.
+
     Failure is non-fatal — some hosted MCP servers skip the dance and
     accept tools/list straight away — but we try anyway and ignore
     "method not found" errors."""
     try:
-        _rpc(
+        _result, session_id = _rpc(
             url=url,
             method="initialize",
             params={
@@ -148,6 +164,14 @@ def _initialize(url: str, headers: dict[str, str]) -> None:
         # the test-connection button will surface a clearer error below
         # if the next call fails too.
         logger.info("MCP initialize call returned %s — continuing anyway", exc)
+        return None
+    if session_id:
+        # Per the MCP transport spec, after a successful initialize the
+        # client SHOULD send a `notifications/initialized` notification.
+        # We skip it because no popular server enforces it for tools/*
+        # operations, and the simpler flow keeps the code path testable.
+        logger.debug("MCP session id acquired: %s", session_id)
+    return session_id
 
 
 def list_tools(
@@ -163,8 +187,10 @@ def list_tools(
         auth_secret=auth_secret,
         auth_header_name=auth_header_name,
     )
-    _initialize(url, headers)
-    result = _rpc(url=url, method="tools/list", params={}, headers=headers)
+    session_id = _initialize(url, headers)
+    result, _ = _rpc(
+        url=url, method="tools/list", params={}, headers=headers, session_id=session_id
+    )
     raw_tools = result.get("tools") or []
     out: list[MCPTool] = []
     for t in raw_tools:
@@ -191,17 +217,24 @@ def call_tool(
     timeout: float = 60.0,
 ) -> dict:
     """Invoke a tool by name. Returns the raw `result` block from the
-    JSON-RPC response — typically `{ "content": [...], "isError": bool }`."""
+    JSON-RPC response — typically `{ "content": [...], "isError": bool }`.
+
+    Threads the `Mcp-Session-Id` returned by the server's initialize
+    response into the tools/call request — required by hosted MCP
+    servers like Reepl that enforce session continuity for state-
+    changing operations even when tools/list is allowed anonymously."""
     headers = _build_headers(
         auth_type=auth_type,
         auth_secret=auth_secret,
         auth_header_name=auth_header_name,
     )
-    _initialize(url, headers)
-    return _rpc(
+    session_id = _initialize(url, headers)
+    result, _ = _rpc(
         url=url,
         method="tools/call",
         params={"name": tool_name, "arguments": arguments},
         headers=headers,
+        session_id=session_id,
         timeout=timeout,
     )
+    return result
