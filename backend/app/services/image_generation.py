@@ -163,7 +163,13 @@ KNOWN_VARIABLES: list[dict[str, str]] = [
     # --- General-purpose (used by most templates) ---
     {
         "name": "HEADLINE",
-        "description": "1–6 words, ALL CAPS, the punchiest framing of the topic.",
+        "description": (
+            "4–9 words, sentence case (capitalise the first word + proper "
+            'nouns only — NO all-caps). Open with a verb of momentum '
+            "(builds, kills, breaks, wins, shifts) or a statement-with-"
+            'tension ("Spec is the new code"). Avoid questions on the '
+            "image — questions belong in the caption."
+        ),
     },
     {
         "name": "SUBTITLE",
