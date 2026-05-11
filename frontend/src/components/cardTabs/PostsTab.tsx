@@ -427,6 +427,16 @@ function DraftCard({
     setText(draft.text);
   }, [draft.id, draft.text]);
 
+  // Auto-grow the textarea to its content height — keeps the post
+  // fully visible without an inner scrollbar (the page already
+  // scrolls). Runs after every text change + on mount.
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text]);
+
   // Debounced auto-save: PATCH the new text 1.5 s after the user stops
   // typing.
   useEffect(() => {
@@ -619,8 +629,8 @@ function DraftCard({
           onMouseUp={refreshSelection}
           onKeyUp={refreshSelection}
           onBlur={() => window.setTimeout(refreshSelection, 50)}
-          rows={Math.max(5, Math.min(28, text.split("\n").length + 1))}
-          className="w-full resize-none rounded-md border border-transparent bg-transparent font-sans text-sm leading-relaxed text-ink-100 outline-none transition focus:border-ink-700 focus:bg-ink-900/30 focus:px-2 focus:py-1.5"
+          rows={1}
+          className="w-full resize-none overflow-hidden rounded-md border border-transparent bg-transparent font-sans text-sm leading-relaxed text-ink-100 outline-none transition focus:border-ink-700 focus:bg-ink-900/30 focus:px-2 focus:py-1.5"
         />
       </div>
       {rewriteError && (
