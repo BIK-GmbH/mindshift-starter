@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Network,
   RefreshCw,
+  RotateCw,
   Share2,
   Sparkles,
   Headphones,
@@ -254,6 +255,28 @@ export default function CardDetailContent({
     }
   };
 
+  // Re-ingest for a completed card — same endpoint as the failed-card
+  // "Retry" button, but here we ask for confirmation because the
+  // current summary / takeaways / tags / quiz will be overwritten when
+  // the new run finishes.
+  const handleReingest = async () => {
+    const ok = await confirm({
+      title: t("card.reingestTitle", { defaultValue: "Re-ingest this card?" }),
+      body: t("card.reingestBody", {
+        defaultValue:
+          "The transcript will be re-fetched, and the summary, key takeaways, tags and quiz questions will be regenerated. Notes you've added stay intact.",
+      }),
+      confirmLabel: t("card.reingestConfirm", { defaultValue: "Re-ingest" }),
+    });
+    if (!ok) return;
+    try {
+      await api.regenerateCard(cardId);
+      await fetchCard();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
   const downloadMarkdown = (e: React.MouseEvent) => {
     if (!card) return;
     const token = localStorage.getItem("mindshift.token");
@@ -339,6 +362,14 @@ export default function CardDetailContent({
   }
 
   const canRegenerate = card.status === "failed" && card.source_type !== "pdf";
+  // Re-ingest is only meaningful on cards that have already finished —
+  // running it while one is queued/processing would race. PDF cards
+  // need the original blob in storage; the failed-PDF branch is
+  // gated separately in the backend so we keep the same restriction.
+  const canReingest =
+    card.status === "completed" &&
+    card.source_type !== "note" &&
+    !(card.source_type === "pdf" && !card.original_file_id);
   const allTabs: CardDetailTab[] = [
     "summary",
     "transcript",
@@ -499,6 +530,8 @@ export default function CardDetailContent({
               <ActionBar
                 canRegenerate={canRegenerate}
                 onRegenerate={handleRegenerate}
+                canReingest={canReingest}
+                onReingest={handleReingest}
                 onDownload={downloadMarkdown}
                 onCopyMarkdown={copyMarkdown}
                 onCopyPlain={copyPlainText}
@@ -577,6 +610,8 @@ export default function CardDetailContent({
               <ActionBar
                 canRegenerate={canRegenerate}
                 onRegenerate={handleRegenerate}
+                canReingest={canReingest}
+                onReingest={handleReingest}
                 onDownload={downloadMarkdown}
                 onCopyMarkdown={copyMarkdown}
                 onCopyPlain={copyPlainText}
@@ -762,6 +797,8 @@ export default function CardDetailContent({
 function ActionBar({
   canRegenerate,
   onRegenerate,
+  canReingest,
+  onReingest,
   onDownload,
   onCopyMarkdown,
   onCopyPlain,
@@ -773,6 +810,12 @@ function ActionBar({
 }: {
   canRegenerate: boolean;
   onRegenerate: () => void;
+  /** When true (= card is in a completed state) show a circular-arrow
+   *  button that re-runs the whole ingestion pipeline. Distinct from
+   *  Retry because it overwrites a working summary and therefore
+   *  prompts for confirmation in the parent. */
+  canReingest?: boolean;
+  onReingest?: () => void;
   onDownload: (e: React.MouseEvent) => void;
   onCopyMarkdown: () => Promise<void>;
   onCopyPlain: () => Promise<void>;
@@ -796,6 +839,17 @@ function ActionBar({
         >
           <RefreshCw className="h-3 w-3" />
           <span className="hidden sm:inline">{t("card.retry")}</span>
+        </button>
+      )}
+      {canReingest && onReingest && (
+        <button
+          type="button"
+          onClick={onReingest}
+          title={t("card.reingest", { defaultValue: "Neu einlesen" })}
+          aria-label={t("card.reingest", { defaultValue: "Neu einlesen" })}
+          className="inline-flex items-center justify-center rounded-md p-1.5 text-ink-300 transition hover:bg-ink-700 hover:text-ink-100"
+        >
+          <RotateCw className="h-3.5 w-3.5" />
         </button>
       )}
       {sourceUrl && (
