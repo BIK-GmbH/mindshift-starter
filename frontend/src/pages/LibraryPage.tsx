@@ -433,7 +433,9 @@ export default function LibraryPage() {
                 >
                   <ChatPanel
                     key={selectedCardId}
-                    send={(history) => api.chatCard(selectedCardId, history)}
+                    send={(history, options) =>
+                      api.chatCard(selectedCardId, history, undefined, options?.useWebSearch)
+                    }
                     placeholder={t("chat.placeholderCard") ?? ""}
                     emptyHint={t("chat.cardEmpty") ?? ""}
                   />
