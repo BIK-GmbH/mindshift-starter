@@ -30,6 +30,21 @@ class Settings(BaseSettings):
         default="gemini-3.1-flash-tts-preview", alias="GEMINI_TTS_MODEL"
     )
 
+    # YouTube transcript proxy (optional). Two mutually exclusive shapes:
+    #   - Webshare residential pool: set both username + password. The
+    #     youtube-transcript-api lib wires up its own rotating residential
+    #     proxy under the hood.
+    #   - Generic HTTP/SOCKS proxy: a single URL like
+    #     "http://user:pass@host:port" routes all transcript fetches.
+    # When neither is set, fetches go direct (and may hit YouTube IP-blocks
+    # on cloud / VPN exit IPs — that's why this knob exists).
+    youtube_proxy_username: str = Field(default="", alias="YOUTUBE_PROXY_USERNAME")
+    youtube_proxy_password: str = Field(default="", alias="YOUTUBE_PROXY_PASSWORD")
+    youtube_proxy_url: str = Field(default="", alias="YOUTUBE_PROXY_URL")
+    # Restrict Webshare rotation to specific countries (comma-separated
+    # 2-letter codes, e.g. "de,us"). Empty = no restriction.
+    youtube_proxy_countries: str = Field(default="", alias="YOUTUBE_PROXY_COUNTRIES")
+
     # File storage. `local` writes under `storage_path` (great for dev and
     # Railway volume mounts). `s3` is reserved for a future implementation.
     storage_backend: str = Field(default="local", alias="STORAGE_BACKEND")
