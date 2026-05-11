@@ -67,6 +67,35 @@ def _with_global_preamble(prompt: str) -> str:
     return f"{GLOBAL_BRAND_PREAMBLE}\n---\n\n{prompt}"
 
 
+_QUOTED_STRING_RE = re.compile(r'"[^"\n]+"')
+_HIGH_QUALITY_QUOTE_THRESHOLD = 4
+
+
+def _pick_quality(prompt: str) -> str:
+    """Heuristic auto-routing for the gpt-image-2 `quality` knob.
+
+    At `quality="low"` and to a lesser extent `"medium"` the model
+    skips the planning pass that handles small / dense on-image text —
+    accuracy drops sharply for stat-cards, anatomies, and any layout
+    with several quoted strings to render verbatim. The verified
+    latency / cost numbers (apiyi 2026-05):
+
+        low      3–8 s    ~$0.006
+        medium  20–40 s   ~$0.053
+        high   150–235 s  ~$0.211
+
+    So `high` is reserved for prompts that actually need the
+    Plan → Generate → Review pipeline. We use the count of
+    double-quoted strings as the proxy: more than {threshold}
+    distinct literal strings (headline + N labels + source line +
+    subtitle …) → route to `high`. Below that → `auto`, which lets
+    the OpenAI router choose between low/medium and stays sandbox-
+    timeout-safe.
+    """.format(threshold=_HIGH_QUALITY_QUOTE_THRESHOLD)
+    quoted = len(_QUOTED_STRING_RE.findall(prompt))
+    return "high" if quoted >= _HIGH_QUALITY_QUOTE_THRESHOLD else "auto"
+
+
 COVER_PROMPT_BASE = (
     "Podcast cover artwork for an episode titled '{title}'. "
     "Square aspect ratio, suitable as a thumbnail at 200×200 px and "
@@ -464,12 +493,19 @@ def generate_cover_image(
     # same baseline rules without each template having to repeat them.
     prompt = _with_global_preamble(prompt)
 
+    # Auto-route the quality knob based on how many literal strings
+    # the model has to render. Stat-cards / anatomies that exceed the
+    # threshold get the slower Plan→Review pipeline; everything else
+    # stays on `auto` (fast + cost-bounded). See `_pick_quality`.
+    quality = _pick_quality(prompt)
+
     # gpt-image-2 returns base64 by default. 1024x1024 is the canonical
     # square podcast cover size.
     response = client.images.generate(
         model="gpt-image-2",
         prompt=prompt,
         size="1024x1024",
+        quality=quality,
         n=1,
     )
     b64 = response.data[0].b64_json
