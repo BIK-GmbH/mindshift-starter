@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # 2-letter codes, e.g. "de,us"). Empty = no restriction.
     youtube_proxy_countries: str = Field(default="", alias="YOUTUBE_PROXY_COUNTRIES")
 
+    # Supadata.ai — third-party transcript provider used as a last-resort
+    # fallback when both youtube-transcript-api and yt-dlp are blocked.
+    # Get a key at https://supadata.ai (100 credits/month free, no card).
+    supadata_api_key: str = Field(default="", alias="SUPADATA_API_KEY")
+
     # File storage. `local` writes under `storage_path` (great for dev and
     # Railway volume mounts). `s3` is reserved for a future implementation.
     storage_backend: str = Field(default="local", alias="STORAGE_BACKEND")

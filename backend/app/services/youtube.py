@@ -1,6 +1,6 @@
 """YouTube ingestion helpers: video-id parsing, metadata fetch, transcript fetch.
 
-Transcript fetch has three layers of resilience because YouTube IP-blocks
+Transcript fetch has four layers of resilience because YouTube IP-blocks
 the `/api/timedtext` endpoint aggressively when many requests come from
 one source (cloud IPs, VPNs, even ordinary home IPs after a burst):
 
@@ -11,7 +11,11 @@ one source (cloud IPs, VPNs, even ordinary home IPs after a burst):
    not rate-limited when youtube-transcript-api is. Still hits the
    same `/api/timedtext` endpoint for the actual subtitle bytes
    though, so it doesn't help against a heavy block.
-3. Raise TranscriptIpBlocked so the caller can surface a clear
+3. Supadata.ai (optional, when SUPADATA_API_KEY is set) — hosted
+   transcript service that handles proxies internally. Last-resort
+   because it costs API credits (1 credit per video; free tier ships
+   with 100/month).
+4. Raise TranscriptIpBlocked so the caller can surface a clear
    "YouTube hat unsere IP gesperrt — bitte in einer Stunde nochmal
    versuchen" rather than "no transcript".
 """
@@ -197,7 +201,12 @@ def fetch_transcript(video_id: str, preferred_languages: list[str] | None = None
     if fallback is not None:
         return fallback
 
-    # Stage 3 — escalate.
+    # Stage 3 — Supadata.ai (hosted, paid per call).
+    supadata = _fetch_transcript_via_supadata(video_id, languages)
+    if supadata is not None:
+        return supadata
+
+    # Stage 4 — escalate.
     if blocked:
         raise TranscriptIpBlocked(
             "YouTube refused both transcript endpoints for this IP."
@@ -367,3 +376,69 @@ def _vtt_ts_to_seconds(ts: str) -> float:
         m, s = nums
         return m * 60 + s
     return nums[0] if nums else 0.0
+
+
+def _fetch_transcript_via_supadata(
+    video_id: str, languages: list[str]
+) -> TranscriptResult | None:
+    """Last-resort hosted transcript provider. Supadata wraps a managed
+    pool of residential proxies + AI fallback for videos without
+    captions, so it works on IPs where the direct fetch is blocked.
+
+    Returns None when no SUPADATA_API_KEY is configured (caller treats
+    that as "skip the stage").
+    """
+    s = get_settings()
+    if not s.supadata_api_key:
+        return None
+
+    url = "https://api.supadata.ai/v1/transcript"
+    params = {
+        "url": f"https://www.youtube.com/watch?v={video_id}",
+        "mode": "native",
+        "text": "false",  # we want timestamped chunks, not plain text
+    }
+    headers = {"x-api-key": s.supadata_api_key}
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            r = client.get(url, params=params, headers=headers)
+            r.raise_for_status()
+            data = r.json()
+    except Exception as exc:
+        logger.warning("Supadata transcript fetch failed for %s: %s", video_id, exc)
+        return None
+
+    content = data.get("content")
+    lang = data.get("lang")
+    # When text=false, content is a list of {text, offset, duration};
+    # offsets are in milliseconds.
+    if isinstance(content, list):
+        segments = [
+            {
+                "text": str(c.get("text") or ""),
+                "start": float(c.get("offset") or 0) / 1000.0,
+                "duration": float(c.get("duration") or 0) / 1000.0,
+            }
+            for c in content
+            if (c.get("text") or "").strip()
+        ]
+        if not segments:
+            return None
+        text = " ".join(seg["text"].strip() for seg in segments)
+    elif isinstance(content, str) and content.strip():
+        # Defensive: if Supadata returns plain text despite text=false.
+        segments = [{"text": content.strip(), "start": 0.0, "duration": 0.0}]
+        text = content.strip()
+    else:
+        return None
+
+    # Respect the caller's preferred-language order — if the returned
+    # language isn't the user's first choice but is in the list, that's
+    # still fine. If it's not in the list at all, we accept it anyway
+    # because the alternative is "no transcript".
+    return TranscriptResult(
+        language=lang,
+        text=text,
+        segments=segments,
+        provider="supadata",
+    )
