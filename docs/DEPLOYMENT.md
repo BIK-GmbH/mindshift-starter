@@ -121,26 +121,106 @@ appropriate field. Leave `PUBLIC_BASE_URL` empty to publish text-only.
 ### Local dev via Tailscale Funnel
 
 If you're already on Tailscale (`tailscale status` works), Funnel
-exposes a tailnet service to the public internet. One-time setup:
+exposes a tailnet service to the public internet. One-time setup
+(verified working on macOS Tailscale.app — no `sudo` needed there,
+the GUI app's helper grants the entitlement):
+
+1. **Enable HTTPS Certificates** for your tailnet:
+   <https://login.tailscale.com/admin/dns> → scroll to *HTTPS
+   Certificates* → click *Enable HTTPS…*. One-time per tailnet.
+
+2. **Start Funnel** pointing at the backend port:
+   ```bash
+   /Applications/Tailscale.app/Contents/MacOS/Tailscale \
+     funnel --bg --https=443 http://127.0.0.1:8001
+   ```
+   Output prints e.g. `Available on the internet:
+   https://your-machine.tail-abc123.ts.net/`.
+
+3. **Provision the cert** the first time
+   (Let's Encrypt issues it; subsequent renews are automatic):
+   ```bash
+   /Applications/Tailscale.app/Contents/MacOS/Tailscale \
+     cert your-machine.tail-abc123.ts.net
+   ```
+
+4. **Put the URL in `backend/.env`** (no trailing slash) and **restart
+   the uvicorn process** — `--reload` watches Python files only, not
+   `.env`, so a Ctrl-C + re-run is required.
+   ```
+   PUBLIC_BASE_URL=https://your-machine.tail-abc123.ts.net
+   ```
+
+5. **Verify** from the Mac:
+   ```bash
+   curl -o /dev/null -w "%{http_code}\n" \
+     https://your-machine.tail-abc123.ts.net/api/health
+   # → 200
+   ```
+
+To stop: `tailscale funnel --https=443 off`. Funnel respects your
+tailnet ACLs — see <https://tailscale.com/kb/1223/funnel> for the full
+reference. Funnel-allowed nodes need the `funnel` nodeAttr in the
+tailnet ACL (default permissive ACL allows it).
+
+### Production deploy on Railway
+
+Two valid layouts; the env var is the same, only the value changes.
+
+**Layout A — single domain, reverse-proxy routes `/api/*` to backend**
+(recommended; matches the nginx/Caddy snippets above):
+```
+PUBLIC_BASE_URL=https://mindshift.example.com
+```
+The route `/api/public/post-images/<token>.png` is auth-free at the
+backend, and the proxy forwards `/api/*` straight through — Reepl
+fetches `https://mindshift.example.com/api/public/post-images/...` and
+the proxy delivers the PNG.
+
+**Layout B — Railway serves frontend and backend on separate domains**
+(default Railway template when you don't set up a custom domain):
+```
+PUBLIC_BASE_URL=https://mindshift-backend-production.up.railway.app
+```
+Use the **backend service's** generated `*.up.railway.app` hostname,
+not the frontend's. Reepl never talks to the frontend.
+
+Railway-specific checklist for this feature:
+- Backend service → **Variables** tab → add `PUBLIC_BASE_URL=…` →
+  Save. Railway redeploys automatically on variable change.
+- Confirm the backend service has a **public network** enabled
+  (Settings → Networking → Generate Domain, or attach a custom one).
+- The auth-free route `/api/public/post-images/<token>.png` is by
+  design — the token (UUID4, unique per post) is unguessable. No
+  rate-limit gate is needed at the reverse-proxy level, but you can
+  add one if you're paranoid about scrapers (5 req/s is plenty).
+- After first deploy, run the migration once:
+  `python -m alembic upgrade head` (Railway: add to the deploy
+  command, or run via `railway run alembic upgrade head`).
+- No outbound firewall rules needed — the bytes flow from Reepl to
+  Railway, never the other way.
+
+### Verifying end-to-end on a new environment
+
+Quick smoke test after setting `PUBLIC_BASE_URL`:
 
 ```bash
-# (Run once per device.)
-sudo tailscale set --funnel=true
-sudo tailscale funnel --bg --https=443 http://127.0.0.1:8001
+# 1. Hit health from outside (proves Funnel/Railway is forwarding):
+curl https://<base>/api/health
+# → {"status":"ok"}
+
+# 2. From any card in the UI, generate a post WITH image, then check
+#    the response of GET /api/cards/<id>/social-posts contains a
+#    non-null public_image_url field on that post:
+curl -H "Authorization: Bearer <jwt>" \
+  https://<base>/api/cards/<card_id>/social-posts | jq '.[0].public_image_url'
+# → "https://<base>/api/public/post-images/<uuid>.png"
+
+# 3. Open the URL in an incognito tab — should serve the PNG with no auth.
+
+# 4. Publish via Reepl from the UI, then open Reepl's draft list — the
+#    draft should now carry the attached image.
 ```
-
-The command prints something like `Available on the internet:
-https://your-machine.tail-abc123.ts.net/`. Put that URL into
-`backend/.env` as `PUBLIC_BASE_URL=...` (no trailing slash) and
-restart the backend.
-
-To stop: `sudo tailscale funnel --bg off`. Funnel respects your tailnet
-ACLs — see <https://tailscale.com/kb/1223/funnel> for the full reference.
-
-### Production (Railway / your host)
-
-Just set `PUBLIC_BASE_URL` to the same domain users hit, e.g.
-`https://mindshift.example.com`. No tunnel needed.
 
 ## First-run checklist
 
