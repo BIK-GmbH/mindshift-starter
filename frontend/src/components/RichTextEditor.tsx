@@ -21,11 +21,12 @@ import {
   X,
 } from "lucide-react";
 import { marked } from "marked";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import TurndownService from "turndown";
 
 import { api } from "../lib/api";
+import VoiceRecordButton from "./VoiceRecordButton";
 
 interface Props {
   /** Markdown source (controlled). */
@@ -142,6 +143,15 @@ export default function RichTextEditor({
     autofocus: autoFocus ? "end" : false,
   });
 
+  const onVoice = useCallback(
+    (text: string) => {
+      if (!editor) return;
+      editor.commands.focus();
+      editor.commands.insertContent(text);
+    },
+    [editor],
+  );
+
   // Re-sync content if the parent swaps the markdown for a different value
   // (e.g. when loading a different card's notes). Avoids resetting the
   // editor on every keystroke since lastEmitted catches that.
@@ -226,6 +236,7 @@ export default function RichTextEditor({
           }}
           aiBusy={aiBusy}
           customActive={customMode}
+          onVoice={onVoice}
         />
       )}
       {customMode && (
@@ -365,6 +376,7 @@ function Toolbar({
   onAi,
   aiBusy,
   customActive,
+  onVoice,
 }: {
   editor: Editor;
   isFullscreen: boolean;
@@ -372,6 +384,7 @@ function Toolbar({
   onAi: (action: "expand" | "shorten" | "custom") => void;
   aiBusy: "expand" | "shorten" | "custom" | null;
   customActive: boolean;
+  onVoice: (text: string) => void;
 }) {
   const { from, to } = editor.state.selection;
   const hasSelection = from < to;
@@ -467,6 +480,12 @@ function Toolbar({
         disabled={aiBusy !== null}
         spinning={aiBusy === "shorten"}
         onClick={() => onAi("shorten")}
+      />
+      <span className="mx-1 h-4 w-px bg-ink-700" />
+      <VoiceRecordButton
+        onTranscribed={onVoice}
+        disabled={!editor}
+        showStatusLine={false}
       />
       <span className="ml-auto" />
       <ToolbarButton
