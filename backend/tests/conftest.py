@@ -79,6 +79,18 @@ def db() -> Generator[Session, None, None]:
 
 
 @pytest.fixture
+def authed_user(db: Session) -> User:
+    """Create a user and return them with a `.token` attribute usable as a
+    Bearer credential."""
+    from app.core.security import create_access_token
+
+    user = _make_user(db, public_profile=False)
+    token = create_access_token(subject=user.id)
+    user.token = token  # type: ignore[attr-defined]
+    return user
+
+
+@pytest.fixture
 def seeded_public_path(db: Session) -> SeededPath:
     user = _make_user(db, public_profile=True)
     cards = [_make_card(db, user, title=f"Card {i}") for i in range(2)]
