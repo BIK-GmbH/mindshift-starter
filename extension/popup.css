@@ -1,19 +1,19 @@
 * { box-sizing: border-box; }
-html, body { width: 360px; }
+html, body { width: 400px; }
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   background: #11141b;
   color: #e6e9f0;
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 .hdr {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid #1a1f2a;
 }
 .brand {
@@ -24,21 +24,21 @@ body {
   letter-spacing: 0.02em;
 }
 
-main { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+main { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .hidden { display: none !important; }
 
 .card {
   border: 1px solid #1a1f2a;
   border-radius: 10px;
   background: rgba(26, 31, 42, 0.4);
-  padding: 12px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
-.subhead { font-weight: 600; margin: 0 0 2px; font-size: 13px; }
-.muted { color: #8b94a8; margin: 0; font-size: 12px; }
+.subhead { font-weight: 600; margin: 0 0 2px; font-size: 12.5px; }
+.muted { color: #8b94a8; margin: 0; font-size: 11.5px; line-height: 1.35; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .count { color: #8b94a8; font-size: 11px; }
 
@@ -50,7 +50,7 @@ button {
   cursor: pointer;
   font: inherit;
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 6px 12px;
   border: 1px solid transparent;
   transition: background 120ms, border-color 120ms, color 120ms, transform 80ms;
 }

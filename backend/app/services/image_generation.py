@@ -71,6 +71,39 @@ _QUOTED_STRING_RE = re.compile(r'"[^"\n]+"')
 _HIGH_QUALITY_QUOTE_THRESHOLD = 4
 
 
+_KNOWN_SIZES = ("1024x1280", "1280x1024", "1024x1024", "1536x1024", "1024x1536")
+_DEFAULT_SIZE = "1024x1024"
+
+
+def _pick_size(template_content: Optional[str]) -> str:
+    """Infer the canvas aspect from the template content.
+
+    Templates declare their target size in the body ("1024x1280",
+    "1:1 SQUARE (1024x1024)", "16:9 landscape", ...). Rather than
+    threading a per-template config map through every caller, we parse
+    that hint out of the resolved template. Falls back to 1024x1024
+    when no template is supplied (podcast / path covers) or no hint is
+    present. Updating a template's preferred aspect is then a single
+    string edit in its content — no code change needed.
+
+    LinkedIn 2025–26 engagement data shows 4:5 portrait (1024x1280)
+    outperforms 1:1 on mobile feeds by ~25% vertical real-estate,
+    which correlates with longer dwell time. Most of our feed-post
+    templates default to 4:5; layouts that are intrinsically radial
+    (anatomy diagrams, landscape maps) stay square.
+    """
+    if not template_content:
+        return _DEFAULT_SIZE
+    for size in _KNOWN_SIZES:
+        if size in template_content:
+            return size
+    if "4:5" in template_content.lower() or "portrait" in template_content.lower():
+        return "1024x1280"
+    if "16:9" in template_content or "landscape" in template_content.lower():
+        return "1536x1024"
+    return _DEFAULT_SIZE
+
+
 def _pick_quality(prompt: str) -> str:
     """Heuristic auto-routing for the gpt-image-2 `quality` knob.
 
@@ -499,12 +532,15 @@ def generate_cover_image(
     # stays on `auto` (fast + cost-bounded). See `_pick_quality`.
     quality = _pick_quality(prompt)
 
-    # gpt-image-2 returns base64 by default. 1024x1024 is the canonical
-    # square podcast cover size.
+    # Infer the canvas size from the template content (defaults to
+    # 1024x1024 when no template is supplied). See `_pick_size`.
+    size = _pick_size(template_content)
+
+    # gpt-image-2 returns base64 by default.
     response = client.images.generate(
         model="gpt-image-2",
         prompt=prompt,
-        size="1024x1024",
+        size=size,
         quality=quality,
         n=1,
     )

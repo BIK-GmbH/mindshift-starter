@@ -29,27 +29,27 @@ from app.models.user import User
 TEMPLATES: list[tuple[str, str]] = [
     (
         "Before / After Split",
-        """A 1:1 square poster (1024x1024 pixels) split vertically down the middle into two panels of equal width.
+        """A 4:5 portrait poster (1024x1280 pixels) split horizontally across the middle into two panels of equal height — "BEFORE" on top, "AFTER" on bottom.
 
-Top of the image: bold white headline "{{HEADLINE}}" in clean modern geometric sans-serif, centered above the split.
+Very top of the image, above the upper panel: the headline "{{HEADLINE}}" in bold sentence-case (capitalise the first word + proper nouns only), heavy geometric sans-serif, centered.
 
-LEFT PANEL (the "before" state): muted, desaturated colors. A glassmorphism card centered in the panel containing:
-  - bold white label "{{BEFORE_LABEL}}" at the top
-  - smaller light-grey description "{{BEFORE_DESCRIPTION}}" beneath
+UPPER PANEL (the "before" state, takes the upper ~45% below the headline): muted, desaturated colours. A glassmorphism card centered in the panel containing:
+  - bold white label "{{BEFORE_LABEL}}" at the top of the card
+  - smaller light-grey description "{{BEFORE_DESCRIPTION}}" beneath the label
   - a subtle visual cue suggesting friction or fragmentation (broken grid lines, scattered shapes)
 
-RIGHT PANEL (the "after" state): the same composition but bright and confident. A glassmorphism card containing:
-  - bold orange label "{{AFTER_LABEL}}" at the top (color #ffaa3a)
-  - smaller white description "{{AFTER_DESCRIPTION}}" beneath
+LOWER PANEL (the "after" state, takes the lower ~45% above the footer): the same composition but bright and confident. A glassmorphism card containing:
+  - bold orange label "{{AFTER_LABEL}}" at the top of the card (colour #ffaa3a)
+  - smaller white description "{{AFTER_DESCRIPTION}}" beneath the label
   - a clean visual cue suggesting flow, alignment, automation (continuous flowing lines, unified shape)
 
-A glowing electric-blue vertical divider down the exact center of the image separates the two panels.
+A glowing electric-blue HORIZONTAL divider across the exact horizontal centre separates the two panels.
 
-Bottom of the image, small light-grey text, single line:
+Very bottom of the image, small light-grey text, single line, centered:
 "Source: {{SOURCES}} | {{DATE}}"
 
 Image style:
-- 1:1 SQUARE (1024x1024). NEVER 16:9.
+- 4:5 PORTRAIT (1024x1280). NEVER 16:9 or square.
 - Dark navy background hex 000e22. Card surfaces hex 001e42.
 - Electric blue glows hex 00aaff. Orange/gold accents hex ffaa3a.
 - Glassmorphism cards with glowing borders, soft inner shadow, outer cyan glow.
@@ -61,7 +61,7 @@ Image style:
     ),
     (
         "News Recap Cover",
-        """A 1:1 square magazine cover (1024x1024 pixels) summarizing three news stories of the week.
+        """A 4:5 portrait magazine cover (1024x1280 pixels) summarizing three news stories of the week.
 
 Top of the image: bold white masthead "AI THIS WEEK" in large clean geometric sans-serif. Directly below, in smaller orange text (#ffaa3a): "{{DATE_RANGE}}".
 
@@ -80,7 +80,7 @@ Bottom of the image, small light-grey text, centered:
 "Source: {{SOURCES}} | {{DATE_RANGE}}"
 
 Image style:
-- 1:1 SQUARE (1024x1024). NEVER 16:9.
+- 4:5 PORTRAIT (1024x1280). NEVER 16:9 or square.
 - Dark navy background hex 000e22.
 - Electric blue glows hex 00aaff. Orange/gold accents hex ffaa3a.
 - Clean modern geometric sans-serif typography. No serifs.
@@ -152,7 +152,7 @@ Image style:
     ),
     (
         "Vintage Newspaper Page",
-        """A 1:1 square mockup (1024x1024 pixels) of a vintage newspaper front page from the early-to-mid 20th century.
+        """A 4:5 portrait mockup (1024x1280 pixels) of a vintage newspaper front page from the early-to-mid 20th century. Portrait orientation matches real broadsheet proportions.
 
 Top of the page: the newspaper's masthead in bold serif typography reading "{{NEWSPAPER_NAME}}" with thin horizontal rules above and below. Below the masthead, in small serif: "{{DATE}} — {{EDITION}}".
 
@@ -167,7 +167,7 @@ The lower 60% of the page is filled with realistic-looking columns of grey fille
 Render the entire image as if printed on aged off-white paper with subtle fiber texture, slight yellowing at the edges, and faint ink-bleed on the bold type.
 
 Image style:
-- 1:1 SQUARE (1024x1024). NEVER 16:9.
+- 4:5 PORTRAIT (1024x1280). Real broadsheet proportions.
 - Aged off-white paper background.
 - Pure black ink for type, with subtle ink-bleed.
 - Bold serif typography throughout (this template intentionally BREAKS sans-serif rules).
