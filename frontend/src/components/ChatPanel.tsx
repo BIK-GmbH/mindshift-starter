@@ -169,7 +169,7 @@ export default function ChatPanel({
           className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
           style={{ minHeight: "1.75rem", maxHeight: "10rem" }}
         />
-        <VoiceRecordButton onTranscribed={onVoice} showStatusLine={false} />
+        <VoiceRecordButton onTranscribed={onVoice} showStatusLine={true} />
         <button
           type="submit"
           disabled={busy || !input.trim()}

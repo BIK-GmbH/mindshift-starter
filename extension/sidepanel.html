@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Permissions-Policy" content="microphone=*" />
     <title>Mindshift — side panel</title>
     <link rel="stylesheet" href="popup.css" />
     <link rel="stylesheet" href="sidepanel.css" />
@@ -51,7 +52,7 @@
     <!-- "Card already saved" state — embed it via iframe. Chat now lives
          inside the iframe as a tab in EmbedCardPage. -->
     <main id="cardPane" class="sp-pane hidden">
-      <iframe id="cardFrame" title="Card" sandbox="allow-same-origin allow-scripts allow-forms allow-popups" allow="clipboard-write; microphone"></iframe>
+      <iframe id="cardFrame" title="Card" sandbox="allow-same-origin allow-scripts allow-forms allow-popups" allow="clipboard-write; microphone *"></iframe>
     </main>
 
     <script type="module" src="sidepanel.js"></script>
