@@ -207,7 +207,13 @@ def create_card_from_url(
     db.refresh(job)
 
     if not paused:
-        background_tasks.add_task(process_article_card, card.id, job.id, url)
+        background_tasks.add_task(
+            process_article_card,
+            card.id,
+            job.id,
+            url,
+            html_override=payload.page_html,
+        )
     return IngestionResponse(card=CardOut.model_validate(card), job=JobOut.model_validate(job))
 
 

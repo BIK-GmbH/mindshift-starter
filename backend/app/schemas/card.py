@@ -79,6 +79,15 @@ class FromYouTubeRequest(BaseModel):
 class FromUrlRequest(BaseModel):
     url: HttpUrl
     paused: bool = Field(default=False)
+    page_html: str | None = Field(
+        default=None,
+        max_length=5_000_000,
+        description=(
+            "Optional pre-rendered HTML from the user's authenticated browser "
+            "(set by the extension). When present, the backend uses this instead "
+            "of fetching the URL itself — bypasses login walls."
+        ),
+    )
 
 
 class BySourceUrlsRequest(BaseModel):

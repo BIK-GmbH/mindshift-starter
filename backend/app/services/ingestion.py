@@ -138,14 +138,20 @@ def process_note_card(card_id: UUID, job_id: UUID, body: str, summarize: bool) -
         _mark_completed(db, card, job)
 
 
-def process_article_card(card_id: UUID, job_id: UUID, url: str) -> None:
+def process_article_card(
+    card_id: UUID,
+    job_id: UUID,
+    url: str,
+    *,
+    html_override: str | None = None,
+) -> None:
     """Fetch a web article and run the summarization pipeline."""
     with _job_context(card_id, job_id) as ctx:
         if ctx is None:
             return
         db, card, job = ctx
 
-        article = fetch_article(url)
+        article = fetch_article(url, html_override=html_override)
         if article is None:
             _mark_failed(db, card, job, "Could not extract article content from this URL.")
             return

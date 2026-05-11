@@ -65,16 +65,26 @@ def _extract_lead_image(html: str, base_url: str) -> str | None:
     return None
 
 
-def fetch_article(url: str) -> ArticleResult | None:
-    """Fetch and extract main content from a web article. Returns None if no content."""
-    try:
-        with httpx.Client(timeout=20.0, follow_redirects=True, headers={"User-Agent": _USER_AGENT}) as client:
-            response = client.get(url)
-            response.raise_for_status()
-            html = response.text
-            final_url = str(response.url)
-    except (httpx.HTTPError, ValueError):
-        return None
+def fetch_article(url: str, *, html_override: str | None = None) -> ArticleResult | None:
+    """Fetch and extract main content from a web article. Returns None if no content.
+
+    When `html_override` is supplied (e.g., HTML grabbed by the browser
+    extension from a logged-in tab), use it directly and skip the
+    anonymous httpx fetch — this is how we bypass login walls on
+    LinkedIn / X / NYT / etc.
+    """
+    if html_override:
+        html = html_override
+        final_url = url
+    else:
+        try:
+            with httpx.Client(timeout=20.0, follow_redirects=True, headers={"User-Agent": _USER_AGENT}) as client:
+                response = client.get(url)
+                response.raise_for_status()
+                html = response.text
+                final_url = str(response.url)
+        except (httpx.HTTPError, ValueError):
+            return None
 
     extracted = trafilatura.extract(
         html,
