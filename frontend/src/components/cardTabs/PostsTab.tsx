@@ -14,10 +14,9 @@ import {
   Twitter,
   Wand2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import VoiceRecordButton from "../VoiceRecordButton";
 import {
   api,
   type ImageTemplateOut,
@@ -31,7 +30,6 @@ import {
 } from "../../lib/api";
 import {
   getSelectionOffsets,
-  insertAtCaretCE,
   setCaret,
 } from "../../lib/contentEditableSelection";
 import { useAuthedImage } from "../../lib/useAuthedImage";
@@ -535,21 +533,6 @@ function DraftCard({
   const [rewriteError, setRewriteError] = useState<string | null>(null);
   const saveTimerRef = useRef<number | null>(null);
 
-  const onVoice = useCallback(
-    (voiceText: string) => {
-      const el = editorRef.current;
-      if (!el) return;
-      const { next, offset } = insertAtCaretCE(el, text, voiceText);
-      setText(next);
-      el.innerText = next;
-      requestAnimationFrame(() => {
-        el.focus();
-        setCaret(el, offset);
-      });
-    },
-    [text],
-  );
-
   // Sync local text when the draft prop changes (e.g. a regeneration
   // bumps the version externally) — and push it into the editor DOM
   // since contentEditable isn't a controlled-component the React way.
@@ -670,7 +653,6 @@ function DraftCard({
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <VoiceRecordButton onTranscribed={onVoice} showStatusLine={true} />
           <PublishMenu
             draft={draft}
             fullText={fullText}
