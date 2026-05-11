@@ -133,6 +133,14 @@ def fetch_repo(url: str) -> GithubRepo | None:
     except (httpx.HTTPError, ValueError):
         return None
 
+    # Prefer the owner's avatar (served from GitHub's CDN — no rate
+    # limiting, square, small) over opengraph.githubassets.com's auto-
+    # generated social preview. The OG endpoint is throttled to 100
+    # requests / 15 minutes per browser IP and starts returning 429
+    # as soon as a library page renders a handful of GH cards at once.
+    avatar = (data.get("owner") or {}).get("avatar_url") or ""
+    thumbnail = avatar or f"https://opengraph.githubassets.com/1/{full}"
+
     return GithubRepo(
         owner=owner,
         repo=repo,
@@ -148,8 +156,7 @@ def fetch_repo(url: str) -> GithubRepo | None:
         forks=int(data.get("forks_count") or 0),
         license_name=(data.get("license") or {}).get("spdx_id"),
         readme_md=readme_md,
-        # Auto-generated social preview — works for every public repo.
-        thumbnail_url=f"https://opengraph.githubassets.com/1/{full}",
+        thumbnail_url=thumbnail,
         canonical_url=f"https://github.com/{full}",
     )
 
