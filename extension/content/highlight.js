@@ -185,47 +185,82 @@
   /** Find the smallest meaningful container around a selection — used
    *  to send a focused chunk of HTML to the backend instead of the
    *  whole page (which on feed sites like LinkedIn would include every
-   *  post, the sidebar, suggested connections, etc.).
+   *  post, sidebar, suggested connections, etc.).
    *
-   *  Priority:
-   *  1. <article> ancestor
-   *  2. [role="article"] ancestor (LinkedIn uses this for posts)
-   *  3. Smallest ancestor with 200..15000 chars of text — strikes a
-   *     balance between "single paragraph" and "whole page".
-   *  4. Fallback to commonAncestorContainer's parent element.
+   *  Priority (first match wins):
+   *  1. Feed-site-specific selectors (LinkedIn / X / Reddit).
+   *  2. `<article>` ancestor (semantic — Substack, NYT, blogs).
+   *  3. `[role="article"]` ancestor (ARIA fallback).
+   *  4. First (= smallest) ancestor with 150..20000 chars of text.
+   *  5. Fallback: parent element of the selection.
+   *
+   *  Logs the chosen container via console.debug so the user can verify
+   *  in DevTools (filter: "[mindshift]").
    */
   function findArticleContainer(range) {
     let node = range.commonAncestorContainer;
     if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
     if (!node) return null;
 
-    // Priority 1+2: semantic article ancestor.
-    let cur = node;
-    while (cur && cur !== document.body) {
-      const tag = cur.tagName?.toLowerCase();
-      const role = cur.getAttribute?.("role")?.toLowerCase();
-      if (tag === "article" || role === "article") return cur;
-      cur = cur.parentElement;
+    // Priority 1: feed-site selectors. `closest()` walks up the tree.
+    const FEED_SELECTORS = [
+      '[data-urn^="urn:li:activity:"]',     // LinkedIn post
+      '[data-id^="urn:li:activity:"]',      // LinkedIn (legacy attr)
+      'article[data-testid="tweet"]',       // X / Twitter
+      '[data-testid="tweetText"]',          // X — tweet text container, fallback
+      'shreddit-post',                      // Reddit (new layout)
+      '[data-testid="post-container"]',     // Reddit (legacy testid)
+      '[data-test-id="post-content"]',      // some Substack post pages
+    ];
+    for (const sel of FEED_SELECTORS) {
+      const match = node.closest(sel);
+      if (match) {
+        console.debug(
+          "[mindshift] focused container (priority 1, selector):",
+          sel,
+          match,
+        );
+        return match;
+      }
     }
 
-    // Priority 3: heuristic — smallest ancestor with reasonable text
-    // density. Walk up; once we exceed 15000 chars we've gone too far,
-    // back off to the previous candidate.
-    cur = node;
-    let lastGoodCandidate = null;
+    // Priority 2: semantic <article>.
+    const article = node.closest("article");
+    if (article) {
+      console.debug("[mindshift] focused container (priority 2, <article>):", article);
+      return article;
+    }
+
+    // Priority 3: ARIA role.
+    const aria = node.closest('[role="article"]');
+    if (aria) {
+      console.debug('[mindshift] focused container (priority 3, [role="article"]):', aria);
+      return aria;
+    }
+
+    // Priority 4: heuristic — FIRST (smallest) ancestor with at least
+    // 150 chars of text. The previous version stored "lastGoodCandidate"
+    // which ended up being the LARGEST in-range ancestor — exactly the
+    // wrong behavior for feed sites.
+    let cur = node;
     while (cur && cur !== document.body) {
       const text = (cur.innerText || cur.textContent || "").trim();
       const len = text.length;
-      if (len >= 200 && len <= 15000) {
-        lastGoodCandidate = cur;
+      if (len >= 150 && len <= 20000) {
+        console.debug(
+          "[mindshift] focused container (priority 4, heuristic, len=" + len + "):",
+          cur,
+        );
+        return cur;
       }
-      if (len > 15000) break;
+      if (len > 20000) break;
       cur = cur.parentElement;
     }
-    if (lastGoodCandidate) return lastGoodCandidate;
 
-    // Priority 4: fallback.
-    return node.parentElement || node;
+    // Priority 5: fallback.
+    const fallback = node.parentElement || node;
+    console.debug("[mindshift] focused container (priority 5, fallback):", fallback);
+    return fallback;
   }
 
   // -------------------------- toolbar --------------------------
