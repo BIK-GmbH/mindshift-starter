@@ -203,7 +203,7 @@ def preview_template(
     what would be substituted before they save a template. `card_id`
     picks a specific card for grounding; if omitted, we use the user's
     most recently completed card."""
-    from app.services.podcast import (
+    from app.services.image_generation import (
         _extract_template_vars,
         extract_template_values,
         substitute_template_values,

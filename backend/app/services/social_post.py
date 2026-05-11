@@ -285,7 +285,7 @@ def generate_post_image(
     straight to gpt-image-2. The Pre-Gen modal uses this to commit a
     user-edited resolved prompt.
     """
-    from app.services.podcast import generate_cover_image
+    from app.services.image_generation import generate_cover_image
 
     if prompt_override and prompt_override.strip():
         return generate_cover_image(

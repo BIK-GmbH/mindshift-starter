@@ -414,7 +414,7 @@ def generate_cover(
     point `cover_url` at the streaming endpoint. Synchronous — calls
     the OpenAI image API directly so the user gets the new cover in
     the response. ~10–30 s in practice."""
-    from app.services.podcast import generate_cover_image
+    from app.services.image_generation import generate_cover_image
 
     path = _get_owned_path(db, path_id, current_user.id)
 

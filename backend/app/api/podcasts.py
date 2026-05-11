@@ -48,10 +48,12 @@ from app.schemas.podcast import (
     PublicEpisodeOut,
     ReorderRequest,
 )
-from app.services.podcast import (
+from app.services.image_generation import (
     generate_cover_image,
-    generate_episode_draft,
     suggest_cover_meta,
+)
+from app.services.podcast import (
+    generate_episode_draft,
     synthesize_episode_audio,
 )
 from app.services.storage import get_storage

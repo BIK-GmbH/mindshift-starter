@@ -416,7 +416,7 @@ def preview_post_image(
         KNOWN_VARIABLES,
         resolve_template_content,
     )
-    from app.services.podcast import (
+    from app.services.image_generation import (
         _extract_template_vars,
         extract_template_values,
         substitute_template_values,
