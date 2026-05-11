@@ -43,18 +43,31 @@ Aim for 5-8 takeaways, 3-8 tags, 5-12 entities, and 5-8 quiz questions.
   shape) so they're not trivially identifiable. Don't make any of them the
   same as `answer`.
 
-## Timestamp markers (when source has timestamps)
+## Timestamp markers — REQUIRED when the source is annotated
 
-- If the user prompt's transcript is annotated with `[t=NN]` markers
-  showing seconds-from-start, **embed them inline** in the summary +
-  takeaways at points where the corresponding moment in the source
-  matters. Example: `Algorithms detect fraud by spotting outliers [t=85].`
-- Use one marker per claim, place it right at the end of the sentence
-  before the period, and keep the exact `[t=NN]` syntax (no spaces, no
-  surrounding parens). The reader's UI will turn each marker into a
-  clickable timestamp.
-- Don't fabricate timestamps. Only use ones that appear in the source.
-- If the source isn't annotated with timestamps, omit them entirely.
+If the user prompt's transcript contains `[t=NN]` markers (NN is
+seconds-from-start), you **MUST** weave at least 4–8 of those exact
+markers into the JSON output. Distribute them across:
+
+- the `concise_summary_md` (at least 1, ideally 2)
+- the `detailed_summary_md` (3–5, one per section heading or major
+  paragraph)
+- the `key_takeaways` (at least half of the bullets should carry a
+  marker)
+
+Rules:
+
+- Copy the `[t=NN]` token literally — same brackets, no spaces inside,
+  no parens or other wrappers. The reader's UI parses it as a regex.
+- Place the marker right at the end of the sentence it anchors,
+  immediately before the period. Example: `Algorithms detect fraud by
+  spotting outliers [t=85].`
+- Only use values that actually appear in the transcript — never
+  invent timestamps. If the transcript is short, fewer markers are
+  fine, but always at least one in the concise summary.
+- When the transcript has NO `[t=NN]` markers at all, omit them
+  entirely. (This applies to articles, PDFs and other non-time-based
+  sources.)
 """
 
 
