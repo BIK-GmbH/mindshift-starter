@@ -155,7 +155,8 @@ export default function CardDetailContent({
   // right-pane chat with media, no need to pin in the centre column.
   const mediaPinEligible =
     (card?.source_type === "youtube" && !!card?.external_id) ||
-    card?.source_type === "pdf";
+    card?.source_type === "pdf" ||
+    (card?.source_type === "github" && !!card?.thumbnail_url);
   useEffect(() => {
     if (!mediaPinEligible) {
       setMediaPinned(false);
@@ -613,7 +614,11 @@ export default function CardDetailContent({
             <div className="px-3 py-3">
               <div
                 className={`relative ${
-                  card.source_type === "pdf" ? "aspect-[3/4]" : "aspect-video"
+                  card.source_type === "pdf"
+                    ? "aspect-[3/4]"
+                    : card.source_type === "github"
+                      ? "aspect-[2/1]" // matches GitHub OG image aspect ratio
+                      : "aspect-video"
                 }`}
               >
                 <div
@@ -622,7 +627,9 @@ export default function CardDetailContent({
                     mediaPinned
                       ? card.source_type === "pdf"
                         ? "fixed right-3 top-16 z-30 h-48 w-36 shadow-2xl ring-ink-700"
-                        : "fixed right-3 top-16 z-30 aspect-video w-48 shadow-2xl ring-ink-700"
+                        : card.source_type === "github"
+                          ? "fixed right-3 top-16 z-30 aspect-[2/1] w-44 shadow-2xl ring-ink-700"
+                          : "fixed right-3 top-16 z-30 aspect-video w-48 shadow-2xl ring-ink-700"
                       : "absolute inset-0 ring-transparent",
                   ].join(" ")}
                 >

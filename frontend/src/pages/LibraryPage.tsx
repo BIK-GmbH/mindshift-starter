@@ -332,7 +332,11 @@ export default function LibraryPage() {
                   {t("nav.chat")}
                 </div>
                 <div className="flex items-center gap-1">
-                  {selectedCard?.source_type === "youtube" && selectedCard.external_id && (
+                  {/* Show/hide media toggle — appears for any card type
+                      that has something worth rendering alongside the
+                      chat: YouTube embed, GitHub repo card + banner. */}
+                  {((selectedCard?.source_type === "youtube" && selectedCard.external_id) ||
+                    (selectedCard?.source_type === "github" && selectedCard.source_url)) && (
                     <button
                       type="button"
                       onClick={() => setChatPlayerOpen((v) => !v)}
@@ -360,12 +364,21 @@ export default function LibraryPage() {
               <div className="flex flex-1 min-h-0 flex-col gap-3 px-4 pb-4 pt-3">
                 {/* Source-media panel sits above the chat when toggled —
                     splits the available height 50/50 with the conversation
-                    so the user can watch and ask side-by-side. */}
+                    so the user can watch and ask side-by-side. YouTube
+                    gets the player; GitHub gets the repo card with hero
+                    banner. */}
                 {chatPlayerOpen &&
                   selectedCard?.source_type === "youtube" &&
                   selectedCard.external_id && (
                     <div className="min-h-0 flex-1">
                       <CardSourceMedia card={selectedCard} fitHeight />
+                    </div>
+                  )}
+                {chatPlayerOpen &&
+                  selectedCard?.source_type === "github" &&
+                  selectedCard.source_url && (
+                    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                      <CardSourceMedia card={selectedCard} />
                     </div>
                   )}
                 <div className="min-h-0 flex-1">

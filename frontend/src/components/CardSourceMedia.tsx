@@ -164,8 +164,28 @@ export default function CardSourceMedia({ card, fitHeight = false, pdfMode, comp
     return player;
   }
 
-  // GitHub repo: rich repo card with stars / forks / topics / license
+  // GitHub repo: rich repo card with stars / forks / topics / license.
+  // When `compact` is on (mobile sticky-on-scroll chip), render just
+  // the OG banner image so it fits the 48 × 27 mini-tile cleanly —
+  // metadata wouldn't be readable at that size anyway.
   if (card.source_type === "github" && card.source_url) {
+    if (compact && card.thumbnail_url) {
+      return (
+        <a
+          href={card.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block h-full w-full overflow-hidden"
+          aria-label={card.title}
+        >
+          <img
+            src={card.thumbnail_url}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        </a>
+      );
+    }
     return <GithubRepoCard card={card} t={t} />;
   }
 
@@ -233,6 +253,26 @@ function GithubRepoCard({ card, t }: GithubRepoCardProps) {
 
   return (
     <div className="overflow-hidden rounded-xl border border-ink-700 bg-gradient-to-br from-violet-500/10 via-ink-800/40 to-ink-900/40 ring-1 ring-violet-500/20">
+      {/* Hero — wide OG header image at the top, mirroring the video
+          player's hero treatment. Click → opens the repo in a new tab.
+          Falls back to no banner when the thumbnail is missing (the
+          card still reads fine without it). */}
+      {card.thumbnail_url && (
+        <a
+          href={repoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group block aspect-[2/1] w-full overflow-hidden border-b border-ink-700 bg-ink-900"
+          aria-label={card.title}
+        >
+          <img
+            src={card.thumbnail_url}
+            alt=""
+            className="h-full w-full object-cover transition group-hover:opacity-90"
+            loading="lazy"
+          />
+        </a>
+      )}
       <div className="flex flex-col gap-3 p-4">
         {/* Header: icon + owner/repo + open link */}
         <div className="flex items-start justify-between gap-3">
