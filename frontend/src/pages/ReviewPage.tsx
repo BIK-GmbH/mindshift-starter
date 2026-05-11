@@ -288,7 +288,7 @@ function ReviewSidebar({
       : 1;
 
   return (
-    <aside className="panel-elevated hidden md:flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
+    <aside className="panel-elevated hidden md:flex w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60 overflow-y-auto">
       {/* Header row — min-height matches the Library/Graph sidebars which
           carry an action button next to the title. Without it the Review
           header sits a few pixels shorter and the page jumps vertically
@@ -299,9 +299,11 @@ function ReviewSidebar({
         </span>
       </div>
 
-      {/* Top section is fixed — only the History list at the bottom
-          scrolls. Keeps the at-a-glance stats (Mode, Due, Mastery,
-          Tally, Activity) anchored where the user expects them. */}
+      {/* Top section stays at intrinsic height. On tall viewports the
+          History block below takes the remaining space and scrolls
+          internally. On short viewports the outer aside's
+          overflow-y-auto kicks in so nothing gets clipped — the user
+          scrolls the whole sidebar to reach stats that don't fit. */}
       <div className="flex-shrink-0 space-y-5 px-4 pt-4 pb-2">
         {/* Mode toggle — recall vs multiple-choice */}
         <section className="space-y-2">
@@ -447,11 +449,13 @@ function ReviewSidebar({
         )}
       </div>
 
-      {/* History — past learning sessions. Lives in its own flex-1 +
-          overflow-y-auto column so only the list scrolls, not the
-          whole sidebar. */}
+      {/* History — past learning sessions. flex-1 lets it take the
+          remaining space on tall viewports; the inner list has its own
+          overflow-y-auto so only the list scrolls when there's room.
+          min-h floor keeps the section visible even when the outer
+          aside is in scroll-the-whole-thing mode on short viewports. */}
       {pastSessions.length > 0 && (
-        <div className="flex min-h-0 flex-1 flex-col border-t border-ink-800 px-4 pt-4">
+        <div className="flex min-h-[12rem] flex-1 flex-col border-t border-ink-800 px-4 pt-4">
           <div className="mb-2 flex flex-shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-500">
             <History className="h-3 w-3" />
             {t("review.sidebar.history", { defaultValue: "History" })}
