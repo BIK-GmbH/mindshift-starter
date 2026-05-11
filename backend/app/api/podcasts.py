@@ -496,6 +496,11 @@ def _run_episode_job(
             ep.voice = used_voice
 
             if generate_cover:
+                # Apply the user's default image-template so podcast
+                # covers match social-post + path covers in look.
+                from app.api.image_templates import resolve_template_content
+
+                template_content = resolve_template_content(db, user_id)
                 try:
                     png_bytes = generate_cover_image(
                         title=ep.title,
@@ -503,6 +508,7 @@ def _run_episode_job(
                         custom_prompt=cover_prompt,
                         style_hint=cover_style,
                         cover_text=cover_text,
+                        template_content=template_content,
                     )
                     cover_file = storage.save(
                         db,

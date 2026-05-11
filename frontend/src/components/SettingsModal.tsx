@@ -8,6 +8,7 @@ import {
   Globe,
   Hash,
   HelpCircle,
+  Image as ImageIcon,
   Languages,
   Loader2,
   Lock,
@@ -19,6 +20,7 @@ import {
   Plug,
   Plus,
   Puzzle,
+  Star,
   RefreshCw,
   SlidersHorizontal,
   Sun,
@@ -36,6 +38,9 @@ import { useSettingsModal } from "../lib/SettingsModalContext";
 import { useTheme } from "../lib/ThemeContext";
 import {
   api,
+  type ImageTemplateCreate,
+  type ImageTemplateOut,
+  type ImageTemplateUpdate,
   type MCPServerCreate,
   type MCPServerOut,
   type MCPServerUpdate,
@@ -49,6 +54,7 @@ type SettingsTab =
   | "tags"
   | "extension"
   | "mcp"
+  | "imageTemplates"
   | "about";
 
 const tabs: { id: SettingsTab; labelKey: string; Icon: typeof UserRound }[] = [
@@ -57,6 +63,7 @@ const tabs: { id: SettingsTab; labelKey: string; Icon: typeof UserRound }[] = [
   { id: "tags", labelKey: "settings.tab.tags", Icon: Hash },
   { id: "extension", labelKey: "settings.tab.extension", Icon: Puzzle },
   { id: "mcp", labelKey: "settings.tab.mcp", Icon: Plug },
+  { id: "imageTemplates", labelKey: "settings.tab.imageTemplates", Icon: ImageIcon },
   { id: "about", labelKey: "settings.tab.about", Icon: HelpCircle },
 ];
 
@@ -146,6 +153,7 @@ export default function SettingsModal() {
             {active === "tags" && <TagsTab />}
             {active === "extension" && <ExtensionTab />}
             {active === "mcp" && <MCPServersTab />}
+            {active === "imageTemplates" && <ImageTemplatesTab />}
             {active === "about" && <AboutTab />}
           </div>
         </div>
@@ -1571,6 +1579,346 @@ function MCPServerForm({
         >
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
           {mode === "create" ? t("settings.mcp.create", { defaultValue: "Add" }) : t("common.save")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------------
+ * Image templates — house-style markdown prompts prepended to every
+ * image generation (post covers, podcast covers, path covers).
+ * -------------------------------------------------------------------- */
+function ImageTemplatesTab() {
+  const { t } = useTranslation();
+  const { confirm } = useDialog();
+  const [rows, setRows] = useState<ImageTemplateOut[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      setRows(await api.listImageTemplates());
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const toggleDefault = async (row: ImageTemplateOut) => {
+    try {
+      const updated = await api.updateImageTemplate(row.id, {
+        is_default: !row.is_default,
+      });
+      if (updated.is_default) {
+        await refresh();
+      } else {
+        setRows((prev) => prev.map((r) => (r.id === row.id ? updated : r)));
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const onDelete = async (row: ImageTemplateOut) => {
+    const ok = await confirm({
+      title: t("settings.imageTemplates.confirmDeleteTitle", {
+        defaultValue: "Remove this template?",
+      }),
+      body:
+        t("settings.imageTemplates.confirmDeleteBody", {
+          name: row.name,
+          defaultValue:
+            'The template "{{name}}" will be removed. Image generations that referenced it will fall back to the next default (if any).',
+        }) ?? "",
+      confirmLabel: t("common.delete"),
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.deleteImageTemplate(row.id);
+      setRows((prev) => prev.filter((r) => r.id !== row.id));
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  return (
+    <section className="space-y-4">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-ink-100">
+            {t("settings.imageTemplates.heading", { defaultValue: "Image templates" })}
+          </h3>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-400">
+            {t("settings.imageTemplates.body", {
+              defaultValue:
+                "Markdown blocks that are prepended to every image generation — post covers, podcast covers, path covers. Mark one as default to apply it everywhere automatically.",
+            })}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setCreating(true);
+            setEditingId(null);
+          }}
+          className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-ink-200"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t("settings.imageTemplates.add", { defaultValue: "New template" })}
+        </button>
+      </header>
+
+      {error && (
+        <p className="rounded-md bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>
+      )}
+
+      {creating && (
+        <ImageTemplateForm
+          mode="create"
+          onSubmit={async (body) => {
+            try {
+              const created = await api.createImageTemplate(body as ImageTemplateCreate);
+              if (created.is_default) await refresh();
+              else setRows((prev) => [created, ...prev]);
+              setCreating(false);
+            } catch (err) {
+              setError((err as Error).message);
+            }
+          }}
+          onCancel={() => setCreating(false)}
+        />
+      )}
+
+      {loading ? (
+        <p className="flex items-center gap-2 text-xs text-ink-400">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          {t("common.loading")}
+        </p>
+      ) : rows.length === 0 && !creating ? (
+        <p className="rounded-lg border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-400">
+          {t("settings.imageTemplates.empty", {
+            defaultValue: 'No templates yet. Click "New template" to add your first one.',
+          })}
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {rows.map((row) => (
+            <li key={row.id}>
+              {editingId === row.id ? (
+                <ImageTemplateForm
+                  mode="edit"
+                  initial={row}
+                  onSubmit={async (body) => {
+                    try {
+                      const updated = await api.updateImageTemplate(row.id, body);
+                      if (updated.is_default && !row.is_default) {
+                        await refresh();
+                      } else {
+                        setRows((prev) =>
+                          prev.map((r) => (r.id === row.id ? updated : r)),
+                        );
+                      }
+                      setEditingId(null);
+                    } catch (err) {
+                      setError((err as Error).message);
+                    }
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <ImageTemplateRow
+                  row={row}
+                  onToggleDefault={() => void toggleDefault(row)}
+                  onEdit={() => {
+                    setEditingId(row.id);
+                    setCreating(false);
+                  }}
+                  onDelete={() => void onDelete(row)}
+                />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ImageTemplateRow({
+  row,
+  onToggleDefault,
+  onEdit,
+  onDelete,
+}: {
+  row: ImageTemplateOut;
+  onToggleDefault: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { t } = useTranslation();
+  const preview = row.content.slice(0, 220).replace(/\s+/g, " ").trim();
+  return (
+    <div className="rounded-lg border border-ink-700 bg-ink-800/40 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <ImageIcon className="h-3.5 w-3.5 text-violet-300" />
+            <p className="truncate text-sm font-semibold text-ink-100">{row.name}</p>
+            {row.is_default && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30">
+                <Star className="h-2.5 w-2.5 fill-current" />
+                {t("settings.imageTemplates.default", { defaultValue: "default" })}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 line-clamp-2 text-[11px] text-ink-400">{preview}</p>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onToggleDefault}
+            title={
+              row.is_default
+                ? t("settings.imageTemplates.unsetDefault", {
+                    defaultValue: "Unset default",
+                  }) ?? ""
+                : t("settings.imageTemplates.setDefault", {
+                    defaultValue: "Set as default",
+                  }) ?? ""
+            }
+            className={[
+              "flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 transition",
+              row.is_default
+                ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
+                : "text-ink-300 hover:bg-ink-800",
+            ].join(" ")}
+          >
+            <Star className={["h-3 w-3", row.is_default ? "fill-current" : ""].join(" ")} />
+          </button>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-ink-800"
+            title={t("common.edit", { defaultValue: "Edit" }) ?? "Edit"}
+            aria-label={t("common.edit", { defaultValue: "Edit" }) ?? "Edit"}
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:bg-red-500/10 hover:text-red-300"
+            title={t("common.delete") ?? ""}
+            aria-label={t("common.delete") ?? "Delete"}
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageTemplateForm({
+  mode,
+  initial,
+  onSubmit,
+  onCancel,
+}: {
+  mode: "create" | "edit";
+  initial?: ImageTemplateOut;
+  onSubmit: (body: ImageTemplateCreate | ImageTemplateUpdate) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const [name, setName] = useState(initial?.name ?? "");
+  const [content, setContent] = useState(initial?.content ?? "");
+  const [isDefault, setIsDefault] = useState(initial?.is_default ?? false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const body: ImageTemplateCreate | ImageTemplateUpdate = {
+        name: name.trim(),
+        content,
+        is_default: isDefault,
+      };
+      await onSubmit(body);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-ink-700 bg-ink-800/40 p-4">
+      <h4 className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-ink-200">
+        <ImageIcon className="h-3 w-3" />
+        {mode === "create"
+          ? t("settings.imageTemplates.formCreate", { defaultValue: "New image template" })
+          : t("settings.imageTemplates.formEdit", { defaultValue: "Edit image template" })}
+      </h4>
+      <FieldLabel label={t("settings.imageTemplates.name", { defaultValue: "Name" })}>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Sci-fi Tech (LinkedIn)"
+          className="w-full rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 text-sm text-ink-100 focus:border-ink-500 focus:outline-none"
+        />
+      </FieldLabel>
+      <FieldLabel
+        label={t("settings.imageTemplates.content", {
+          defaultValue: "Markdown prompt template",
+        })}
+      >
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          rows={16}
+          placeholder="# Look-and-Feel …"
+          className="w-full resize-none rounded-md border border-ink-700 bg-ink-900/40 px-2 py-1.5 font-mono text-[12px] leading-relaxed text-ink-100 focus:border-ink-500 focus:outline-none min-h-[20rem] [field-sizing:content]"
+        />
+      </FieldLabel>
+      <label className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-ink-300">
+        <input
+          type="checkbox"
+          checked={isDefault}
+          onChange={(e) => setIsDefault(e.target.checked)}
+          className="h-3.5 w-3.5"
+        />
+        <Star className={["h-3 w-3", isDefault ? "text-amber-300 fill-current" : "text-ink-500"].join(" ")} />
+        {t("settings.imageTemplates.defaultToggle", {
+          defaultValue:
+            "Make default — applied automatically to every image generation",
+        })}
+      </label>
+      <div className="mt-3 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition hover:bg-ink-800"
+        >
+          {t("common.cancel")}
+        </button>
+        <button
+          type="button"
+          onClick={() => void submit()}
+          disabled={busy || !name.trim() || !content.trim()}
+          className="inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+          {mode === "create" ? t("settings.imageTemplates.create", { defaultValue: "Add" }) : t("common.save")}
         </button>
       </div>
     </div>

@@ -437,10 +437,16 @@ def generate_cover(
         hint_parts.append("Topics covered: " + " · ".join(card_titles))
     summary_hint = "\n".join(hint_parts)
 
+    # Apply the user's default image template (if any) so paths covers
+    # share the look of social-post and podcast covers.
+    from app.api.image_templates import resolve_template_content
+
+    template_content = resolve_template_content(db, current_user.id)
     try:
         png_bytes = generate_cover_image(
             title=path.title,
             summary_hint=summary_hint,
+            template_content=template_content,
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Cover generation failed: {exc}") from exc

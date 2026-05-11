@@ -28,8 +28,18 @@ from app.models.card import Card
 from app.models.card_social_post import CardSocialPost
 from app.models.file import File
 from app.models.user import User
-from app.schemas.social_post import SocialPostCreate, SocialPostOut
-from app.services.social_post import generate_post, generate_post_image
+from app.schemas.social_post import (
+    SocialPostCreate,
+    SocialPostOut,
+    SocialPostRewriteRequest,
+    SocialPostRewriteResponse,
+    SocialPostUpdate,
+)
+from app.services.social_post import (
+    generate_post,
+    generate_post_image,
+    rewrite_selection,
+)
 from app.services.storage import get_storage
 
 logger = logging.getLogger(__name__)
@@ -118,8 +128,20 @@ def create_social_post(
 
     image_file_id: UUID | None = None
     if payload.with_image:
+        # Resolve the image template the user wants applied — explicit
+        # template_id wins, else the user's default, else None (raw
+        # gpt-image-2 prompt).
+        from app.api.image_templates import resolve_template_content
+
+        template_content = resolve_template_content(
+            db, current_user.id, template_id=payload.image_template_id
+        )
         try:
-            png = generate_post_image(title=card.title, post_text=text)
+            png = generate_post_image(
+                title=card.title,
+                post_text=text,
+                template_content=template_content,
+            )
         except Exception as exc:  # noqa: BLE001 — image is optional
             logger.warning("social-post image generation failed for %s: %s", card_id, exc)
             png = None
@@ -149,6 +171,54 @@ def create_social_post(
     db.commit()
     db.refresh(post)
     return _to_out(post)
+
+
+@router.patch("/{card_id}/social-posts/{post_id}", response_model=SocialPostOut)
+def update_social_post(
+    card_id: UUID,
+    post_id: UUID,
+    payload: SocialPostUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SocialPostOut:
+    _ensure_card(db, card_id, current_user.id)
+    post = db.get(CardSocialPost, post_id)
+    if post is None or post.card_id != card_id:
+        raise HTTPException(status_code=404, detail="Post not found")
+    post.text = payload.text
+    post.character_count = len(payload.text)
+    db.commit()
+    db.refresh(post)
+    return _to_out(post)
+
+
+@router.post(
+    "/{card_id}/social-posts/{post_id}/rewrite",
+    response_model=SocialPostRewriteResponse,
+)
+def rewrite_social_post(
+    card_id: UUID,
+    post_id: UUID,
+    payload: SocialPostRewriteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SocialPostRewriteResponse:
+    """Run an AI rewrite on a fragment of the post (the user's
+    selection). Returns just the replacement text — the frontend
+    splices it back into the editor at the original selection range."""
+    _ensure_card(db, card_id, current_user.id)
+    post = db.get(CardSocialPost, post_id)
+    if post is None or post.card_id != card_id:
+        raise HTTPException(status_code=404, detail="Post not found")
+    try:
+        rewritten = rewrite_selection(
+            action=payload.action,
+            selection=payload.selection,
+            full_text=payload.full_text or post.text,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return SocialPostRewriteResponse(text=rewritten)
 
 
 @router.delete(

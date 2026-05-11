@@ -415,8 +415,15 @@ def generate_cover_image(
     *,
     style_hint: Optional[str] = None,
     cover_text: Optional[str] = None,
+    template_content: Optional[str] = None,
 ) -> bytes:
-    """Generate a square podcast cover via OpenAI gpt-image-2. Returns PNG bytes."""
+    """Generate a square podcast cover via OpenAI gpt-image-2. Returns PNG bytes.
+
+    `template_content` is the user-defined image-template body (from
+    the image_templates table). When set, we prepend it to the built
+    prompt so the user's house style steers every image generator —
+    podcast covers, path covers, social-post images, all of them.
+    """
     settings = get_settings()
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY not configured")
@@ -425,12 +432,18 @@ def generate_cover_image(
 
     client = OpenAI(api_key=settings.openai_api_key)
 
-    prompt = custom_prompt or _build_cover_prompt(
+    built = custom_prompt or _build_cover_prompt(
         title=title,
         summary_hint=summary_hint,
         style_hint=style_hint,
         cover_text=cover_text,
     )
+    if template_content and template_content.strip():
+        # Template precedes the topic-specific instructions so the
+        # style block sets the rules and the topic block fills them.
+        prompt = f"{template_content.strip()}\n\n---\n\n{built}"
+    else:
+        prompt = built
 
     # gpt-image-2 returns base64 by default. 1024x1024 is the canonical
     # square podcast cover size.

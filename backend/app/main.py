@@ -16,6 +16,7 @@ from app.api.graph import router as graph_router
 from app.api.graph_presets import router as graph_presets_router
 from app.api.public import router as public_router
 from app.api.health import router as health_router
+from app.api.image_templates import router as image_templates_router
 from app.api.imports import router as import_router
 from app.api.jobs import router as jobs_router
 from app.api.mcp import router as mcp_router
@@ -100,6 +101,7 @@ app.include_router(audio_router, prefix="/api")
 app.include_router(podcasts_router, prefix="/api")
 app.include_router(social_posts_router, prefix="/api")
 app.include_router(mcp_router, prefix="/api")
+app.include_router(image_templates_router, prefix="/api")
 app.include_router(podcasts_public_router, prefix="/api")
 app.include_router(paths_router, prefix="/api")
 app.include_router(paths_public_router, prefix="/api")

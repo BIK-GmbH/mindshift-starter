@@ -799,6 +799,43 @@ export const api = {
       method: "DELETE",
     }),
 
+  // --- Image templates ---
+  listImageTemplates: () =>
+    request<ImageTemplateOut[]>("/api/image-templates"),
+  createImageTemplate: (body: ImageTemplateCreate) =>
+    request<ImageTemplateOut>("/api/image-templates", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateImageTemplate: (id: string, body: ImageTemplateUpdate) =>
+    request<ImageTemplateOut>(`/api/image-templates/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteImageTemplate: (id: string) =>
+    request<void>(`/api/image-templates/${id}`, { method: "DELETE" }),
+
+  // --- Posts (per-card draft) edit + rewrite ---
+  updateSocialPost: (cardId: string, postId: string, text: string) =>
+    request<SocialPostOut>(`/api/cards/${cardId}/social-posts/${postId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ text }),
+    }),
+  rewriteSocialPostSelection: (
+    cardId: string,
+    postId: string,
+    body: {
+      action: "shorter" | "longer" | "sharper" | "rephrase";
+      selection: string;
+      full_text?: string;
+    },
+  ) =>
+    request<{ text: string }>(
+      `/api/cards/${cardId}/social-posts/${postId}/rewrite`,
+      { method: "POST", body: JSON.stringify(body) },
+      { timeoutMs: 60_000 },
+    ),
+
   // --- MCP servers ---
   listMCPServers: () => request<MCPServerOut[]>("/api/mcp/servers"),
   createMCPServer: (body: MCPServerCreate) =>
@@ -1147,6 +1184,27 @@ export interface UserOut {
   is_admin: boolean;
 }
 
+export interface ImageTemplateOut {
+  id: string;
+  name: string;
+  content: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ImageTemplateCreate {
+  name: string;
+  content: string;
+  is_default?: boolean;
+}
+
+export interface ImageTemplateUpdate {
+  name?: string;
+  content?: string;
+  is_default?: boolean;
+}
+
 export type MCPTransport = "http" | "sse";
 export type MCPAuthType = "none" | "bearer" | "header";
 
@@ -1225,6 +1283,9 @@ export interface SocialPostCreate {
   with_cta?: boolean;
   with_image?: boolean;
   with_emoji?: boolean;
+  /** Optional image-template override (UUID from /api/image-templates).
+   *  null/undefined → use the user's default template (if any). */
+  image_template_id?: string | null;
 }
 
 export interface SocialPostOut {

@@ -195,11 +195,86 @@ def generate_post(
     return text, hashtags
 
 
-def generate_post_image(*, title: str, post_text: str) -> bytes:
+_REWRITE_INSTRUCTIONS = {
+    "shorter": (
+        "Rewrite the selection to be roughly 30 % shorter while preserving "
+        "every concrete claim. Cut filler words, redundant clauses and "
+        "throat-clearing. Keep the same voice and language."
+    ),
+    "longer": (
+        "Expand the selection by roughly 30 %. Add one concrete example, "
+        "consequence or detail that already follows from the surrounding "
+        "context — never invent new facts. Match the existing voice + "
+        "language."
+    ),
+    "sharper": (
+        "Tighten the selection: replace vague language with specific verbs "
+        "and nouns, drop adverbs and hedges (\"really\", \"very\", \"perhaps\"), "
+        "and lead with the strongest claim. Same length, same language, "
+        "much more punch."
+    ),
+    "rephrase": (
+        "Restate the selection so it says the same thing in fresh words. "
+        "Keep the meaning, the length, and the language; change the phrasing "
+        "+ sentence structure."
+    ),
+}
+
+
+def rewrite_selection(
+    *, action: str, selection: str, full_text: str | None = None
+) -> str:
+    """Run a focused rewrite on a selection of post text. Returns just
+    the replacement text (no commentary, no surrounding quotes)."""
+    from openai import OpenAI
+
+    instruction = _REWRITE_INSTRUCTIONS.get(action)
+    if instruction is None:
+        raise ValueError(f"Unknown rewrite action: {action}")
+
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise ValueError("OpenAI is not configured")
+    client = OpenAI(api_key=settings.openai_api_key)
+
+    system = (
+        "You rewrite small fragments of social-media posts. "
+        "Return ONLY the rewritten fragment — no quotes, no preamble, "
+        "no closing remark, no markdown. Preserve the surrounding "
+        "post's language (German stays German). Never add hashtags. "
+        "Never wrap the output in quotation marks.\n\n"
+        f"Specific instruction: {instruction}"
+    )
+    user = "SELECTION:\n" + selection.strip()
+    if full_text:
+        user += "\n\n---\n\nSURROUNDING POST (for context only — do not return it):\n" + full_text.strip()
+
+    response = client.chat.completions.create(
+        model=settings.openai_model,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    )
+    text = (response.choices[0].message.content or "").strip()
+    # Some models still wrap output in quotes despite the instruction —
+    # strip outer pairs defensively.
+    while len(text) >= 2 and text[0] == text[-1] and text[0] in ('"', "'", "„", "“"):
+        text = text[1:-1].strip()
+    if not text:
+        raise ValueError("Empty rewrite result")
+    return text
+
+
+def generate_post_image(
+    *, title: str, post_text: str, template_content: str | None = None
+) -> bytes:
     """Generate a cover image (PNG bytes) for the post via gpt-image-2.
 
     Re-uses the same OpenAI image helper the podcast cover-art pipeline
-    uses so we don't duplicate the call logic.
+    uses so we don't duplicate the call logic. `template_content`
+    forwards the user's image-template (from the image_templates table)
+    so the look is consistent with their other Mindshift covers.
     """
     from app.services.podcast import generate_cover_image
 
@@ -209,4 +284,8 @@ def generate_post_image(*, title: str, post_text: str) -> bytes:
     snippet = post_text.strip()
     if len(snippet) > 600:
         snippet = snippet[:600] + " …"
-    return generate_cover_image(title=title, summary_hint=snippet)
+    return generate_cover_image(
+        title=title,
+        summary_hint=snippet,
+        template_content=template_content,
+    )

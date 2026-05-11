@@ -21,6 +21,32 @@ class SocialPostCreate(BaseModel):
     # Emoji on by default — they help LinkedIn / X posts scan; toggle
     # off for stricter / corporate voices.
     with_emoji: bool = True
+    # Optional image-template override. None = use the user's default
+    # template (if any). The caller passes a UUID from /api/image-templates.
+    image_template_id: UUID | None = None
+
+
+class SocialPostUpdate(BaseModel):
+    """Inline-editor save: just the text + recomputed length.
+    Hashtags / image stay untouched here — those are managed via the
+    Generate flow."""
+
+    text: str = Field(min_length=1)
+
+
+RewriteAction = Literal["shorter", "longer", "sharper", "rephrase"]
+
+
+class SocialPostRewriteRequest(BaseModel):
+    action: RewriteAction
+    selection: str = Field(min_length=1, max_length=8000)
+    # Surrounding context so the model knows the wider voice / topic
+    # of the post even when the user only highlighted a fragment.
+    full_text: str | None = Field(default=None, max_length=20000)
+
+
+class SocialPostRewriteResponse(BaseModel):
+    text: str
 
 
 class SocialPostOut(BaseModel):

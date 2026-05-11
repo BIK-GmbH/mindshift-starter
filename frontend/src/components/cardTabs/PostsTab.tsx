@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   api,
+  type ImageTemplateOut,
   type MCPServerOut,
   type MCPToolOut,
   type SocialPostCreate,
@@ -92,6 +93,10 @@ export default function PostsTab({ cardId }: Props) {
   // publish-y; non-publishing tools (file readers, calendar etc) are
   // filtered client-side.
   const [mcpServers, setMcpServers] = useState<MCPServerOut[]>([]);
+  // Image-templates the user has configured in Settings. When `with_image`
+  // is on, the Template select lets the user override the default.
+  const [imageTemplates, setImageTemplates] = useState<ImageTemplateOut[]>([]);
+  const [imageTemplateId, setImageTemplateId] = useState<string>("");  // "" = use default
 
   useEffect(() => {
     let cancelled = false;
@@ -129,6 +134,23 @@ export default function PostsTab({ cardId }: Props) {
     };
   }, []);
 
+  // Same for image templates — used to populate the template dropdown
+  // next to "Mit Bild generieren".
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listImageTemplates()
+      .then((list) => {
+        if (!cancelled) setImageTemplates(list);
+      })
+      .catch(() => {
+        /* templates optional */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const generate = async () => {
     setGenerating(true);
     setError(null);
@@ -140,6 +162,7 @@ export default function PostsTab({ cardId }: Props) {
       with_image: withImage,
       with_emoji: withEmoji,
       language: language.trim() || null,
+      image_template_id: withImage && imageTemplateId ? imageTemplateId : null,
     };
     try {
       const post = await api.createSocialPost(cardId, body);
@@ -281,6 +304,30 @@ export default function PostsTab({ cardId }: Props) {
             <ImageIcon className="h-3 w-3 text-violet-300" />
             {t("posts.withImage", { defaultValue: "Mit Bild generieren (~30 s)" })}
           </label>
+          {withImage && imageTemplates.length > 0 && (
+            <label className="inline-flex items-center gap-1.5 text-[11px] text-ink-300">
+              <span className="text-ink-400">
+                {t("posts.template", { defaultValue: "Template" })}:
+              </span>
+              <select
+                value={imageTemplateId}
+                onChange={(e) => setImageTemplateId(e.target.value)}
+                className="rounded-md border border-ink-700 bg-ink-800/40 px-2 py-1 text-xs text-ink-100 focus:border-ink-500 focus:outline-none"
+              >
+                <option value="">
+                  {t("posts.templateDefault", {
+                    defaultValue: "Default" +
+                      (imageTemplates.find((tt) => tt.is_default) ? "" : " (none)"),
+                  })}
+                </option>
+                {imageTemplates.map((tt) => (
+                  <option key={tt.id} value={tt.id}>
+                    {tt.is_default ? "★ " : ""}{tt.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             type="button"
             onClick={() => void generate()}
@@ -323,7 +370,13 @@ export default function PostsTab({ cardId }: Props) {
             <li key={d.id}>
               <DraftCard
                 draft={d}
+                cardId={cardId}
                 mcpServers={mcpServers}
+                onUpdated={(next) =>
+                  setDrafts((prev) =>
+                    prev.map((p) => (p.id === next.id ? next : p)),
+                  )
+                }
                 onDelete={() => void removeDraft(d.id)}
               />
             </li>
@@ -339,11 +392,15 @@ export default function PostsTab({ cardId }: Props) {
  * -------------------------------------------------------------------- */
 function DraftCard({
   draft,
+  cardId,
   mcpServers,
+  onUpdated,
   onDelete,
 }: {
   draft: SocialPostOut;
+  cardId: string;
   mcpServers: MCPServerOut[];
+  onUpdated: (next: SocialPostOut) => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
@@ -353,13 +410,102 @@ function DraftCard({
   const [copiedAll, setCopiedAll] = useState(false);
   const { src: imageSrc } = useAuthedImage(draft.image_url);
 
+  // Inline editor state — local-first so typing stays snappy; PATCH
+  // is debounced 1.5 s after the last keystroke.
+  const [text, setText] = useState(draft.text);
+  const [savingState, setSavingState] = useState<"idle" | "saving" | "saved">("idle");
+  // Selection range inside the textarea — drives the AI-action toolbar.
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
+  const [rewriting, setRewriting] = useState<string | null>(null);
+  const [rewriteError, setRewriteError] = useState<string | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
+
+  // Sync local text when the draft prop changes (e.g. a regeneration
+  // bumps the version externally).
+  useEffect(() => {
+    setText(draft.text);
+  }, [draft.id, draft.text]);
+
+  // Debounced auto-save: PATCH the new text 1.5 s after the user stops
+  // typing.
+  useEffect(() => {
+    if (text === draft.text) return;
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    setSavingState("saving");
+    saveTimerRef.current = window.setTimeout(() => {
+      void api
+        .updateSocialPost(cardId, draft.id, text)
+        .then((next) => {
+          onUpdated(next);
+          setSavingState("saved");
+          window.setTimeout(() => setSavingState("idle"), 1200);
+        })
+        .catch(() => {
+          // Failure: leave the local text in place so the user doesn't
+          // lose work. They'll see the "saving…" status hang there.
+          setSavingState("idle");
+        });
+    }, 1500);
+    return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    };
+  }, [text, cardId, draft.id, draft.text, onUpdated]);
+
+  // Track selection so the AI toolbar knows which fragment to rewrite.
+  const refreshSelection = () => {
+    const el = editorRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    if (typeof start !== "number" || typeof end !== "number" || start === end) {
+      setSelection(null);
+    } else {
+      setSelection({ start, end });
+    }
+  };
+
+  const runRewrite = async (
+    action: "shorter" | "longer" | "sharper" | "rephrase",
+  ) => {
+    if (!selection) return;
+    const fragment = text.slice(selection.start, selection.end);
+    setRewriting(action);
+    setRewriteError(null);
+    try {
+      const res = await api.rewriteSocialPostSelection(cardId, draft.id, {
+        action,
+        selection: fragment,
+        full_text: text,
+      });
+      const next = text.slice(0, selection.start) + res.text + text.slice(selection.end);
+      setText(next);
+      // Move cursor + reselect the new fragment so the user can keep
+      // iterating on the same span.
+      requestAnimationFrame(() => {
+        const el = editorRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(selection.start, selection.start + res.text.length);
+        setSelection({
+          start: selection.start,
+          end: selection.start + res.text.length,
+        });
+      });
+    } catch (err) {
+      setRewriteError((err as Error).message);
+    } finally {
+      setRewriting(null);
+    }
+  };
+
   const fullText = draft.hashtags?.length
-    ? `${draft.text}\n\n${draft.hashtags.map((h) => `#${h}`).join(" ")}`
-    : draft.text;
+    ? `${text}\n\n${draft.hashtags.map((h) => `#${h}`).join(" ")}`
+    : text;
 
   const overLimit =
-    meta.freeLimit !== undefined && draft.character_count > meta.freeLimit;
-  const overSoftLimit = draft.character_count > meta.softCharLimit;
+    meta.freeLimit !== undefined && text.length > meta.freeLimit;
+  const overSoftLimit = text.length > meta.softCharLimit;
 
   const copy = async (value: string, setter: (v: boolean) => void) => {
     try {
@@ -429,10 +575,59 @@ function DraftCard({
         </div>
       </div>
 
-      {/* Text */}
-      <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-ink-100">
-        {draft.text}
-      </pre>
+      {/* Editor — auto-grows with content; user can tweak the draft
+          inline. AI quick-action toolbar appears above the textarea
+          when there's a non-empty selection. */}
+      <div className="relative">
+        {selection && (
+          <div className="absolute -top-9 right-0 z-10 flex items-center gap-1 rounded-lg border border-violet-500/40 bg-ink-900/95 p-1 shadow-xl backdrop-blur">
+            <span className="ml-1 mr-1 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-violet-300">
+              <Sparkles className="h-3 w-3" />
+              {t("posts.aiActions", { defaultValue: "AI" })}
+            </span>
+            <RewriteButton
+              label={t("posts.action.sharper", { defaultValue: "Sharper" })}
+              active={rewriting === "sharper"}
+              disabled={rewriting !== null}
+              onClick={() => void runRewrite("sharper")}
+            />
+            <RewriteButton
+              label={t("posts.action.shorter", { defaultValue: "Shorter" })}
+              active={rewriting === "shorter"}
+              disabled={rewriting !== null}
+              onClick={() => void runRewrite("shorter")}
+            />
+            <RewriteButton
+              label={t("posts.action.longer", { defaultValue: "Longer" })}
+              active={rewriting === "longer"}
+              disabled={rewriting !== null}
+              onClick={() => void runRewrite("longer")}
+            />
+            <RewriteButton
+              label={t("posts.action.rephrase", { defaultValue: "Rephrase" })}
+              active={rewriting === "rephrase"}
+              disabled={rewriting !== null}
+              onClick={() => void runRewrite("rephrase")}
+            />
+          </div>
+        )}
+        <textarea
+          ref={editorRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onSelect={refreshSelection}
+          onMouseUp={refreshSelection}
+          onKeyUp={refreshSelection}
+          onBlur={() => window.setTimeout(refreshSelection, 50)}
+          rows={Math.max(5, Math.min(28, text.split("\n").length + 1))}
+          className="w-full resize-none rounded-md border border-transparent bg-transparent font-sans text-sm leading-relaxed text-ink-100 outline-none transition focus:border-ink-700 focus:bg-ink-900/30 focus:px-2 focus:py-1.5"
+        />
+      </div>
+      {rewriteError && (
+        <p className="mt-1 rounded-md bg-red-500/10 px-3 py-1.5 text-[11px] text-red-300">
+          {rewriteError}
+        </p>
+      )}
 
       {/* Hashtags */}
       {draft.hashtags && draft.hashtags.length > 0 && (
@@ -462,11 +657,25 @@ function DraftCard({
         </div>
       )}
 
-      {/* Footer meta — character counter */}
+      {/* Footer meta — live character counter + save state */}
       <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-ink-500">
-        <span>
-          {draft.character_count}{" "}
-          {t("posts.chars", { defaultValue: "chars" })}
+        <span className="flex items-center gap-2">
+          <span>
+            {text.length}{" "}
+            {t("posts.chars", { defaultValue: "chars" })}
+          </span>
+          {savingState === "saving" && (
+            <span className="inline-flex items-center gap-1 text-ink-400">
+              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+              {t("posts.saving", { defaultValue: "Saving…" })}
+            </span>
+          )}
+          {savingState === "saved" && (
+            <span className="inline-flex items-center gap-1 text-emerald-400">
+              <Check className="h-2.5 w-2.5" />
+              {t("posts.saved", { defaultValue: "Saved" })}
+            </span>
+          )}
         </span>
         {overLimit && meta.freeLimit && (
           <span className="text-amber-300">
@@ -686,5 +895,34 @@ function PublishMenu({
         </div>
       )}
     </div>
+  );
+}
+
+function RewriteButton({
+  label,
+  active,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={[
+        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition disabled:opacity-50",
+        active
+          ? "bg-violet-500/25 text-violet-100 ring-1 ring-violet-500/40"
+          : "text-ink-200 hover:bg-ink-800 hover:text-ink-100",
+      ].join(" ")}
+    >
+      {active ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+      {label}
+    </button>
   );
 }
