@@ -133,7 +133,7 @@ export function PostImagePregenModal({
 
   const modal = (
     <div
-      className="fixed inset-0 z-50 flex flex-col sm:items-start sm:justify-center sm:px-4 sm:pt-[8vh]"
+      className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center sm:px-4"
       role="dialog"
       aria-modal="true"
       aria-label={t("posts.pregen.title", { defaultValue: "Image prompt preview" }) ?? ""}

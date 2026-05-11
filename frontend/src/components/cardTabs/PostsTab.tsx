@@ -192,22 +192,35 @@ export default function PostsTab({ cardId }: Props) {
     };
   }, [cardId]);
 
-  const generate = async () => {
+  // When set, the DraftCard whose id matches auto-opens its pregen modal
+  // on first render — used by the "preview first" generate flow to drop
+  // the user straight into variable editing for the freshly-created post.
+  const [pregenForPostId, setPregenForPostId] = useState<string | null>(null);
+
+  const generate = async (options: { previewFirst?: boolean } = {}) => {
+    const { previewFirst = false } = options;
     setGenerating(true);
     setError(null);
+    // In preview-first mode we deliberately create the post WITHOUT the
+    // image — the user will trigger image generation from inside the
+    // modal after inspecting the extracted variables.
+    const wantsImageInBackend = withImage && !previewFirst;
     const body: SocialPostCreate = {
       platform,
       tone,
       with_hashtags: withHashtags,
       with_cta: withCta,
-      with_image: withImage,
+      with_image: wantsImageInBackend,
       with_emoji: withEmoji,
       language: language.trim() || null,
-      image_template_id: withImage && imageTemplateId ? imageTemplateId : null,
+      image_template_id: wantsImageInBackend && imageTemplateId ? imageTemplateId : null,
     };
     try {
       const post = await api.createSocialPost(cardId, body);
       setDrafts((prev) => [post, ...prev]);
+      if (previewFirst) {
+        setPregenForPostId(post.id);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -385,11 +398,37 @@ export default function PostsTab({ cardId }: Props) {
               )}
             </label>
           )}
+          {/* Preview-first button: only meaningful when an image is
+              actually being generated. Creates a caption-only post and
+              opens the variable-editor modal so the user can tweak
+              extracted values before paying for the gpt-image-2 call. */}
+          {withImage && (
+            <button
+              type="button"
+              onClick={() => void generate({ previewFirst: true })}
+              disabled={generating}
+              title={
+                t("posts.generatePreviewTitle", {
+                  defaultValue:
+                    "Generate caption only, then open the variable editor for the image",
+                }) ?? ""
+              }
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition hover:border-violet-400 hover:bg-violet-500/10 hover:text-violet-100 disabled:opacity-50"
+            >
+              <ImageIcon className="h-3.5 w-3.5" />
+              {t("posts.generatePreview", {
+                defaultValue: "Preview variables first",
+              })}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void generate()}
             disabled={generating}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+            className={[
+              withImage ? "" : "ml-auto",
+              "inline-flex items-center gap-1.5 rounded-md bg-ink-100 px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-ink-200 disabled:opacity-50",
+            ].join(" ")}
           >
             {generating ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -430,6 +469,7 @@ export default function PostsTab({ cardId }: Props) {
                 cardId={cardId}
                 mcpServers={mcpServers}
                 imageTemplates={imageTemplates}
+                initialPregenOpen={pregenForPostId === d.id}
                 onUpdated={(next) =>
                   setDrafts((prev) =>
                     prev.map((p) => (p.id === next.id ? next : p)),
@@ -453,6 +493,7 @@ function DraftCard({
   cardId,
   mcpServers,
   imageTemplates,
+  initialPregenOpen = false,
   onUpdated,
   onDelete,
 }: {
@@ -460,6 +501,10 @@ function DraftCard({
   cardId: string;
   mcpServers: MCPServerOut[];
   imageTemplates: ImageTemplateOut[];
+  /** When true on first render, the pregen variable-editor modal opens
+   *  automatically — used by the "Preview variables first" flow in
+   *  PostsTab so the user lands directly in the editor. */
+  initialPregenOpen?: boolean;
   onUpdated: (next: SocialPostOut) => void;
   onDelete: () => void;
 }) {
@@ -469,7 +514,7 @@ function DraftCard({
   const [, setCopiedText] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
   const { src: imageSrc } = useAuthedImage(draft.image_url);
-  const [pregenOpen, setPregenOpen] = useState(false);
+  const [pregenOpen, setPregenOpen] = useState(initialPregenOpen);
   const [refineOpen, setRefineOpen] = useState(false);
   const { versions, registerPending } = usePostImageVersions(
     cardId,
