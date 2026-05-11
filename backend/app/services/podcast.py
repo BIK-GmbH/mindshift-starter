@@ -15,8 +15,10 @@ from __future__ import annotations
 import base64
 import io
 import json
+import re
 import wave
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
 import httpx
@@ -408,6 +410,82 @@ def _build_cover_prompt(
     return " ".join(parts)
 
 
+_TEMPLATE_VAR_RE = re.compile(r"\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}")
+
+
+def _extract_template_vars(template: str) -> list[str]:
+    return list(dict.fromkeys(_TEMPLATE_VAR_RE.findall(template)))
+
+
+_TEMPLATE_FILL_PROMPT = """You fill placeholder variables for a 1:1 social-media
+image. The values you return will be rendered LITERALLY on the image, so
+they must be short, punchy, and grounded in the supplied source content.
+
+Rules:
+- Detect the source language; respond in the SAME language.
+- HEADLINE: 1–6 words, ALL CAPS, the punchiest framing of the topic.
+- SUBTITLE: ≤ 8 words, sentence case, optional context line.
+- NUMBER_n: a striking numeric claim from the source (percentage, count,
+  score, dollar amount). Keep original form ("70%", "$1.2B", "62").
+  If fewer than n numbers are in the source, return "" for the missing ones.
+- LABEL_n: ≤ 6 words, the concrete thing NUMBER_n measures.
+- SOURCES: comma-separated names of cited orgs / publications / channels
+  in the source. Empty string if none.
+- DATE: a short period label like "Q2 2026" or "May 2026". Default to
+  the current month if nothing is stated in the source: {current_month}.
+- Never invent stats. If you cannot fill a value honestly, return "".
+- Return ONLY valid JSON with the requested keys."""
+
+
+def _resolve_template_vars(
+    template: str, *, title: str, body: str
+) -> str:
+    """Detect {{VAR}} placeholders, extract values via gpt-5.4-mini, substitute."""
+    variables = _extract_template_vars(template)
+    if not variables:
+        return template
+
+    settings = get_settings()
+    if not settings.openai_api_key:
+        # No API key — leave placeholders intact rather than failing the image.
+        return template
+
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.openai_api_key)
+    current_month = datetime.now().strftime("%B %Y")
+    system = _TEMPLATE_FILL_PROMPT.format(current_month=current_month)
+    user_msg = (
+        f"SOURCE TITLE:\n{title}\n\n"
+        f"SOURCE BODY:\n{body[:4000]}\n\n"
+        f"Return JSON with exactly these keys (empty string if unknown): "
+        f"{variables}"
+    )
+    try:
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_msg},
+            ],
+            response_format={"type": "json_object"},
+        )
+        data = json.loads(response.choices[0].message.content or "{}")
+    except Exception:
+        # Extraction failure — leave placeholders so we can see the issue
+        # in the generated image rather than silently dropping context.
+        return template
+
+    def _replace(match: re.Match[str]) -> str:
+        var = match.group(1)
+        value = data.get(var)
+        if value is None:
+            return match.group(0)
+        return str(value).strip()
+
+    return _TEMPLATE_VAR_RE.sub(_replace, template)
+
+
 def generate_cover_image(
     title: str,
     summary_hint: str = "",
@@ -423,6 +501,8 @@ def generate_cover_image(
     the image_templates table). When set, we prepend it to the built
     prompt so the user's house style steers every image generator —
     podcast covers, path covers, social-post images, all of them.
+    Templates containing {{VARIABLE}} placeholders are first resolved
+    via a gpt-5.4-mini extraction over (title, summary_hint).
     """
     settings = get_settings()
     if not settings.openai_api_key:
@@ -439,9 +519,18 @@ def generate_cover_image(
         cover_text=cover_text,
     )
     if template_content and template_content.strip():
-        # Template precedes the topic-specific instructions so the
-        # style block sets the rules and the topic block fills them.
-        prompt = f"{template_content.strip()}\n\n---\n\n{built}"
+        resolved = _resolve_template_vars(
+            template_content.strip(), title=title, body=summary_hint
+        )
+        if _extract_template_vars(template_content):
+            # Variable-driven template: the resolved template IS the full
+            # prompt (style + concrete content). Appending `built` would
+            # confuse the model with a competing topic block.
+            prompt = resolved
+        else:
+            # Style-only template: prepend it so the topic block fills
+            # in the actual subject.
+            prompt = f"{resolved}\n\n---\n\n{built}"
     else:
         prompt = built
 

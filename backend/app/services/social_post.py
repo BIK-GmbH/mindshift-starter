@@ -278,12 +278,12 @@ def generate_post_image(
     """
     from app.services.podcast import generate_cover_image
 
-    # Build a short hint for the image generator — title + the first
-    # 600 chars of the post is enough mood-setting without bloating
-    # the prompt.
+    # Pass enough body that the variable-extraction pass inside
+    # generate_cover_image can pick up numeric stats buried deeper in
+    # the post. The downstream call caps internally.
     snippet = post_text.strip()
-    if len(snippet) > 600:
-        snippet = snippet[:600] + " …"
+    if len(snippet) > 3500:
+        snippet = snippet[:3500] + " …"
     return generate_cover_image(
         title=title,
         summary_hint=snippet,
