@@ -26,6 +26,13 @@ export function usePostImageVersions(
   // the same id in place instead of stacking three of them.
   const toastIdsRef = useRef<Map<string, string>>(new Map());
 
+  // Bumped on every poll attempt — even on error — so the polling
+  // effect re-runs and schedules the next tick. Without this counter,
+  // a single transient fetch failure (no setVersions call) would stop
+  // polling silently because the effect's `versions` dependency
+  // wouldn't change.
+  const [pollTick, setPollTick] = useState(0);
+
   const fetchOnce = useCallback(async () => {
     try {
       const rows = await api.listPostImageVersions(cardId, post.id);
@@ -33,6 +40,8 @@ export function usePostImageVersions(
       return rows;
     } catch {
       return null;
+    } finally {
+      setPollTick((n) => n + 1);
     }
   }, [cardId, post.id]);
 
@@ -44,27 +53,6 @@ export function usePostImageVersions(
       next.set(v.id, v.status);
       const oldStatus = prev.get(v.id);
       const toastId = toastIdsRef.current.get(v.id);
-      // First-sight of a processing version that the user didn't open
-      // a modal for (e.g. an image job kicked off by create_social_post
-      // running asynchronously in the background): mint a sticky
-      // "rendering" toast so the user knows something is in flight.
-      // Without this they'd see the draft appear instantly with no
-      // image and assume nothing's happening for the ~3 minutes that
-      // gpt-image-2's high-quality pass takes.
-      if (oldStatus === undefined && v.status === "processing" && !toastIdsRef.current.has(v.id)) {
-        const id = `image-${v.id}`;
-        toastIdsRef.current.set(v.id, id);
-        toast.show({
-          id,
-          kind: "loading",
-          message:
-            t("toasts.imageRendering", {
-              defaultValue:
-                "Image is rendering in the background — this can take 2–3 min for text-heavy templates.",
-            }) ?? "Image is rendering in the background.",
-          duration: null,
-        });
-      }
       if (oldStatus === "processing" && v.status === "ready") {
         const id = toastId ?? `image-${v.id}`;
         toast.show({
@@ -121,9 +109,13 @@ export function usePostImageVersions(
     void fetchOnce();
   }, [fetchOnce]);
 
-  // While any version is processing, schedule a next fetch. When the
-  // last processing row flips ready/failed, this effect re-runs and
-  // returns without scheduling — polling stops naturally.
+  // While any version is processing, schedule a next fetch. The
+  // effect re-runs whenever `versions` changes (fresh polling data)
+  // OR `pollTick` bumps (every fetch attempt, including failed ones)
+  // — that way a single transient network error doesn't stop the
+  // loop. When the last processing row finally flips to ready /
+  // failed, anyProcessing becomes false, no new timer is scheduled,
+  // and polling stops naturally.
   useEffect(() => {
     const anyProcessing = versions.some((v) => v.status === "processing");
     if (!anyProcessing) return undefined;
@@ -131,7 +123,7 @@ export function usePostImageVersions(
       void fetchOnce();
     }, POLL_INTERVAL_MS);
     return () => window.clearTimeout(handle);
-  }, [versions, fetchOnce]);
+  }, [versions, pollTick, fetchOnce]);
 
   /** Called by the modals after kicking off a job so the pending row
    *  shows up in `versions` immediately, alongside a sticky "loading"
