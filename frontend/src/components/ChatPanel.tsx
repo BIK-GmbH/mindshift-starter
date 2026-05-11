@@ -132,9 +132,23 @@ export default function ChatPanel({
     setError(null);
 
     try {
+      // Read from localStorage at send-time instead of trusting the React
+      // closure. Vite HMR has bitten us where the visual toggle updates
+      // (new JSX) but the captured `useWebSearch` reference inside the
+      // closure stays from a previous render, causing send to ship the
+      // old (false) value while the UI shows hellblau. localStorage is
+      // the single source of truth — the same value the toggle writes
+      // on every click — so there's no drift.
+      const liveWebSearch = (() => {
+        try {
+          return localStorage.getItem(WEB_SEARCH_STORAGE_KEY) === "1";
+        } catch {
+          return useWebSearch;
+        }
+      })();
       const response = await send(
         nextHistory.map(({ role, content }) => ({ role, content })),
-        { useWebSearch },
+        { useWebSearch: liveWebSearch },
       );
       setMessages((prev) => [
         ...prev,
@@ -231,7 +245,11 @@ export default function ChatPanel({
         >
           <Globe className="h-4 w-4" />
         </button>
-        <VoiceRecordButton onTranscribed={onVoice} showStatusLine={true} />
+        {/* Voice button — status line OFF so the whole record→stop→
+            transcribe lifecycle stays inside the single button (icon
+            morphs to spinner during transcribing, no separate elapsed
+            timer or "Transcribing…" label next to it). */}
+        <VoiceRecordButton onTranscribed={onVoice} showStatusLine={false} />
         <button
           type="submit"
           disabled={busy || !input.trim()}
