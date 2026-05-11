@@ -182,6 +182,67 @@
     return walker.nextNode();
   }
 
+  /** Site-specific post-detection that finds BOTH the post wrapper
+   *  (for grabbing focused HTML) AND a stable permalink URL — used
+   *  to fix feed sites where the address bar shows the feed URL but
+   *  the user actually highlighted a specific post.
+   *
+   *  Returns { container, permalink } or null if no site-specific
+   *  detection matched. Caller falls back to the generic
+   *  `findArticleContainer` + `location.href` when null.
+   */
+  function findPostContext(range) {
+    let node = range.commonAncestorContainer;
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    if (!node) return null;
+
+    // LinkedIn: walk up looking for ANY attribute whose value starts
+    // with "urn:li:activity:" (the post URN). LinkedIn renames classes
+    // and data-attrs frequently, but the URN value pattern is stable.
+    let cur = node;
+    while (cur && cur !== document.body) {
+      if (cur.attributes) {
+        for (const attr of cur.attributes) {
+          if (attr.value && attr.value.startsWith("urn:li:activity:")) {
+            console.debug(
+              "[mindshift] LinkedIn post wrapper found:",
+              cur,
+              "urn:", attr.value,
+            );
+            return {
+              container: cur,
+              permalink: `https://www.linkedin.com/feed/update/${attr.value}/`,
+            };
+          }
+        }
+      }
+      cur = cur.parentElement;
+    }
+
+    // X / Twitter: closest <article data-testid="tweet"> + permalink
+    // from the /status/<id>/ link inside it.
+    const isTwitter = /(?:^|\.)(x\.com|twitter\.com)$/i.test(location.hostname);
+    if (isTwitter) {
+      const article =
+        node.closest('article[data-testid="tweet"]') || node.closest("article");
+      if (article) {
+        const a = article.querySelector('a[href*="/status/"]');
+        let permalink = null;
+        if (a) {
+          try {
+            permalink = new URL(a.href, location.href).href;
+          } catch {
+            permalink = null;
+          }
+        }
+        console.debug("[mindshift] Tweet container found:", article, "permalink:", permalink);
+        return { container: article, permalink };
+      }
+    }
+
+    return null;
+  }
+
   /** Find the smallest meaningful container around a selection — used
    *  to send a focused chunk of HTML to the backend instead of the
    *  whole page (which on feed sites like LinkedIn would include every
@@ -300,12 +361,12 @@
   }
 
   // -------------------------- save flow --------------------------
-  async function saveHighlight({ text, prefix, suffix, note, color, focusedHtml }) {
+  async function saveHighlight({ text, prefix, suffix, note, color, focusedHtml, url }) {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(
         {
           type: "saveHighlight",
-          url: location.href,
+          url: url || location.href,
           title: document.title || "",
           anchor_text: text,
           prefix: prefix || "",
@@ -473,7 +534,12 @@
           note = window.prompt("Highlight note:", "") || "";
         }
         destroyToolbar();
-        const container = findArticleContainer(s.range);
+        // Site-specific post detection first (LinkedIn, X) — picks up
+        // both the right container AND a stable permalink. Falls back
+        // to the generic article-container finder + location.href.
+        const post = findPostContext(s.range);
+        const container = post?.container ?? findArticleContainer(s.range);
+        const url = post?.permalink ?? location.href;
         const focusedHtml = container ? container.outerHTML : null;
         // Safety cap — über 5 MB würde der Backend's page_html-Limit gerissen,
         // dann lieber gar nicht schicken und den whole-doc-Fallback ziehen.
@@ -486,6 +552,7 @@
           note,
           color: "yellow",
           focusedHtml: safeFocusedHtml,
+          url,
         });
         if (result?.ok) {
           flash("Highlight saved 🟡", "ok");
