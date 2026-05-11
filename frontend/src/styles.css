@@ -751,6 +751,22 @@
   .text-red-300 { color: rgb(153 27 27); }
   .border-red-500\/30,
   .border-red-500\/40 { border-color: rgb(239 68 68 / 0.45); }
+
+  /* orange (Feeds page — RSS icon, Refresh / Refresh-all buttons) */
+  .bg-orange-500\/5,
+  .bg-orange-500\/10,
+  .bg-orange-500\/15,
+  .bg-orange-500\/20 { background-color: rgb(255 237 213); }
+  .text-orange-200,
+  .text-orange-300 { color: rgb(154 52 18); }
+  .ring-orange-500\/20,
+  .ring-orange-500\/30,
+  .ring-orange-500\/40 { --tw-ring-color: rgb(249 115 22 / 0.55); }
+  .border-orange-500\/20,
+  .border-orange-500\/30,
+  .border-orange-500\/40 { border-color: rgb(249 115 22 / 0.55); }
+  /* hover state on the same buttons stays readable */
+  .hover\:bg-orange-500\/20:hover { background-color: rgb(254 215 170); }
 }
 
 /* Skeleton shimmer used in IngestionSkeleton + future loading
