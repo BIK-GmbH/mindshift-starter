@@ -609,11 +609,10 @@ els.autoSaveYTToggle.addEventListener("change", async () => {
 // =====================================================================
 window.addEventListener("message", (event) => {
   const data = event.data;
-  console.warn("[mindshift sidepanel] message received:", data, "origin:", event.origin);
   if (!data || data.type !== "mindshift:seekVideo") return;
   const { videoId, seconds } = data;
   if (typeof videoId !== "string" || typeof seconds !== "number") {
-    console.warn("[mindshift sidepanel] bad shape, ignoring");
+    console.debug("[mindshift sidepanel] bad seekVideo shape, ignoring");
     return;
   }
   const videoIdFromTabUrl = (urlStr) => {
@@ -629,15 +628,10 @@ window.addEventListener("message", (event) => {
   };
 
   void chrome.tabs.query({ url: "*://*.youtube.com/watch*" }, async (tabs) => {
-    console.warn("[mindshift sidepanel] tabs found:", tabs?.length);
     const matchingTab = (tabs || []).find(
       (tab) => videoIdFromTabUrl(tab.url || "") === videoId,
     );
     if (matchingTab && typeof matchingTab.id === "number") {
-      console.warn(
-        "[mindshift sidepanel] matching tab found, focusing + seeking:",
-        matchingTab.id,
-      );
       try {
         await chrome.tabs.update(matchingTab.id, { active: true });
         if (matchingTab.windowId !== undefined) {
@@ -652,14 +646,12 @@ window.addEventListener("message", (event) => {
           videoId,
           seconds,
         })
-        .then(
-          () => console.warn("[mindshift sidepanel] seek sent to tab", matchingTab.id),
-          (err) => console.warn("[mindshift sidepanel] send-error:", err?.message),
+        .catch((err) =>
+          console.warn("[mindshift sidepanel] seek send-error:", err?.message),
         );
       return;
     }
     const url = `https://www.youtube.com/watch?v=${videoId}&t=${seconds}s`;
-    console.warn("[mindshift sidepanel] no matching tab — opening new:", url);
     try {
       await chrome.tabs.create({ url, active: true });
     } catch (err) {
