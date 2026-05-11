@@ -1,5 +1,6 @@
 import { Check, ChevronDown, Languages, Loader2, Plus, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { useDialog } from "../lib/DialogContext";
@@ -97,6 +98,52 @@ export default function CardLanguagePicker({
   });
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Portal-rendered menu position. Computed from the trigger's bounding
+  // rect on open so the menu escapes any overflow-hidden ancestor
+  // (= the Chrome side panel iframe, where the dropdown used to get
+  // clipped). `placement` flips above when there's not enough room
+  // below the trigger.
+  const [menuPos, setMenuPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    placement: "below" | "above";
+  } | null>(null);
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+    const compute = () => {
+      const el = triggerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const menuWidth = 256;
+      const estMenuHeight = 320; // matches max-h-72 + padding
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const placement: "below" | "above" =
+        spaceBelow < estMenuHeight && spaceAbove > spaceBelow ? "above" : "below";
+      // Right-align with the trigger, but clamp to viewport so the menu
+      // never extends past the left edge in narrow contexts (side panel,
+      // mobile portrait).
+      let left = rect.right - menuWidth;
+      const minLeft = 8;
+      const maxLeft = Math.max(minLeft, window.innerWidth - menuWidth - 8);
+      if (left < minLeft) left = minLeft;
+      if (left > maxLeft) left = maxLeft;
+      const top = placement === "below" ? rect.bottom + 4 : rect.top - 4;
+      setMenuPos({ top, left, width: menuWidth, placement });
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    window.addEventListener("scroll", compute, true);
+    return () => {
+      window.removeEventListener("resize", compute);
+      window.removeEventListener("scroll", compute, true);
+    };
+  }, [open]);
   // Track whether we've consumed the initial-active-language hint yet.
   // Once the user clicks anything in the picker (or once we activate
   // the requested language), the hint stops applying. Without this
@@ -218,11 +265,18 @@ export default function CardLanguagePicker({
     };
   }, [shouldPoll, cardId, effectiveInitial]);
 
-  // Close on outside click.
+  // Close on outside click. With the menu rendered through a portal it
+  // lives outside the wrapper subtree, so we also need to detect clicks
+  // on the menu itself — track it via a separate ref attached to the
+  // portal root below.
+  const menuRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (wrapperRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -305,6 +359,7 @@ export default function CardLanguagePicker({
   return (
     <div ref={wrapperRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-800/40 px-2 py-1 text-[11px] text-ink-200 transition hover:bg-ink-800"
@@ -319,8 +374,22 @@ export default function CardLanguagePicker({
         <ChevronDown className="h-3 w-3 text-ink-400" />
       </button>
 
-      {open && (
-        <div className="panel-elevated absolute right-0 top-[calc(100%+4px)] z-30 w-64 overflow-hidden rounded-md border border-ink-700 bg-ink-900 shadow-xl">
+      {open && menuPos && createPortal(
+        <div
+          ref={menuRef}
+          className="panel-elevated fixed z-50 overflow-hidden rounded-md border border-ink-700 bg-ink-900 shadow-xl"
+          style={{
+            top: menuPos.placement === "below" ? menuPos.top : undefined,
+            // For "above" placement we use bottom-anchored positioning so
+            // the menu grows upward from just above the trigger.
+            bottom:
+              menuPos.placement === "above"
+                ? window.innerHeight - menuPos.top
+                : undefined,
+            left: menuPos.left,
+            width: menuPos.width,
+          }}
+        >
           <div className="max-h-72 overflow-y-auto py-1">
             {/* Original */}
             <button
@@ -450,7 +519,8 @@ export default function CardLanguagePicker({
               </span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
