@@ -1158,6 +1158,10 @@ function MCPServersTab() {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
+  // Servers we're currently re-validating in the background (on tab mount
+  // we hit each active server's tools/list live so stale auth tokens —
+  // e.g. expired Reepl sessions — surface BEFORE the user tries to publish).
+  const [validating, setValidating] = useState<Set<string>>(new Set());
 
   const refresh = async () => {
     setLoading(true);
@@ -1165,14 +1169,49 @@ function MCPServersTab() {
       const list = await api.listMCPServers();
       setServers(list);
       setError(null);
+      return list;
     } catch (err) {
       setError((err as Error).message);
+      return [];
     } finally {
       setLoading(false);
     }
   };
   useEffect(() => {
-    void refresh();
+    let cancelled = false;
+    (async () => {
+      const list = await refresh();
+      if (cancelled) return;
+      // Kick off live re-validations in parallel. We only hit active
+      // servers — paused ones intentionally skip the network round-trip.
+      const active = list.filter((s) => s.is_active);
+      if (active.length === 0) return;
+      setValidating(new Set(active.map((s) => s.id)));
+      await Promise.all(
+        active.map(async (s) => {
+          try {
+            await api.testMCPServer(s.id);
+          } catch {
+            /* failures are written to server.last_error by the backend */
+          } finally {
+            if (!cancelled) {
+              setValidating((prev) => {
+                const next = new Set(prev);
+                next.delete(s.id);
+                return next;
+              });
+            }
+          }
+        }),
+      );
+      if (cancelled) return;
+      // One final refresh so the UI shows the freshly-written
+      // last_error / last_connected_at / tools.
+      await refresh();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const onTest = async (id: string) => {
@@ -1293,6 +1332,7 @@ function MCPServersTab() {
                 <MCPServerRow
                   server={s}
                   testing={testingId === s.id}
+                  validating={validating.has(s.id)}
                   onTest={() => void onTest(s.id)}
                   onEdit={() => {
                     setEditingId(s.id);
@@ -1309,20 +1349,54 @@ function MCPServersTab() {
   );
 }
 
+// Render a text block, turning bare http(s):// URLs into clickable links.
+// Used for MCP error messages like "re-authenticate by visiting https://…"
+// where the link is the actionable bit.
+function LinkifiedText({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s)>\]]+)/g);
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^https?:\/\//.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-dotted underline-offset-2 hover:text-red-200"
+          >
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 function MCPServerRow({
   server,
   testing,
+  validating,
   onTest,
   onEdit,
   onDelete,
 }: {
   server: MCPServerOut;
   testing: boolean;
+  validating: boolean;
   onTest: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
+  // Heuristic: any error mentioning expired / 401 / re-authenticate is
+  // an auth problem that the user can fix by clicking the embedded link.
+  // We flag it with a louder banner; other errors stay subtle.
+  const isAuthError =
+    !!server.last_error &&
+    /(expired|invalid|401|re-?authenticate|unauthor)/i.test(server.last_error);
   return (
     <div className="rounded-lg border border-ink-700 bg-ink-800/40 p-3">
       <div className="flex items-start justify-between gap-3">
@@ -1338,6 +1412,20 @@ function MCPServerRow({
             <span className="rounded-full bg-ink-700/60 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-ink-300">
               {server.transport}
             </span>
+            {validating ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-ink-700/60 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-ink-300">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                {t("settings.mcp.validating", { defaultValue: "validating" })}
+              </span>
+            ) : isAuthError ? (
+              <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/30">
+                {t("settings.mcp.reauth", { defaultValue: "reauth needed" })}
+              </span>
+            ) : server.last_connected_at && !server.last_error ? (
+              <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-500/30">
+                {t("settings.mcp.live", { defaultValue: "live" })}
+              </span>
+            ) : null}
             {server.has_auth_secret && (
               <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-500/30">
                 {t("settings.mcp.authed", { defaultValue: "authed" })}
@@ -1346,9 +1434,15 @@ function MCPServerRow({
           </div>
           <p className="mt-0.5 truncate font-mono text-[10px] text-ink-500">{server.url}</p>
           {server.last_error ? (
-            <p className="mt-1 truncate text-[11px] text-red-300" title={server.last_error}>
-              {server.last_error}
-            </p>
+            <div
+              className={`mt-1.5 rounded-md px-2 py-1.5 text-[11px] leading-relaxed ${
+                isAuthError
+                  ? "bg-amber-500/10 text-amber-200 ring-1 ring-amber-500/20"
+                  : "bg-red-500/10 text-red-200"
+              }`}
+            >
+              <LinkifiedText text={server.last_error} />
+            </div>
           ) : server.last_connected_at ? (
             <p className="mt-1 text-[11px] text-ink-500">
               {t("settings.mcp.lastConnected", {
