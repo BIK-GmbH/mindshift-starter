@@ -121,6 +121,10 @@ export default function LibraryPage() {
   // a video source. Toggle in the pane header lets the user collapse it
   // for a wider chat surface; setting persists during the session.
   const [chatPlayerOpen, setChatPlayerOpen] = useState(true);
+  // PDF "maximize" in the right pane is right-pane-scoped, not
+  // viewport-fullscreen: the PDF takes the chat's slot instead of
+  // 50%, the chat is hidden until the user clicks minimize again.
+  const [pdfMaximized, setPdfMaximized] = useState(false);
   // Mobile-only: tags sidebar slides in as a drawer. Closed by default;
   // closes again whenever the URL changes so picking a tag dismisses it.
   const [tagsModalOpen, setTagsModalOpen] = useState(false);
@@ -188,6 +192,12 @@ export default function LibraryPage() {
   useEffect(() => {
     setTagsModalOpen(false);
   }, [tag, untaggedFilter, selectedCardId, sourceFilter]);
+
+  // Reset right-pane PDF maximize when the selected card changes —
+  // the new card may not even be a PDF.
+  useEffect(() => {
+    setPdfMaximized(false);
+  }, [selectedCardId]);
 
   // Refresh the card list when something elsewhere mutates server state
   // — currently a card-delete from the detail view; later potentially
@@ -384,10 +394,25 @@ export default function LibraryPage() {
                   )}
                 {chatPlayerOpen && selectedCard?.source_type === "pdf" && (
                   <div className="min-h-0 flex-1">
-                    <CardSourceMedia card={selectedCard} fitHeight />
+                    <CardSourceMedia
+                      card={selectedCard}
+                      fitHeight
+                      pdfMaximized={pdfMaximized}
+                      onPdfMaximizedChange={setPdfMaximized}
+                    />
                   </div>
                 )}
-                <div className="min-h-0 flex-1">
+                <div
+                  className={[
+                    "min-h-0 flex-1",
+                    // Right-pane PDF "maximize" hides the chat instead of
+                    // shrinking it — gives the PDF the full pane height
+                    // without going viewport-fullscreen.
+                    pdfMaximized && selectedCard?.source_type === "pdf"
+                      ? "hidden"
+                      : "",
+                  ].join(" ")}
+                >
                   <ChatPanel
                     key={selectedCardId}
                     send={(history) => api.chatCard(selectedCardId, history)}

@@ -20,6 +20,15 @@ interface PdfReaderProps {
   /** Drives the compact mini-on-scroll variant: hide most toolbar
    *  controls, show only "Page X / Y" + Maximize button. */
   compact?: boolean;
+  /** Externally-controlled maximize mode. When the host (e.g. the
+   *  library right-pane) wants the PDF to expand inside its own
+   *  container — pushing out the sibling chat panel instead of
+   *  covering the whole viewport — it passes these two props and
+   *  manages the layout shift on its end. When omitted, the
+   *  Maximize button toggles an internal viewport-fullscreen mode
+   *  that portals to <body>. */
+  maximized?: boolean;
+  onMaximizedChange?: (next: boolean) => void;
 }
 
 const MIN_SCALE = 0.5;
@@ -29,7 +38,13 @@ const SCALE_STEP = 0.1;
 // User can zoom past 1.0 with +/- afterwards.
 const FIT_WIDTH_SCALE = 1.0;
 
-export default function PdfReader({ card, mode, compact = false }: PdfReaderProps) {
+export default function PdfReader({
+  card,
+  mode,
+  compact = false,
+  maximized,
+  onMaximizedChange,
+}: PdfReaderProps) {
   const { t } = useTranslation();
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [numPages, setNumPages] = useState(0);
@@ -37,7 +52,11 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
   const [scale, setScale] = useState(FIT_WIDTH_SCALE);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [jumpInput, setJumpInput] = useState("");
-  const [fullscreen, setFullscreen] = useState(false);
+  // Internal viewport-fullscreen state used only when the host
+  // doesn't drive maximize externally (controlled mode).
+  const [internalFullscreen, setInternalFullscreen] = useState(false);
+  const isControlled = typeof onMaximizedChange === "function";
+  const fullscreen = isControlled ? !!maximized : internalFullscreen;
   const containerRef = useRef<HTMLDivElement>(null);
   // Track the document area's pixel width so we can render the PDF
   // page at exactly that width — fixes right-side clipping in narrow
@@ -105,7 +124,8 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
       if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
       if (e.key === "Escape" && fullscreen) {
         e.preventDefault();
-        setFullscreen(false);
+        if (isControlled) onMaximizedChange?.(false);
+        else setInternalFullscreen(false);
         return;
       }
       if (compact) return; // no shortcuts in compact
@@ -139,12 +159,19 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
   };
 
   const toggleFullscreen = () => {
+    const next = !fullscreen;
+    if (isControlled) {
+      // Host-driven mode: just notify the parent. Layout re-shuffle
+      // (e.g. hiding the sibling chat panel) happens up there.
+      onMaximizedChange?.(next);
+      return;
+    }
     type DocVT = globalThis.Document & { startViewTransition?: (cb: () => void) => unknown };
     const doc = document as unknown as DocVT;
     if (typeof doc.startViewTransition === "function") {
-      doc.startViewTransition(() => setFullscreen((v) => !v));
+      doc.startViewTransition(() => setInternalFullscreen(next));
     } else {
-      setFullscreen((v) => !v);
+      setInternalFullscreen(next);
     }
   };
 
@@ -200,9 +227,16 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
   // the chat panel below collapses. Fullscreen escapes the parent
   // flex via `fixed inset-0 z-[60]` — z is bumped above the chat's
   // Send button (z-50) so a maximized PDF blocks chat input.
-  const wrapperClass = fullscreen
-    ? "fixed inset-0 z-[60] flex flex-col bg-ink-900"
-    : "flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900/40";
+  // Three render modes:
+  //   - controlled + maximized: stay in the parent container (the host
+  //     hides the sibling chat panel so we naturally fill that space).
+  //     Same `h-full` shape as embedded — no portal, no fixed.
+  //   - uncontrolled + fullscreen: viewport overlay via portal to body.
+  //   - embedded (default):       50/50 with siblings.
+  const wrapperClass =
+    fullscreen && !isControlled
+      ? "fixed inset-0 z-[60] flex flex-col bg-ink-900"
+      : "flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900/40";
 
   // Build the reader markup once; in fullscreen mode we portal it to
   // document.body so it escapes any transformed ancestor (the library
@@ -220,7 +254,9 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
       <div
         className={[
           "flex flex-shrink-0 items-center gap-2 border-b border-ink-700 px-2 py-1.5 text-xs",
-          fullscreen ? "bg-ink-900" : "bg-ink-800/60",
+          // Solid bg only when we're rendering as a true viewport
+          // overlay; in-container modes inherit the parent's bg.
+          fullscreen && !isControlled ? "bg-ink-900" : "bg-ink-800/60",
         ].join(" ")}
       >
         <button
@@ -319,5 +355,7 @@ export default function PdfReader({ card, mode, compact = false }: PdfReaderProp
     </div>
   );
 
-  return fullscreen ? createPortal(reader, document.body) : reader;
+  return fullscreen && !isControlled
+    ? createPortal(reader, document.body)
+    : reader;
 }

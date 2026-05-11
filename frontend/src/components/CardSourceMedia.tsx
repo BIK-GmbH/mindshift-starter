@@ -29,6 +29,11 @@ interface Props {
   pdfMode?: PdfReaderMode;
   /** Forwarded to PdfReader as compact mini-on-scroll mode. */
   compact?: boolean;
+  /** Controlled-maximize bridge: when the host wants the PDF's
+   *  Maximize button to drive an external layout shift (e.g. hide
+   *  the sibling chat panel) instead of going viewport-fullscreen. */
+  pdfMaximized?: boolean;
+  onPdfMaximizedChange?: (next: boolean) => void;
 }
 
 /**
@@ -41,7 +46,14 @@ interface Props {
  *   the source URL in a new tab.
  * - Notes / no source: nothing rendered.
  */
-export default function CardSourceMedia({ card, fitHeight = false, pdfMode, compact = false }: Props) {
+export default function CardSourceMedia({
+  card,
+  fitHeight = false,
+  pdfMode,
+  compact = false,
+  pdfMaximized,
+  onPdfMaximizedChange,
+}: Props) {
   const { t } = useTranslation();
   const [fullscreen, setFullscreen] = useState(false);
   // Read `?t=<seconds>` from the URL — set by timestamp pills in the
@@ -193,7 +205,15 @@ export default function CardSourceMedia({ card, fitHeight = false, pdfMode, comp
   // failures and falls back to an "Open original" link inline.
   if (card.source_type === "pdf") {
     const resolvedMode: PdfReaderMode = pdfMode ?? { kind: "owner" };
-    return <PdfReader card={card} mode={resolvedMode} compact={compact} />;
+    return (
+      <PdfReader
+        card={card}
+        mode={resolvedMode}
+        compact={compact}
+        maximized={pdfMaximized}
+        onMaximizedChange={onPdfMaximizedChange}
+      />
+    );
   }
 
   // Article / wiki / pdf / other URL → "open original" link
