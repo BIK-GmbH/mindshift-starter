@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, Link as LinkIcon, Loader2, MessageSquare, Moon, StickyNote, Sun } from "lucide-react";
+import { ExternalLink, FileText, Hash, Link as LinkIcon, Loader2, MessageSquare, Moon, StickyNote, Sun, Type } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -6,7 +6,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import CardLanguagePicker from "../components/CardLanguagePicker";
 import ChatTab from "../components/cardTabs/ChatTab";
 import IngestionSkeleton from "../components/IngestionSkeleton";
-import MarkdownView from "../components/MarkdownView";
+import MarkdownView, { markdownToPlainText } from "../components/MarkdownView";
 import {
   api,
   tokenStorage,
@@ -596,15 +596,71 @@ function SummaryTab({
   const takeaways = translation?.key_takeaways_json ?? card.key_takeaways_json ?? [];
   const videoId = card.source_type === "youtube" ? card.external_id ?? null : null;
   const sourceUrl = card.source_url ?? null;
+
+  const [copiedAs, setCopiedAs] = useState<"text" | "md" | null>(null);
+
+  const handleCopy = useCallback(
+    async (mode: "text" | "md") => {
+      if (!text) return;
+      const payload = mode === "md" ? text : markdownToPlainText(text);
+      try {
+        await navigator.clipboard.writeText(payload);
+        setCopiedAs(mode);
+        window.setTimeout(() => setCopiedAs(null), 1500);
+      } catch {
+        /* clipboard API can be blocked in some iframe contexts — silently ignore */
+      }
+    },
+    [text],
+  );
+
   return (
     <div className="space-y-3 p-3">
-      <div className="flex gap-1">
+      <div className="flex items-center gap-1">
         <DepthPill active={depth === "concise"} onClick={() => onDepthChange("concise")}>
           Concise
         </DepthPill>
         <DepthPill active={depth === "detailed"} onClick={() => onDepthChange("detailed")}>
           Detailed
         </DepthPill>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => void handleCopy("text")}
+            title="Copy as plain text"
+            aria-label="Copy as plain text"
+            className={[
+              "inline-flex h-7 w-7 items-center justify-center rounded-md transition",
+              copiedAs === "text"
+                ? "bg-emerald-500/15 text-emerald-300"
+                : "text-ink-400 hover:bg-ink-800 hover:text-ink-100",
+            ].join(" ")}
+          >
+            {copiedAs === "text" ? (
+              <span className="text-[11px]">✓</span>
+            ) : (
+              <Type className="h-3.5 w-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleCopy("md")}
+            title="Copy as markdown"
+            aria-label="Copy as markdown"
+            className={[
+              "inline-flex h-7 w-7 items-center justify-center rounded-md transition",
+              copiedAs === "md"
+                ? "bg-emerald-500/15 text-emerald-300"
+                : "text-ink-400 hover:bg-ink-800 hover:text-ink-100",
+            ].join(" ")}
+          >
+            {copiedAs === "md" ? (
+              <span className="text-[11px]">✓</span>
+            ) : (
+              <Hash className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
       </div>
       {text ? (
         <div className="prose prose-invert prose-sm max-w-none text-[13px] leading-relaxed text-ink-200">
@@ -627,7 +683,7 @@ function SummaryTab({
             {takeaways.map((tk, i) => (
               <li
                 key={i}
-                className="flex gap-2 rounded-md border border-ink-700/60 bg-ink-900/30 px-3 py-2"
+                className="flex gap-2 rounded-md border border-ink-600 bg-ink-900/30 px-3 py-2"
               >
                 <span className="flex-shrink-0 text-ink-500">•</span>
                 <span className="flex-1">
