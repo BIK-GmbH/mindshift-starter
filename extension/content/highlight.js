@@ -109,6 +109,20 @@
   }
 
   // -------------------------- selection --------------------------
+
+  /** Minimal HTML-attribute escape for the title we splice into the
+   *  wrapper template. We only ever splice into a `<title>` text node,
+   *  so escaping `&` and `<` is sufficient — but we do the full set
+   *  anyway since it's cheap and unsurprising. */
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function activeSelection() {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
@@ -617,11 +631,29 @@
         const post = findPostContext(s.range);
         const container = post?.container ?? findArticleContainer(s.range);
         const url = post?.permalink ?? location.href;
-        const focusedHtml = container ? container.outerHTML : null;
-        // Safety cap — über 5 MB würde der Backend's page_html-Limit gerissen,
-        // dann lieber gar nicht schicken und den whole-doc-Fallback ziehen.
+        const rawHtml = container ? container.outerHTML : null;
+        // Trafilatura needs structural anchors (<html>, <article>, <title>)
+        // to extract content. A bare <span> with text returns null and the
+        // backend marks the card as failed. Wrap whatever container we
+        // picked in a minimal article document so extraction always has
+        // something to anchor on.
+        const wrappedHtml = rawHtml
+          ? `<!DOCTYPE html><html><head><title>${escapeHtml(
+              document.title || "",
+            )}</title></head><body><article>${rawHtml}</article></body></html>`
+          : null;
         const safeFocusedHtml =
-          focusedHtml && focusedHtml.length <= 5_000_000 ? focusedHtml : null;
+          wrappedHtml && wrappedHtml.length <= 5_000_000 ? wrappedHtml : null;
+        // Loud diagnostic — visible at "Info" level by default. This is
+        // what gets sent to the backend; if Trafilatura fails downstream,
+        // this is the evidence we'd inspect.
+        console.warn(
+          "[mindshift] save:",
+          "url=", url,
+          "container=", container?.tagName?.toLowerCase(),
+          "containerChars=", rawHtml?.length ?? 0,
+          "wrappedChars=", safeFocusedHtml?.length ?? 0,
+        );
         const result = await saveHighlight({
           text: s.text,
           prefix,
