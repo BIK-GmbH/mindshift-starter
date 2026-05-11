@@ -59,6 +59,17 @@ interface UiLink {
   reasons: ConnectionReason[];
 }
 
+// react-force-graph mutates each link's source/target from string IDs
+// into the actual node object refs after the first render. Any Set
+// lookup over node IDs needs to handle both shapes.
+function linkEndpointId(endpoint: unknown): string {
+  if (typeof endpoint === "string") return endpoint;
+  if (endpoint && typeof endpoint === "object" && "id" in endpoint) {
+    return String((endpoint as { id: unknown }).id);
+  }
+  return String(endpoint);
+}
+
 export default function GraphPage() {
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -1115,9 +1126,12 @@ export default function GraphPage() {
               cooldownTicks={120}
               linkColor={(link) => {
                 const l = link as UiLink;
-                const inPath =
-                  pathSet.has(l.source as unknown as string) &&
-                  pathSet.has(l.target as unknown as string);
+                // react-force-graph mutates link.source/target after the
+                // first render: string IDs become node-object refs. We
+                // need the raw ID for every Set.has lookup below.
+                const sId = linkEndpointId(l.source);
+                const tId = linkEndpointId(l.target);
+                const inPath = pathSet.has(sId) && pathSet.has(tId);
                 if (inPath) return "#fbbf24"; // amber path
                 if (
                   hoveredLink &&
@@ -1129,15 +1143,15 @@ export default function GraphPage() {
                 // Level filter: dim edges where at least one endpoint
                 // is outside the highlighted set (BFS within N hops).
                 if (highlightedNodeIds) {
-                  const sIn = highlightedNodeIds.has(l.source as unknown as string);
-                  const tIn = highlightedNodeIds.has(l.target as unknown as string);
+                  const sIn = highlightedNodeIds.has(sId);
+                  const tIn = highlightedNodeIds.has(tId);
                   if (!(sIn && tIn)) return "rgba(140,150,170,0.08)";
                   return "rgba(140,150,170,0.7)";
                 }
                 if (
                   searchQuery &&
-                  !matchSet.has(l.source as unknown as string) &&
-                  !matchSet.has(l.target as unknown as string)
+                  !matchSet.has(sId) &&
+                  !matchSet.has(tId)
                 ) {
                   return "rgba(140,150,170,0.15)";
                 }
@@ -1146,9 +1160,9 @@ export default function GraphPage() {
               }}
               linkWidth={(link) => {
                 const l = link as UiLink;
-                const inPath =
-                  pathSet.has(l.source as unknown as string) &&
-                  pathSet.has(l.target as unknown as string);
+                const sId = linkEndpointId(l.source);
+                const tId = linkEndpointId(l.target);
+                const inPath = pathSet.has(sId) && pathSet.has(tId);
                 if (inPath) return 3.5;
                 return 0.5 + l.score * 4;
               }}
