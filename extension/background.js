@@ -210,7 +210,7 @@ async function grabPageHtml(tabId) {
   return null;
 }
 
-async function savePageForUrl(url, { tabId, mimeType } = {}) {
+async function savePageForUrl(url, { tabId, mimeType, pageHtmlOverride } = {}) {
   const stored = await chrome.storage.local.get([
     "apiUrl",
     "token",
@@ -230,7 +230,10 @@ async function savePageForUrl(url, { tabId, mimeType } = {}) {
   // Only attach HTML for the from-url path; PDF ingestion downloads the
   // PDF blob server-side and doesn't benefit from a DOM grab.
   if (endpoint === "/api/cards/from-url") {
-    const html = await grabPageHtml(tabId);
+    // Prefer the explicit override (focused container from a highlight
+    // save) over the full-document grab. Without override, fall back to
+    // grabbing the entire DOM.
+    const html = pageHtmlOverride || (await grabPageHtml(tabId));
     if (html) body.page_html = html;
   }
 
@@ -507,6 +510,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const saveRes = await savePageForUrl(msg.url, {
           tabId: sender?.tab?.id,
           mimeType: sender?.tab?.mimeType,
+          pageHtmlOverride: msg.focused_html || null,
         });
         if (!saveRes.ok) {
           sendResponse(saveRes);

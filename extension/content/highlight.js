@@ -182,6 +182,52 @@
     return walker.nextNode();
   }
 
+  /** Find the smallest meaningful container around a selection — used
+   *  to send a focused chunk of HTML to the backend instead of the
+   *  whole page (which on feed sites like LinkedIn would include every
+   *  post, the sidebar, suggested connections, etc.).
+   *
+   *  Priority:
+   *  1. <article> ancestor
+   *  2. [role="article"] ancestor (LinkedIn uses this for posts)
+   *  3. Smallest ancestor with 200..15000 chars of text — strikes a
+   *     balance between "single paragraph" and "whole page".
+   *  4. Fallback to commonAncestorContainer's parent element.
+   */
+  function findArticleContainer(range) {
+    let node = range.commonAncestorContainer;
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    if (!node) return null;
+
+    // Priority 1+2: semantic article ancestor.
+    let cur = node;
+    while (cur && cur !== document.body) {
+      const tag = cur.tagName?.toLowerCase();
+      const role = cur.getAttribute?.("role")?.toLowerCase();
+      if (tag === "article" || role === "article") return cur;
+      cur = cur.parentElement;
+    }
+
+    // Priority 3: heuristic — smallest ancestor with reasonable text
+    // density. Walk up; once we exceed 15000 chars we've gone too far,
+    // back off to the previous candidate.
+    cur = node;
+    let lastGoodCandidate = null;
+    while (cur && cur !== document.body) {
+      const text = (cur.innerText || cur.textContent || "").trim();
+      const len = text.length;
+      if (len >= 200 && len <= 15000) {
+        lastGoodCandidate = cur;
+      }
+      if (len > 15000) break;
+      cur = cur.parentElement;
+    }
+    if (lastGoodCandidate) return lastGoodCandidate;
+
+    // Priority 4: fallback.
+    return node.parentElement || node;
+  }
+
   // -------------------------- toolbar --------------------------
   function destroyToolbar() {
     toolbar?.remove();
@@ -219,7 +265,7 @@
   }
 
   // -------------------------- save flow --------------------------
-  async function saveHighlight({ text, prefix, suffix, note, color }) {
+  async function saveHighlight({ text, prefix, suffix, note, color, focusedHtml }) {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(
         {
@@ -231,6 +277,7 @@
           suffix: suffix || "",
           color: color || "yellow",
           note: note || "",
+          focused_html: focusedHtml || null,
         },
         (resp) => resolve(resp || { ok: false }),
       );
@@ -391,12 +438,19 @@
           note = window.prompt("Highlight note:", "") || "";
         }
         destroyToolbar();
+        const container = findArticleContainer(s.range);
+        const focusedHtml = container ? container.outerHTML : null;
+        // Safety cap — über 5 MB würde der Backend's page_html-Limit gerissen,
+        // dann lieber gar nicht schicken und den whole-doc-Fallback ziehen.
+        const safeFocusedHtml =
+          focusedHtml && focusedHtml.length <= 5_000_000 ? focusedHtml : null;
         const result = await saveHighlight({
           text: s.text,
           prefix,
           suffix,
           note,
           color: "yellow",
+          focusedHtml: safeFocusedHtml,
         });
         if (result?.ok) {
           flash("Highlight saved 🟡", "ok");
