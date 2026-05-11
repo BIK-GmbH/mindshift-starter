@@ -28,7 +28,11 @@ import {
   type SocialPostPlatform,
   type SocialPostTone,
 } from "../../lib/api";
-import { insertAtCaret } from "../../lib/insertAtCaret";
+import {
+  getSelectionOffsets,
+  insertAtCaretCE,
+  setCaret,
+} from "../../lib/contentEditableSelection";
 import { useAuthedImage } from "../../lib/useAuthedImage";
 import { useDialog } from "../../lib/DialogContext";
 import { PostImagePregenModal } from "./PostImagePregenModal";
@@ -431,8 +435,10 @@ function DraftCard({
   // is debounced 1.5 s after the last keystroke.
   const [text, setText] = useState(draft.text);
   const [savingState, setSavingState] = useState<"idle" | "saving" | "saved">("idle");
-  // Selection range inside the textarea — drives the AI-action toolbar.
-  const editorRef = useRef<HTMLTextAreaElement>(null);
+  // The editor is a plain-text contentEditable div so prose can wrap
+  // around a floated cover image. Selection / caret are tracked by
+  // computing char offsets against innerText.
+  const editorRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
   const [rewriting, setRewriting] = useState<string | null>(null);
   const [rewriteError, setRewriteError] = useState<string | null>(null);
@@ -440,34 +446,29 @@ function DraftCard({
 
   const onVoice = useCallback(
     (voiceText: string) => {
-      const ta = editorRef.current;
-      const { next, caret } = insertAtCaret(ta, text, voiceText);
+      const el = editorRef.current;
+      if (!el) return;
+      const { next, offset } = insertAtCaretCE(el, text, voiceText);
       setText(next);
-      setTimeout(() => {
-        if (ta) {
-          ta.setSelectionRange(caret, caret);
-          ta.focus();
-        }
-      }, 0);
+      el.innerText = next;
+      requestAnimationFrame(() => {
+        el.focus();
+        setCaret(el, offset);
+      });
     },
     [text],
   );
 
   // Sync local text when the draft prop changes (e.g. a regeneration
-  // bumps the version externally).
+  // bumps the version externally) — and push it into the editor DOM
+  // since contentEditable isn't a controlled-component the React way.
   useEffect(() => {
     setText(draft.text);
-  }, [draft.id, draft.text]);
-
-  // Auto-grow the textarea to its content height — keeps the post
-  // fully visible without an inner scrollbar (the page already
-  // scrolls). Runs after every text change + on mount.
-  useEffect(() => {
     const el = editorRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
+    if (el && el.innerText !== draft.text) {
+      el.innerText = draft.text;
+    }
+  }, [draft.id, draft.text]);
 
   // Debounced auto-save: PATCH the new text 1.5 s after the user stops
   // typing.
@@ -498,13 +499,7 @@ function DraftCard({
   const refreshSelection = () => {
     const el = editorRef.current;
     if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    if (typeof start !== "number" || typeof end !== "number" || start === end) {
-      setSelection(null);
-    } else {
-      setSelection({ start, end });
-    }
+    setSelection(getSelectionOffsets(el));
   };
 
   const runRewrite = async (
@@ -527,12 +522,11 @@ function DraftCard({
       requestAnimationFrame(() => {
         const el = editorRef.current;
         if (!el) return;
+        el.innerText = next;
         el.focus();
-        el.setSelectionRange(selection.start, selection.start + res.text.length);
-        setSelection({
-          start: selection.start,
-          end: selection.start + res.text.length,
-        });
+        const newEnd = selection.start + res.text.length;
+        setCaret(el, selection.start, newEnd);
+        setSelection({ start: selection.start, end: newEnd });
       });
     } catch (err) {
       setRewriteError((err as Error).message);
@@ -654,17 +648,58 @@ function DraftCard({
             />
           </div>
         )}
-        <textarea
+        {/* Floated cover image — sits in the top-right and lets the
+            prose wrap around it like a magazine layout. The dashed
+            "Add image" CTA stays as a separate block below for the
+            no-image case. */}
+        {imageSrc && (
+          <div className="group relative float-right ml-3 mb-2 inline-block overflow-hidden rounded-md border border-ink-700 bg-ink-900 shadow-md">
+            <img
+              src={imageSrc}
+              alt={t("posts.coverAlt", { defaultValue: "Generated cover" }) ?? ""}
+              className="block h-40 w-40 cursor-zoom-in object-cover transition hover:opacity-90"
+              onClick={() => setRefineOpen(true)}
+            />
+            <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRefineOpen(true);
+                }}
+                title={t("posts.image.refineTitle", { defaultValue: "Refine this image" }) ?? ""}
+                aria-label={t("posts.image.refine", { defaultValue: "Refine" }) ?? "Refine"}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900/85 text-ink-100 backdrop-blur transition hover:bg-violet-500"
+              >
+                <Wand2 className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPregenOpen(true);
+                }}
+                title={t("posts.image.regenerateTitle", { defaultValue: "Regenerate from template with editable variables" }) ?? ""}
+                aria-label={t("posts.image.regenerate", { defaultValue: "Regenerate" }) ?? "Regenerate"}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900/85 text-ink-100 backdrop-blur transition hover:bg-ink-700"
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )}
+        <div
           ref={editorRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onSelect={refreshSelection}
+          contentEditable
+          suppressContentEditableWarning
+          spellCheck
+          onInput={(e) => setText((e.currentTarget as HTMLDivElement).innerText)}
           onMouseUp={refreshSelection}
           onKeyUp={refreshSelection}
           onBlur={() => window.setTimeout(refreshSelection, 50)}
-          rows={1}
-          className="w-full resize-none overflow-hidden rounded-md border border-transparent bg-transparent font-sans text-sm leading-relaxed text-ink-100 outline-none transition focus:border-ink-700 focus:bg-ink-900/30 focus:px-2 focus:py-1.5"
+          className="whitespace-pre-wrap break-words rounded-md border border-transparent bg-transparent font-sans text-sm leading-relaxed text-ink-100 outline-none transition focus:border-ink-700 focus:bg-ink-900/30 focus:px-2 focus:py-1.5"
         />
+        <div className="clear-both" />
       </div>
       {rewriteError && (
         <p className="mt-1 rounded-md bg-red-500/10 px-3 py-1.5 text-[11px] text-red-300">
@@ -689,49 +724,10 @@ function DraftCard({
         </div>
       )}
 
-      {/* Image preview — clickable to open Refine-Modus; floating action
-          buttons let the user regenerate from scratch or refine the
-          current image without leaving the draft list. */}
-      {imageSrc ? (
-        <div className="group relative mt-3 inline-block overflow-hidden rounded-md border border-ink-700 bg-ink-900 shadow-md">
-          <img
-            src={imageSrc}
-            alt={t("posts.coverAlt", { defaultValue: "Generated cover" }) ?? ""}
-            className="block h-40 w-40 cursor-zoom-in object-cover transition hover:opacity-90"
-            onClick={() => setRefineOpen(true)}
-          />
-          <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setRefineOpen(true);
-              }}
-              title={t("posts.image.refineTitle", {
-                defaultValue: "Refine this image",
-              }) ?? ""}
-              aria-label={t("posts.image.refine", { defaultValue: "Refine" }) ?? "Refine"}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900/85 text-ink-100 backdrop-blur transition hover:bg-violet-500"
-            >
-              <Wand2 className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setPregenOpen(true);
-              }}
-              title={t("posts.image.regenerateTitle", {
-                defaultValue: "Regenerate from template with editable variables",
-              }) ?? ""}
-              aria-label={t("posts.image.regenerate", { defaultValue: "Regenerate" }) ?? "Regenerate"}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900/85 text-ink-100 backdrop-blur transition hover:bg-ink-700"
-            >
-              <RefreshCw className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
-      ) : (
+      {/* Add-image CTA — only when the post has no image yet. The
+          present-image branch is rendered as a float inside the editor
+          above, so prose wraps around it. */}
+      {!imageSrc && (
         <button
           type="button"
           onClick={() => setPregenOpen(true)}
