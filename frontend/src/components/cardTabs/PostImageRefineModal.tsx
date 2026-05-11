@@ -91,127 +91,137 @@ export function PostImageRefineModal({
 
   const modal = (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-ink-900/95 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={t("posts.refine.title", { defaultValue: "Refine image" }) ?? ""}
     >
-      {/* Top bar */}
-      <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">
-        <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-ink-100">
-          <Wand2 className="h-4 w-4 text-violet-400" />
-          {t("posts.refine.title", { defaultValue: "Refine image" })}
-          <span className="text-ink-500">·</span>
-          <span className="text-xs font-normal text-ink-400">
-            {versions.length} {t("posts.refine.versions", { defaultValue: "versions" })}
-          </span>
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md p-1.5 text-ink-400 transition hover:bg-ink-700 hover:text-ink-100"
-          aria-label={t("common.close") ?? "Close"}
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+      {/* Backdrop with blur — click to close, like Settings */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute inset-0 bg-ink-900/40 backdrop-blur-md"
+        aria-label={t("common.close") ?? "Close"}
+      />
 
-      {/* Main image area */}
-      <div className="flex flex-1 items-center justify-center overflow-auto p-6">
-        {refining ? (
-          <div className="flex flex-col items-center gap-3 text-ink-300">
-            <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
-            <p className="text-sm">
-              {t("posts.refine.applying", {
-                defaultValue: "Applying your refinement — this takes ~30 s…",
-              })}
-            </p>
-          </div>
-        ) : activeImageSrc ? (
-          <img
-            src={activeImageSrc}
-            alt=""
-            className="max-h-full max-w-full rounded-lg border border-ink-700 shadow-2xl"
-          />
-        ) : (
-          <div className="text-sm text-ink-400">
-            <ImageIcon className="mx-auto h-12 w-12 opacity-40" />
-            <p className="mt-2">
-              {t("posts.refine.noImage", { defaultValue: "No image to refine yet." })}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Refine input */}
-      <div className="border-t border-ink-700 px-5 py-3">
-        {error && (
-          <div className="mb-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs text-red-200">
-            {error}
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !refining) {
-                e.preventDefault();
-                void submitRefine();
-              }
-            }}
-            placeholder={
-              t("posts.refine.placeholder", {
-                defaultValue:
-                  "What should change? e.g. 'Make headline orange. Remove the bottom source line.'",
-              }) ?? ""
-            }
-            disabled={refining}
-            className="flex-1 rounded-md border border-ink-700 bg-ink-900/60 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-violet-400 focus:outline-none disabled:opacity-50"
-          />
+      <div className="relative flex h-[100vh] w-[100vw] max-h-none max-w-none flex-col overflow-hidden border-0 bg-ink-800 surface-elevated sm:h-[85vh] sm:w-[920px] sm:max-h-[85vh] sm:max-w-[92vw] sm:rounded-2xl sm:border sm:border-ink-700 sm:shadow-2xl">
+        {/* Top bar */}
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-700 px-5 py-3">
+          <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-ink-100">
+            <Wand2 className="h-4 w-4 text-violet-400" />
+            {t("posts.refine.title", { defaultValue: "Refine image" })}
+            <span className="text-ink-500">·</span>
+            <span className="text-xs font-normal text-ink-400">
+              {versions.length} {t("posts.refine.versions", { defaultValue: "versions" })}
+            </span>
+          </h2>
           <button
             type="button"
-            onClick={() => void submitRefine()}
-            disabled={refining || !prompt.trim()}
-            className="inline-flex items-center gap-1.5 rounded-md bg-violet-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-50"
+            onClick={onClose}
+            className="rounded-md p-1.5 text-ink-400 transition hover:bg-ink-700 hover:text-ink-100"
+            aria-label={t("common.close") ?? "Close"}
           >
-            {refining ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Send className="h-3.5 w-3.5" />
-            )}
-            {t("posts.refine.send", { defaultValue: "Refine" })}
+            <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-1.5 text-[10px] text-ink-500">
-          {t("posts.refine.hint", {
-            defaultValue:
-              "Sends the current image + your prompt to gpt-image-2 (images.edit). The prior version stays in history below.",
-          })}
-        </p>
-      </div>
 
-      {/* Version strip */}
-      {versions.length > 0 && (
-        <div className="border-t border-ink-700 bg-ink-800/60 px-5 py-3">
-          <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-wide text-ink-400">
-            <Sparkles className="h-3 w-3" />
-            {t("posts.refine.history", { defaultValue: "Version history" })}
-          </div>
-          <div className="flex gap-2 overflow-x-auto">
-            {versions.map((v) => (
-              <VersionThumb
-                key={v.id}
-                version={v}
-                disabled={activating === v.id || refining}
-                isActivating={activating === v.id}
-                onClick={() => !v.is_active && void activateVersion(v.id)}
-              />
-            ))}
-          </div>
+        {/* Main image area */}
+        <div className="flex flex-1 min-h-0 items-center justify-center overflow-auto bg-ink-900/40 p-6">
+          {refining ? (
+            <div className="flex flex-col items-center gap-3 text-ink-300">
+              <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
+              <p className="text-sm">
+                {t("posts.refine.applying", {
+                  defaultValue: "Applying your refinement — this takes ~30 s…",
+                })}
+              </p>
+            </div>
+          ) : activeImageSrc ? (
+            <img
+              src={activeImageSrc}
+              alt=""
+              className="max-h-full max-w-full rounded-lg border border-ink-700 shadow-2xl"
+            />
+          ) : (
+            <div className="text-sm text-ink-400">
+              <ImageIcon className="mx-auto h-12 w-12 opacity-40" />
+              <p className="mt-2">
+                {t("posts.refine.noImage", { defaultValue: "No image to refine yet." })}
+              </p>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Refine input */}
+        <div className="flex-shrink-0 border-t border-ink-700 px-5 py-3">
+          {error && (
+            <div className="mb-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs text-red-200">
+              {error}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !refining) {
+                  e.preventDefault();
+                  void submitRefine();
+                }
+              }}
+              placeholder={
+                t("posts.refine.placeholder", {
+                  defaultValue:
+                    "What should change? e.g. 'Make headline orange. Remove the bottom source line.'",
+                }) ?? ""
+              }
+              disabled={refining}
+              className="flex-1 rounded-md border border-ink-700 bg-ink-900/60 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-violet-400 focus:outline-none disabled:opacity-50"
+            />
+            <button
+              type="button"
+              onClick={() => void submitRefine()}
+              disabled={refining || !prompt.trim()}
+              className="inline-flex items-center gap-1.5 rounded-md bg-violet-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-50"
+            >
+              {refining ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              {t("posts.refine.send", { defaultValue: "Refine" })}
+            </button>
+          </div>
+          <p className="mt-1.5 text-[10px] text-ink-500">
+            {t("posts.refine.hint", {
+              defaultValue:
+                "Sends the current image + your prompt to gpt-image-2 (images.edit). The prior version stays in history below.",
+            })}
+          </p>
+        </div>
+
+        {/* Version strip */}
+        {versions.length > 0 && (
+          <div className="flex-shrink-0 border-t border-ink-700 bg-ink-800/60 px-5 py-3">
+            <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-wide text-ink-400">
+              <Sparkles className="h-3 w-3" />
+              {t("posts.refine.history", { defaultValue: "Version history" })}
+            </div>
+            <div className="flex gap-2 overflow-x-auto">
+              {versions.map((v) => (
+                <VersionThumb
+                  key={v.id}
+                  version={v}
+                  disabled={activating === v.id || refining}
+                  isActivating={activating === v.id}
+                  onClick={() => !v.is_active && void activateVersion(v.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 
