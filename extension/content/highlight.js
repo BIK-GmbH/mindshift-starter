@@ -188,26 +188,32 @@
    *  the user actually highlighted a specific post.
    *
    *  Returns { container, permalink } or null if no site-specific
-   *  detection matched. Caller falls back to the generic
-   *  `findArticleContainer` + `location.href` when null.
+   *  detection matched.
    */
   function findPostContext(range) {
     let node = range.commonAncestorContainer;
     if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
     if (!node) return null;
 
-    // LinkedIn: walk up looking for ANY attribute whose value starts
-    // with "urn:li:activity:" (the post URN). LinkedIn renames classes
-    // and data-attrs frequently, but the URN value pattern is stable.
+    const URN_RE = /^urn:li:activity:\d+$/;
+    const ACTIVITY_NUM_RE = /^\d{15,20}$/; // 16-19 digits typical
+
+    // --- LinkedIn ---
+    // Strategy 1: any ancestor attribute value matching the URN pattern
+    //   (covers data-urn, data-id, and unknown future names).
+    // Strategy 2: any ancestor's `data-id` value that's just a numeric
+    //   activity ID (15-20 digits) — wrap into a URN.
+    // Strategy 3: any descendant <a href="/feed/update/urn:li:activity:.../">
+    //   timestamp link inside an ancestor (LinkedIn always renders one).
     let cur = node;
     while (cur && cur !== document.body) {
       if (cur.attributes) {
+        // Strategy 1: explicit URN value
         for (const attr of cur.attributes) {
-          if (attr.value && attr.value.startsWith("urn:li:activity:")) {
+          if (attr.value && URN_RE.test(attr.value)) {
             console.debug(
-              "[mindshift] LinkedIn post wrapper found:",
-              cur,
-              "urn:", attr.value,
+              "[mindshift] LinkedIn URN attr match:",
+              attr.name, "=", attr.value, "on:", cur,
             );
             return {
               container: cur,
@@ -215,12 +221,42 @@
             };
           }
         }
+        // Strategy 2: numeric data-id
+        const did = cur.getAttribute("data-id");
+        if (did && ACTIVITY_NUM_RE.test(did)) {
+          console.debug("[mindshift] LinkedIn numeric data-id match:", did, "on:", cur);
+          return {
+            container: cur,
+            permalink: `https://www.linkedin.com/feed/update/urn:li:activity:${did}/`,
+          };
+        }
+        // Strategy 3: permalink <a> inside this ancestor
+        const link = cur.querySelector?.(
+          'a[href*="/feed/update/urn:li:activity:"], a[href*="/posts/"][href*="-activity-"]',
+        );
+        if (link) {
+          try {
+            const href = new URL(link.getAttribute("href"), location.href).href;
+            const m = href.match(/urn:li:activity:\d+/);
+            if (m) {
+              console.debug(
+                "[mindshift] LinkedIn permalink <a> match:",
+                href, "on:", cur,
+              );
+              return {
+                container: cur,
+                permalink: `https://www.linkedin.com/feed/update/${m[0]}/`,
+              };
+            }
+          } catch {
+            /* malformed href — skip */
+          }
+        }
       }
       cur = cur.parentElement;
     }
 
-    // X / Twitter: closest <article data-testid="tweet"> + permalink
-    // from the /status/<id>/ link inside it.
+    // --- X / Twitter ---
     const isTwitter = /(?:^|\.)(x\.com|twitter\.com)$/i.test(location.hostname);
     if (isTwitter) {
       const article =
@@ -238,6 +274,41 @@
         console.debug("[mindshift] Tweet container found:", article, "permalink:", permalink);
         return { container: article, permalink };
       }
+    }
+
+    // --- Diagnostic dump ---
+    // When NO strategy matched on a feed-like host, dump the ancestor
+    // chain so we can see what attributes are actually present in the
+    // current LinkedIn DOM and update the strategies for next iteration.
+    const isLinkedIn = /(?:^|\.)linkedin\.com$/i.test(location.hostname);
+    if (isLinkedIn) {
+      const chain = [];
+      let walk = node;
+      let depth = 0;
+      while (walk && walk !== document.body && depth < 15) {
+        const attrs = {};
+        if (walk.attributes) {
+          for (const a of walk.attributes) {
+            // Skip class/style — too noisy. Keep data-*, role, aria-*, id.
+            if (
+              a.name === "class" ||
+              a.name === "style" ||
+              a.name === "tabindex"
+            ) continue;
+            attrs[a.name] = a.value.length > 80 ? a.value.slice(0, 77) + "…" : a.value;
+          }
+        }
+        chain.push({
+          tag: walk.tagName?.toLowerCase(),
+          attrs,
+        });
+        walk = walk.parentElement;
+        depth++;
+      }
+      console.warn(
+        "[mindshift] LinkedIn post detection FAILED — ancestor chain:",
+        chain,
+      );
     }
 
     return null;
