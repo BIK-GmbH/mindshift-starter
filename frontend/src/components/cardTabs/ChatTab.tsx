@@ -12,16 +12,24 @@ interface ChatTabProps {
    *  When false (default), only the chat panel renders — assume the source
    *  media is rendered elsewhere (e.g. above the tab strip in the path player). */
   showSourceMedia?: boolean;
+  /** When true, the chat fills its parent container (h-full) instead
+   *  of using the fixed 80vh/900px height. The parent must be a
+   *  bounded flex container — the embed's tab-content area, for
+   *  example. Library uses the default false (fixed height). */
+  fitParent?: boolean;
 }
 
-export default function ChatTab({ card, showSourceMedia = false }: ChatTabProps) {
+export default function ChatTab({ card, showSourceMedia = false, fitParent = false }: ChatTabProps) {
   const { t } = useTranslation();
   const [playerVisible, setPlayerVisible] = useState(false);
   const hasMedia = showSourceMedia && card.source_type === "youtube" && !!card.external_id;
   const playerOpen = hasMedia && playerVisible;
 
   return (
-    <div className="flex flex-col gap-3" style={{ height: "min(80vh, 900px)" }}>
+    <div
+      className="flex flex-col gap-3"
+      style={fitParent ? { height: "100%" } : { height: "min(80vh, 900px)" }}
+    >
       {hasMedia && (
         <div className="flex items-center justify-end">
           <button

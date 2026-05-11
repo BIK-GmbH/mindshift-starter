@@ -460,7 +460,12 @@ export default function EmbedCardPage() {
             empty Notes tab). Without it the browser would clamp
             scrollTop back to 0 on tab switch — pulling the hero
             image back into view and forcing the user to re-scroll. */}
-        <div className="embed-tab-content flex flex-1 min-h-[120vh] flex-col">
+        <div
+          className={[
+            "embed-tab-content flex flex-1 flex-col",
+            tab === "chat" ? "" : "min-h-[120vh]",
+          ].join(" ")}
+        >
           {tab === "summary" && (
             <SummaryTab
               card={card}
@@ -482,8 +487,8 @@ export default function EmbedCardPage() {
           )}
           {tab === "notes" && <NotesTab card={card} />}
           {tab === "chat" && (
-            <div className="p-3">
-              <ChatTab card={card} showSourceMedia={false} />
+            <div className="flex flex-1 min-h-0 flex-col p-3">
+              <ChatTab card={card} showSourceMedia={false} fitParent />
             </div>
           )}
         </div>
