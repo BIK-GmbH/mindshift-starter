@@ -77,6 +77,14 @@ export default function ChatPanel({
       return false;
     }
   });
+  // Mirror the toggle in a ref so submitText reads a value that's always
+  // up-to-date regardless of how the surrounding closure was captured.
+  // Vite HMR has burned us here twice — keep BOTH this ref and the
+  // localStorage fallback below; either alone has been bypassable.
+  const useWebSearchRef = useRef(useWebSearch);
+  useEffect(() => {
+    useWebSearchRef.current = useWebSearch;
+  }, [useWebSearch]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -88,6 +96,9 @@ export default function ChatPanel({
       } catch {
         /* private-mode / disabled storage — toggle still works in-memory */
       }
+      useWebSearchRef.current = next;
+      // eslint-disable-next-line no-console
+      console.warn("[mindshift chat] web-search toggled →", next);
       return next;
     });
   }, []);
@@ -132,20 +143,23 @@ export default function ChatPanel({
     setError(null);
 
     try {
-      // Read from localStorage at send-time instead of trusting the React
-      // closure. Vite HMR has bitten us where the visual toggle updates
-      // (new JSX) but the captured `useWebSearch` reference inside the
-      // closure stays from a previous render, causing send to ship the
-      // old (false) value while the UI shows hellblau. localStorage is
-      // the single source of truth — the same value the toggle writes
-      // on every click — so there's no drift.
-      const liveWebSearch = (() => {
-        try {
-          return localStorage.getItem(WEB_SEARCH_STORAGE_KEY) === "1";
-        } catch {
-          return useWebSearch;
-        }
-      })();
+      // Triple-belt safety against Vite HMR closure drift:
+      //   1. useWebSearchRef.current is updated on every render + on toggle
+      //   2. localStorage is the authoritative cross-render source
+      //   3. The original useWebSearch closure value is the last resort
+      // Prefer the ref first (synchronous, no string parsing), fall back
+      // to localStorage if the ref is somehow uninitialised, finally the
+      // captured closure.
+      let liveWebSearch = useWebSearchRef.current;
+      try {
+        const ls = localStorage.getItem(WEB_SEARCH_STORAGE_KEY);
+        if (ls === "1") liveWebSearch = true;
+        else if (ls === "0") liveWebSearch = false;
+      } catch {
+        /* keep ref value */
+      }
+      // eslint-disable-next-line no-console
+      console.warn("[mindshift chat] sending with useWebSearch =", liveWebSearch);
       const response = await send(
         nextHistory.map(({ role, content }) => ({ role, content })),
         { useWebSearch: liveWebSearch },
