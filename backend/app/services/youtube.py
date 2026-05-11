@@ -180,7 +180,7 @@ def fetch_transcript(video_id: str, preferred_languages: list[str] | None = None
             )
         except (IpBlocked, RequestBlocked) as exc:
             logger.warning(
-                "youtube-transcript-api blocked for %s: %s — falling through to yt-dlp",
+                "youtube-transcript-api blocked for %s: %s — skipping yt-dlp (same endpoint), trying hosted fallback",
                 video_id,
                 str(exc).splitlines()[0] if str(exc) else "",
             )
@@ -196,10 +196,16 @@ def fetch_transcript(video_id: str, preferred_languages: list[str] | None = None
                 exc.__class__.__name__,
             )
 
-    # Stage 2 — yt-dlp fallback.
-    fallback = _fetch_transcript_via_ytdlp(video_id, languages)
-    if fallback is not None:
-        return fallback
+    # Stage 2 — yt-dlp fallback. Skipped when Stage 1 returned an
+    # explicit IP-block: yt-dlp ultimately hits the same /api/timedtext
+    # endpoint, so it would just waste a second on a guaranteed 429.
+    # Still tried for non-block failures (e.g. NoTranscriptFound) since
+    # yt-dlp's metadata layer sometimes sees captions the primary lib
+    # misses.
+    if not blocked:
+        fallback = _fetch_transcript_via_ytdlp(video_id, languages)
+        if fallback is not None:
+            return fallback
 
     # Stage 3 — Supadata.ai (hosted, paid per call).
     supadata = _fetch_transcript_via_supadata(video_id, languages)
@@ -209,7 +215,7 @@ def fetch_transcript(video_id: str, preferred_languages: list[str] | None = None
     # Stage 4 — escalate.
     if blocked:
         raise TranscriptIpBlocked(
-            "YouTube refused both transcript endpoints for this IP."
+            "YouTube refused the transcript endpoint for this IP."
         )
     return None
 
