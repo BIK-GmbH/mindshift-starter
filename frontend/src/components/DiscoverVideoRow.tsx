@@ -35,29 +35,47 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
   const [savedCardId, setSavedCardId] = useState<string | null>(
     item.already_saved_card_id,
   );
-  // True once the user has hit Play at least once. We then keep the
-  // iframe mounted (toggling its `src` between the embed URL and
-  // about:blank) so the YouTube player's audio fully stops on Stop —
-  // pure conditional rendering leaves buffered audio playing in some
-  // browsers for a few seconds after unmount.
-  const [hasEverPlayed, setHasEverPlayed] = useState(false);
+  // Increments every time the user toggles play state. Used as part
+  // of the iframe's React key so each play creates a fresh iframe
+  // and each stop destroys it cleanly — none of the YouTube embed's
+  // internal state (audio context, service worker, media session)
+  // gets a chance to survive across toggles. Pure src=about:blank
+  // wasn't enough: in some browsers the first video's audio context
+  // outlived the navigation and kept playing.
+  const playSessionRef = useRef(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const watchUrl = `https://www.youtube.com/watch?v=${item.video_id}`;
-  const embedSrc = `https://www.youtube-nocookie.com/embed/${item.video_id}?autoplay=1&modestbranding=1&rel=0`;
+  // enablejsapi=1 lets us postMessage `pauseVideo` to the player
+  // before we yank the iframe — defence in depth alongside the
+  // key-driven remount.
+  const embedSrc = `https://www.youtube-nocookie.com/embed/${item.video_id}?autoplay=1&modestbranding=1&rel=0&enablejsapi=1`;
   const isSaved = !!savedCardId;
 
   useEffect(() => {
-    if (playing) setHasEverPlayed(true);
-    // When the parent flips `playing` to false, explicitly point the
-    // iframe at about:blank so the audio stops immediately (some
-    // browsers keep playing for a second or two after just hiding it).
-    if (!playing && iframeRef.current) {
+    if (playing) {
+      playSessionRef.current += 1;
+      return;
+    }
+    // Stop sequence: tell the YouTube player to pause via its
+    // postMessage API, then let the iframe be unmounted by the
+    // conditional render below. The pause+unmount combo reliably
+    // kills audio across Chrome/Safari/Firefox.
+    const iframe = iframeRef.current;
+    if (iframe?.contentWindow) {
       try {
-        iframeRef.current.src = "about:blank";
+        iframe.contentWindow.postMessage(
+          '{"event":"command","func":"pauseVideo","args":""}',
+          "*",
+        );
+        iframe.contentWindow.postMessage(
+          '{"event":"command","func":"stopVideo","args":""}',
+          "*",
+        );
       } catch {
-        // src assignment never throws in practice; the try/catch is
-        // just defensive against unexpected iframe states.
+        // postMessage is best-effort — same-origin checks may reject
+        // it depending on browser version. The subsequent unmount
+        // still cleans up.
       }
     }
   }, [playing]);
@@ -90,22 +108,21 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
        *  YouTube watch-app feel. */}
       <div className="flex w-full flex-col gap-3 px-4 py-4 sm:flex-row sm:items-stretch sm:gap-5 sm:px-5 sm:py-4">
         {/* Thumbnail + player live in the same box so the layout
-         *  doesn't reflow when the user toggles play. Once played at
-         *  least once, the iframe stays mounted so we can yank its
-         *  `src` to about:blank on Stop — that fully kills the audio
-         *  immediately (pure unmount leaves it humming for a beat). */}
+         *  doesn't reflow when the user toggles play. The iframe is
+         *  only rendered while playing — combined with a key that
+         *  changes every play session, React fully destroys and
+         *  recreates the iframe on each toggle, so no stale YouTube
+         *  audio context survives. */}
         <div className="relative aspect-video w-full flex-shrink-0 overflow-hidden rounded-md ring-1 ring-ink-700 sm:aspect-auto sm:h-[126px] sm:w-[224px]">
-          {hasEverPlayed && (
+          {playing && (
             <iframe
+              key={`${item.video_id}-${playSessionRef.current}`}
               ref={iframeRef}
-              src={playing ? embedSrc : "about:blank"}
+              src={embedSrc}
               title={item.title}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
-              className={[
-                "absolute inset-0 h-full w-full",
-                playing ? "z-10" : "z-0 opacity-0 pointer-events-none",
-              ].join(" ")}
+              className="absolute inset-0 h-full w-full"
             />
           )}
           {!playing && (
