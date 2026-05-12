@@ -58,14 +58,18 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
   return (
     <li
       className={[
-        "border-b border-ink-800/70 last:border-b-0 transition",
+        "group border-b border-ink-800/70 last:border-b-0 transition",
         isSaved ? "opacity-70" : "",
       ].join(" ")}
     >
-      <div className="flex w-full items-stretch gap-4 px-4 py-3">
+      {/* Mobile: stacked layout (thumbnail full-width on top).
+       *  Desktop (sm+): horizontal row. The thumbnail's aspect-video
+       *  on mobile keeps the touch target generous and matches the
+       *  YouTube watch-app feel. */}
+      <div className="flex w-full flex-col gap-3 px-3 py-3 sm:flex-row sm:items-stretch sm:gap-4 sm:px-4">
         {/* Thumbnail or active player — same footprint either way so
          *  the layout doesn't reflow when the user clicks play. */}
-        <div className="relative h-[88px] w-[156px] flex-shrink-0 overflow-hidden rounded-md ring-1 ring-ink-700 sm:h-[110px] sm:w-[196px]">
+        <div className="relative aspect-video w-full flex-shrink-0 overflow-hidden rounded-md ring-1 ring-ink-700 sm:aspect-auto sm:h-[110px] sm:w-[196px]">
           {playing ? (
             <iframe
               key={item.video_id}
@@ -89,15 +93,17 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
                   YouTube
                 </div>
               )}
-              {/* Play overlay — appears on hover, taps trigger toggle. */}
+              {/* Play overlay — always visible on touch (small screens
+               *  can't hover) and a hover-reveal on desktop so the
+               *  thumbnail isn't visually noisy in a long list. */}
               <button
                 type="button"
                 onClick={onTogglePlay}
                 aria-label={t("discoverRow.play", { defaultValue: "Vorschau abspielen" }) ?? ""}
-                className="absolute inset-0 flex items-center justify-center bg-black/30 text-white opacity-0 transition group-hover:opacity-100 hover:opacity-100"
+                className="absolute inset-0 flex items-center justify-center bg-black/20 text-white opacity-100 transition sm:bg-black/30 sm:opacity-0 sm:group-hover:opacity-100 sm:hover:opacity-100"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-ink-900 shadow-lg">
-                  <Play className="h-4 w-4 fill-current" />
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-ink-900 shadow-lg sm:h-9 sm:w-9">
+                  <Play className="h-5 w-5 fill-current sm:h-4 sm:w-4" />
                 </span>
               </button>
               {item.duration_iso ? (
@@ -142,7 +148,7 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
               {item.title}
             </p>
             {item.description ? (
-              <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-ink-500">
+              <p className="mt-1 line-clamp-2 hidden text-[11px] leading-snug text-ink-500 sm:block">
                 {item.description}
               </p>
             ) : null}
@@ -152,13 +158,16 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-shrink-0 flex-col items-end justify-between gap-1.5 py-0.5">
+        {/* Actions — mobile: horizontal row spanning the row's full
+         *  width under the title block. Desktop: a vertical column on
+         *  the right with the primary CTA on top and Play/Open as
+         *  icon-buttons below. */}
+        <div className="flex flex-row items-center justify-between gap-2 sm:flex-shrink-0 sm:flex-col sm:items-end sm:justify-between sm:gap-1.5 sm:py-0.5">
           {isSaved ? (
             <button
               type="button"
               onClick={() => savedCardId && navigate(`/cards/${savedCardId}`)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-900/60 px-2.5 py-1.5 text-[11px] font-medium text-ink-200 transition hover:text-ink-100"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-ink-700 bg-ink-900/60 px-2.5 py-2 text-[12px] font-medium text-ink-200 transition hover:text-ink-100 sm:flex-none sm:py-1.5 sm:text-[11px]"
             >
               {t("youtube.openCard", { defaultValue: "Karte öffnen" })}
             </button>
@@ -167,12 +176,12 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded-md bg-violet-500 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-violet-400 disabled:opacity-60"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-violet-500 px-2.5 py-2 text-[12px] font-semibold text-white transition hover:bg-violet-400 disabled:opacity-60 sm:flex-none sm:py-1.5 sm:text-[11px]"
             >
               {saving ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin sm:h-3 sm:w-3" />
               ) : (
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
               )}
               {t("youtube.saveToMindshift", { defaultValue: "Speichern" })}
             </button>
