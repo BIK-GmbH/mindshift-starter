@@ -128,19 +128,21 @@ export default function DiscoverPage() {
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Sticky header band — matches CardDetailPage's layout pattern. */}
-        <div className="flex-shrink-0 border-b border-ink-800 bg-ink-950/70 px-6 py-4 backdrop-blur">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
+        {/* Sticky header band — matches CardDetailPage's layout pattern.
+         *  Mobile tweaks: tighter padding, smaller title, refresh button
+         *  collapses to icon-only to free up width. */}
+        <div className="flex-shrink-0 border-b border-ink-800 bg-ink-950/70 px-4 py-3 backdrop-blur md:px-6 md:py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <p className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-ink-500">
                 <Sparkles className="h-3 w-3" />
                 {t("discover.kicker", { defaultValue: "Discover" })}
               </p>
-              <h1 className="mt-1 text-xl font-semibold text-ink-100">
+              <h1 className="mt-1 truncate text-lg font-semibold text-ink-100 md:text-xl">
                 {t("discover.title", { defaultValue: "Für dich auf YouTube" })}
               </h1>
               {data && data.api_enabled && (
-                <p className="mt-1 text-[11px] text-ink-400">
+                <p className="mt-0.5 truncate text-[11px] text-ink-400">
                   {t("discover.lead", {
                     count: totalCards,
                     defaultValue:
@@ -149,24 +151,52 @@ export default function DiscoverPage() {
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2 text-[11px]">
-              <button
-                type="button"
-                onClick={() => void load(true)}
-                disabled={refreshing || loading}
-                className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 px-2.5 py-1 text-ink-300 hover:text-ink-100 disabled:opacity-50"
-              >
-                <RefreshCw
-                  className={["h-3 w-3", refreshing ? "animate-spin" : ""].join(" ")}
-                />
+            <button
+              type="button"
+              onClick={() => void load(true)}
+              disabled={refreshing || loading}
+              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md border border-ink-700 px-2.5 py-1 text-[11px] text-ink-300 hover:text-ink-100 disabled:opacity-50"
+              aria-label={t("discover.refresh", { defaultValue: "Neu generieren" }) ?? ""}
+            >
+              <RefreshCw
+                className={["h-3 w-3", refreshing ? "animate-spin" : ""].join(" ")}
+              />
+              <span className="hidden sm:inline">
                 {t("discover.refresh", { defaultValue: "Neu generieren" })}
-              </button>
-            </div>
+              </span>
+            </button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Mobile-only theme chips — horizontal scroll under the
+         *  header. The desktop sidebar covers the same affordance, so
+         *  we hide this from `md` upward. */}
+        {data && data.api_enabled && data.themes.length > 0 && (
+          <div
+            className="flex flex-shrink-0 items-center gap-2 overflow-x-auto border-b border-ink-800 bg-ink-950/40 px-3 py-2 md:hidden"
+            aria-label={t("discover.themes", { defaultValue: "Themen" }) ?? ""}
+          >
+            <ThemeChip
+              label={t("discover.allThemes", { defaultValue: "Alle Themen" })}
+              count={totalCards}
+              active={activeSlug === null}
+              onClick={() => setActiveSlug(null)}
+            />
+            {data.themes.map((th) => (
+              <ThemeChip
+                key={th.slug}
+                label={th.label}
+                count={th.card_count}
+                active={activeSlug === th.slug}
+                onClick={() => setActiveSlug(th.slug)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Content — extra bottom padding on mobile to clear the
+         *  fixed MobileBottomNav (~56 px + iOS safe-area). */}
+        <div className="min-h-0 flex-1 overflow-y-auto pb-20 md:pb-0">
           {loading && (
             <div className="flex items-center gap-2 px-6 py-12 text-sm text-ink-400">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -311,6 +341,41 @@ function ThemeSection({
         </>
       )}
     </section>
+  );
+}
+
+function ThemeChip({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium transition",
+        active
+          ? "bg-violet-500 text-white"
+          : "border border-ink-700 text-ink-300 hover:text-ink-100",
+      ].join(" ")}
+    >
+      <span className="truncate">{label}</span>
+      <span
+        className={[
+          "rounded px-1 text-[9px]",
+          active ? "bg-white/20" : "text-ink-500",
+        ].join(" ")}
+      >
+        {count}
+      </span>
+    </button>
   );
 }
 
