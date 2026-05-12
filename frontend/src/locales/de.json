@@ -711,6 +711,13 @@
     "emptyBody": "Vergib Top-Level-Tags an ein paar Karten — Discover gruppiert deine Library nach diesen Tags.",
     "cardCount": "{{count}} deiner Karten",
     "query": "Query",
+    "queriesPrefix": "Queries:",
+    "themes": "Themen",
+    "loadMore": "Mehr laden",
     "themeEmpty": "Keine Treffer für dieses Thema."
+  },
+  "discoverRow": {
+    "play": "Vorschau abspielen",
+    "stop": "Stop"
   }
 }

@@ -26,6 +26,7 @@ result carries `already_saved_card_id` so the UI can switch CTA from
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -49,6 +50,18 @@ YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 CACHE_TTL = timedelta(hours=24)
 MAX_RESULTS_PER_QUERY = 8
 DISCOVER_MAX_THEMES = 6
+# Per theme: how many distinct LLM-generated queries we run, and how
+# many results we keep in the cache pool. The frontend pages through
+# this pool with "Load more" — fresh API calls only happen on refresh.
+DISCOVER_QUERIES_PER_THEME = 3
+DISCOVER_POOL_SIZE = 24
+DISCOVER_PER_QUERY = 10
+# Hard filter — "medium" = 4–20 min, kills Shorts and 3 h conference
+# talks that overwhelm the watch surface.
+DISCOVER_VIDEO_DURATION = "medium"
+# Don't suggest stale stuff for a fast-moving subject.
+DISCOVER_PUBLISHED_AFTER_DAYS = 365
+DISCOVER_MAX_PER_CHANNEL = 2
 
 
 @dataclass
@@ -186,12 +199,21 @@ def derive_card_query(db: Session, card: Card) -> str:
     return " ".join(out)
 
 
-def discover_themes(db: Session, user_id: UUID) -> list[tuple[str, str, str, int]]:
-    """Return up to `DISCOVER_MAX_THEMES` (slug, label, query, card_count) tuples.
+@dataclass
+class ThemeInfo:
+    slug: str
+    label: str
+    descendant_tag_ids: list[UUID]
+    card_count: int
+
+
+def discover_themes(db: Session, user_id: UUID) -> list[ThemeInfo]:
+    """Return up to `DISCOVER_MAX_THEMES` ThemeInfo entries.
 
     Strategy: pick the user's top-level tags (those without a parent),
-    ranked by how many of their cards (including descendants) use them.
-    The slug is a stable scope_key for the cache.
+    ranked by how many of their cards (including descendants) use
+    them. `descendant_tag_ids` is used downstream to sample
+    representative cards for the LLM query generator.
     """
     top_tags = (
         db.execute(
@@ -201,9 +223,8 @@ def discover_themes(db: Session, user_id: UUID) -> list[tuple[str, str, str, int
         )
         .all()
     )
-    themes: list[tuple[str, str, str, int]] = []
+    themes: list[ThemeInfo] = []
     for tag_id, tag_name in top_tags:
-        # All descendant ids — one level is enough for the common case.
         descendant_ids = (
             db.execute(
                 select(Tag.id).where(
@@ -227,11 +248,17 @@ def discover_themes(db: Session, user_id: UUID) -> list[tuple[str, str, str, int
         )
         if not count:
             continue
-        # Query: just the leaf-name reads best on YouTube.
         slug = tag_name.lower().replace(" ", "-").replace("/", "-")
-        themes.append((slug, tag_name, tag_name, len(count)))
+        themes.append(
+            ThemeInfo(
+                slug=slug,
+                label=tag_name,
+                descendant_tag_ids=list(descendant_ids),
+                card_count=len(count),
+            )
+        )
 
-    themes.sort(key=lambda t: t[3], reverse=True)
+    themes.sort(key=lambda t: t.card_count, reverse=True)
     return themes[:DISCOVER_MAX_THEMES]
 
 
@@ -289,17 +316,25 @@ def _parse_search_items(
     return out
 
 
-def _search_youtube(query: str, max_results: int = MAX_RESULTS_PER_QUERY) -> list[dict[str, Any]]:
+def _search_youtube(
+    query: str,
+    *,
+    max_results: int = MAX_RESULTS_PER_QUERY,
+    video_duration: str | None = None,
+    published_after_days: int | None = None,
+    relevance_language: str = "en",
+    page_token: str | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     """One round-trip — `search.list` + `videos.list` for durations.
 
-    Returns the raw item dicts so the caller can decide on dedup logic.
+    Returns `(items, next_page_token)`. Caller decides dedup logic.
     """
     settings = get_settings()
     key = settings.youtube_api_key.strip()
     if not key:
-        return []
+        return ([], None)
 
-    params = {
+    params: dict[str, str] = {
         "key": key,
         "q": query,
         "part": "snippet",
@@ -307,13 +342,23 @@ def _search_youtube(query: str, max_results: int = MAX_RESULTS_PER_QUERY) -> lis
         "maxResults": str(max_results),
         "safeSearch": "moderate",
         "videoEmbeddable": "true",
-        "relevanceLanguage": "en",
+        "order": "relevance",
+        "relevanceLanguage": relevance_language,
     }
+    if video_duration:
+        params["videoDuration"] = video_duration
+    if published_after_days:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=published_after_days)
+        params["publishedAfter"] = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if page_token:
+        params["pageToken"] = page_token
     try:
         with httpx.Client(timeout=15.0) as client:
             r = client.get(f"{YOUTUBE_API_BASE}/search", params=params)
             r.raise_for_status()
-            items = (r.json().get("items") or [])
+            payload = r.json()
+            items = (payload.get("items") or [])
+            next_token = payload.get("nextPageToken")
             video_ids = [
                 ((it.get("id") or {}).get("videoId"))
                 for it in items
@@ -339,10 +384,130 @@ def _search_youtube(query: str, max_results: int = MAX_RESULTS_PER_QUERY) -> lis
                 vid = (it.get("id") or {}).get("videoId")
                 if vid and vid in duration_by_id:
                     it["_duration_iso"] = duration_by_id[vid]
-            return items
+            return (items, next_token)
     except httpx.HTTPError as exc:
         logger.warning("YouTube API request failed for %r: %s", query, exc)
-        return []
+        return ([], None)
+
+
+# --------------------------------------------------------------------------
+# Discover-v2 helpers — LLM-driven query generation + diversity
+
+
+def _gather_theme_context(
+    db: Session, user_id: UUID, descendant_tag_ids: list[UUID], *, sample_size: int = 8
+) -> dict[str, list[str]]:
+    """Collect titles / summaries / entities of the theme's representative cards.
+
+    The newest cards are likely the most aligned with what the user is
+    currently exploring; older cards risk biasing the query toward
+    stale subtopics.
+    """
+    rows = db.execute(
+        select(Card.id, Card.title, Card.concise_summary_md)
+        .join(CardTag, CardTag.card_id == Card.id)
+        .where(Card.user_id == user_id, CardTag.tag_id.in_(descendant_tag_ids))
+        .order_by(Card.created_at.desc())
+        .limit(sample_size)
+    ).all()
+
+    titles: list[str] = []
+    summaries: list[str] = []
+    card_ids: list[UUID] = []
+    for cid, title, summary in rows:
+        card_ids.append(cid)
+        if title:
+            titles.append(title.strip())
+        if summary:
+            summaries.append(summary.strip()[:300])
+
+    entity_names: list[str] = []
+    if card_ids:
+        entity_rows = db.execute(
+            select(Entity.name)
+            .join(CardEntity, CardEntity.entity_id == Entity.id)
+            .where(CardEntity.card_id.in_(card_ids))
+            .order_by(CardEntity.relevance_score.desc().nullslast())
+            .limit(15)
+        ).scalars().all()
+        # Dedup but keep ordering.
+        seen: set[str] = set()
+        for name in entity_rows:
+            key = name.lower()
+            if key not in seen:
+                seen.add(key)
+                entity_names.append(name)
+
+    return {"titles": titles, "summaries": summaries, "entities": entity_names}
+
+
+def _generate_discover_queries(theme_label: str, context: dict[str, list[str]]) -> list[str]:
+    """Ask gpt-5.4-mini for 3 specific YouTube search queries for this theme.
+
+    Falls back to `[theme_label]` if OpenAI is unconfigured or fails —
+    the surface still works, just less sharply.
+    """
+    settings = get_settings()
+    if not settings.openai_api_key:
+        return [theme_label]
+
+    titles = "\n".join(f"- {t}" for t in context["titles"][:8])
+    summaries = "\n".join(f"- {s}" for s in context["summaries"][:5])
+    entities = ", ".join(context["entities"][:10]) or "(none)"
+
+    system = (
+        "You generate YouTube search queries that surface fresh, specific "
+        "videos for a user who already saved several cards on a topic. "
+        "Avoid the broad topic label — it returns generic results. Prefer "
+        "tool names, product names, frameworks, version numbers, and "
+        "specific subtopics derived from the user's library."
+    )
+    user = (
+        f"Topic label: {theme_label}\n\n"
+        f"Recent card titles in this topic:\n{titles or '(none)'}\n\n"
+        f"Sample summaries:\n{summaries or '(none)'}\n\n"
+        f"Key entities mentioned: {entities}\n\n"
+        f"Return JSON: {{\"queries\": [\"q1\", \"q2\", \"q3\"]}}. Each query "
+        f"is 3–7 words, no quotes, no boolean operators."
+    )
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=settings.openai_api_key)
+        resp = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            response_format={"type": "json_object"},
+        )
+        data = json.loads(resp.choices[0].message.content or "{}")
+        qs = [str(q).strip() for q in (data.get("queries") or []) if str(q).strip()]
+        return qs[:DISCOVER_QUERIES_PER_THEME] or [theme_label]
+    except Exception as exc:  # OpenAI failure shouldn't break Discover
+        logger.warning("Discover query LLM failed for %r: %s", theme_label, exc)
+        return [theme_label]
+
+
+def _diversify_by_channel(
+    items: list[SuggestionItem], max_per_channel: int = DISCOVER_MAX_PER_CHANNEL
+) -> list[SuggestionItem]:
+    """Limit how many videos from the same channel get through.
+
+    A spammy channel can otherwise dominate the entire theme. Preserves
+    the input order so the higher-ranked items in each query keep their
+    edge.
+    """
+    counts: dict[str, int] = {}
+    out: list[SuggestionItem] = []
+    for it in items:
+        c = (it.channel or "").lower()
+        if counts.get(c, 0) >= max_per_channel:
+            continue
+        counts[c] = counts.get(c, 0) + 1
+        out.append(it)
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -369,7 +534,7 @@ def suggest_for_card(
     if not query:
         return ("", [], False)
 
-    items = _search_youtube(query)
+    items, _ = _search_youtube(query)
     video_ids = [
         ((it.get("id") or {}).get("videoId"))
         for it in items
@@ -386,12 +551,65 @@ def suggest_for_card(
     return (query, parsed, False)
 
 
+def _build_theme_pool(
+    db: Session, user_id: UUID, theme: ThemeInfo, ui_lang: str
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Run the v2 algorithm for one theme and return (queries, results-pool).
+
+    1. Sample representative cards → context for the LLM.
+    2. gpt-5.4-mini → 3 specific search queries.
+    3. Per query: search.list with hard filters (duration, freshness).
+    4. Merge, dedupe by video_id, diversify by channel, cap to pool size.
+    """
+    context = _gather_theme_context(db, user_id, theme.descendant_tag_ids)
+    queries = _generate_discover_queries(theme.label, context)
+
+    all_items: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for q in queries:
+        items, _next = _search_youtube(
+            q,
+            max_results=DISCOVER_PER_QUERY,
+            video_duration=DISCOVER_VIDEO_DURATION,
+            published_after_days=DISCOVER_PUBLISHED_AFTER_DAYS,
+            relevance_language=ui_lang,
+        )
+        for it in items:
+            vid = (it.get("id") or {}).get("videoId")
+            if not vid or vid in seen_ids:
+                continue
+            seen_ids.add(vid)
+            all_items.append(it)
+
+    video_ids = [
+        ((it.get("id") or {}).get("videoId"))
+        for it in all_items
+        if (it.get("id") or {}).get("videoId")
+    ]
+    saved_map = _dedupe_against_library(db, user_id, video_ids)
+    duration_map = {
+        ((it.get("id") or {}).get("videoId")): it.get("_duration_iso")
+        for it in all_items
+        if it.get("_duration_iso")
+    }
+    parsed_objs = _parse_search_items(all_items, duration_map, saved_map)
+    parsed_objs = _diversify_by_channel(parsed_objs)
+    pool = [s.as_dict() for s in parsed_objs[:DISCOVER_POOL_SIZE]]
+    return (queries, pool)
+
+
 def discover_for_user(
-    db: Session, user_id: UUID, *, force_refresh: bool = False
+    db: Session,
+    user_id: UUID,
+    *,
+    force_refresh: bool = False,
+    ui_lang: str = "en",
 ) -> list[dict[str, Any]]:
     """Return a list of theme bundles for the Discover page.
 
-    Each bundle: {slug, label, query, card_count, results, from_cache}.
+    Each bundle: {slug, label, query, queries, card_count, results,
+    from_cache}. `query` stays for backwards-compat (joined queries
+    string); `queries` is the new explicit list the UI can display.
     """
     settings = get_settings()
     if not settings.youtube_api_key.strip():
@@ -399,45 +617,36 @@ def discover_for_user(
 
     themes = discover_themes(db, user_id)
     out: list[dict[str, Any]] = []
-    for slug, label, query, count in themes:
-        from_cache = False
+    for theme in themes:
         if not force_refresh:
-            cached = _fresh_cache_row(db, user_id, "discover_theme", slug)
+            cached = _fresh_cache_row(db, user_id, "discover_theme", theme.slug)
             if cached is not None:
+                cached_queries = (cached.query or theme.label).split(" || ")
                 out.append(
                     {
-                        "slug": slug,
-                        "label": label,
+                        "slug": theme.slug,
+                        "label": theme.label,
                         "query": cached.query,
-                        "card_count": count,
+                        "queries": cached_queries,
+                        "card_count": theme.card_count,
                         "results": list(cached.results_json),
                         "from_cache": True,
                     }
                 )
                 continue
 
-        items = _search_youtube(query, max_results=MAX_RESULTS_PER_QUERY)
-        video_ids = [
-            ((it.get("id") or {}).get("videoId"))
-            for it in items
-            if (it.get("id") or {}).get("videoId")
-        ]
-        saved_map = _dedupe_against_library(db, user_id, video_ids)
-        duration_map = {
-            ((it.get("id") or {}).get("videoId")): it.get("_duration_iso")
-            for it in items
-            if it.get("_duration_iso")
-        }
-        parsed = [s.as_dict() for s in _parse_search_items(items, duration_map, saved_map)]
-        _write_cache(db, user_id, "discover_theme", slug, query, parsed)
+        queries, pool = _build_theme_pool(db, user_id, theme, ui_lang)
+        joined_query = " || ".join(queries)
+        _write_cache(db, user_id, "discover_theme", theme.slug, joined_query, pool)
         out.append(
             {
-                "slug": slug,
-                "label": label,
-                "query": query,
-                "card_count": count,
-                "results": parsed,
-                "from_cache": from_cache,
+                "slug": theme.slug,
+                "label": theme.label,
+                "query": joined_query,
+                "queries": queries,
+                "card_count": theme.card_count,
+                "results": pool,
+                "from_cache": False,
             }
         )
     return out

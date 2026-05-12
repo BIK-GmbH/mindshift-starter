@@ -985,6 +985,8 @@ export interface YouTubeDiscoverTheme {
   slug: string;
   label: string;
   query: string;
+  /** Discrete sub-queries the LLM generated for this theme (v2). */
+  queries: string[];
   card_count: number;
   from_cache: boolean;
   results: YouTubeSuggestion[];

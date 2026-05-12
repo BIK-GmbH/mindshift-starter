@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -63,6 +63,7 @@ def get_card_suggestions(
 @router.get("/discover", response_model=DiscoverOut)
 def get_discover(
     refresh: bool = Query(default=False),
+    accept_language: str | None = Header(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DiscoverOut:
@@ -71,7 +72,13 @@ def get_discover(
     if not api_enabled:
         return DiscoverOut(api_enabled=False, themes=[])
 
-    bundles = discover_for_user(db, current_user.id, force_refresh=refresh)
+    # Two-letter language code passed to YouTube's `relevanceLanguage`
+    # — derived from the browser's Accept-Language header so German
+    # users get DE-leaning results without an explicit preference.
+    ui_lang = _pick_ui_lang(accept_language)
+    bundles = discover_for_user(
+        db, current_user.id, force_refresh=refresh, ui_lang=ui_lang
+    )
     return DiscoverOut(
         api_enabled=True,
         themes=[
@@ -79,6 +86,7 @@ def get_discover(
                 slug=b["slug"],
                 label=b["label"],
                 query=b["query"],
+                queries=b.get("queries", []),
                 card_count=b["card_count"],
                 from_cache=b["from_cache"],
                 results=[YouTubeSuggestionOut(**r) for r in b["results"]],
@@ -86,3 +94,11 @@ def get_discover(
             for b in bundles
         ],
     )
+
+
+def _pick_ui_lang(accept_language: str | None) -> str:
+    if not accept_language:
+        return "en"
+    first = accept_language.split(",")[0].strip().lower()
+    short = first.split("-")[0]
+    return short[:2] or "en"
