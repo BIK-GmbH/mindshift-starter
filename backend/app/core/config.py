@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     # the chat for users.
     brave_api_key: str = Field(default="", alias="BRAVE_API_KEY")
 
+    # YouTube Data API v3 — optional. When set, the per-card "YouTube
+    # Vorschläge" toggle in the Related tab and the global Discover
+    # page surface third-party videos that match the user's library.
+    # Free quota: 10 000 units/day; search.list costs 100 units/call,
+    # so practical limit is ~100 fresh queries/day across all users.
+    # Mitigated by 24 h caching per (user_id, scope, scope_key).
+    youtube_api_key: str = Field(default="", alias="YOUTUBE_API_KEY")
+
     # YouTube transcript proxy (optional). Two mutually exclusive shapes:
     #   - Webshare residential pool: set both username + password. The
     #     youtube-transcript-api lib wires up its own rotating residential

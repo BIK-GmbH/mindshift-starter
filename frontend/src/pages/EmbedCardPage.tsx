@@ -436,7 +436,14 @@ export default function EmbedCardPage() {
               )}
               {tab === "notes" && <NotesTab card={card} />}
               {tab === "chat" && (
-                <ChatTab card={card} showSourceMedia={false} fitParent />
+                <ChatTab
+                  card={card}
+                  showSourceMedia={false}
+                  fitParent
+                  onNotesExported={(nextNotes) =>
+                    setCard((prev) => (prev ? { ...prev, notes_md: nextNotes } : prev))
+                  }
+                />
               )}
             </div>
           </div>
@@ -969,6 +976,10 @@ function NotesTab({ card }: { card: Card }) {
   // to that card's notes. Comparing card.id catches the swap; the
   // dep array ensures we don't clobber the user's typing on every
   // poll-driven re-render of the same card.
+  //
+  // Same-card external update (e.g. Chat → Export to notes): pull the
+  // new notes_md in only when the local draft is in sync with the last
+  // saved value — that way we never clobber unsaved user typing.
   useEffect(() => {
     if (cardIdRef.current !== card.id) {
       cardIdRef.current = card.id;
@@ -976,8 +987,14 @@ function NotesTab({ card }: { card: Card }) {
       lastSavedRef.current = card.notes_md ?? "";
       setStatus("idle");
       setErrorMessage(null);
+      return;
     }
-  }, [card.id, card.notes_md]);
+    const incoming = card.notes_md ?? "";
+    if (incoming !== lastSavedRef.current && draft === lastSavedRef.current) {
+      setDraft(incoming);
+      lastSavedRef.current = incoming;
+    }
+  }, [card.id, card.notes_md, draft]);
 
   // Debounced auto-save. Cancels on every keystroke and re-arms.
   useEffect(() => {

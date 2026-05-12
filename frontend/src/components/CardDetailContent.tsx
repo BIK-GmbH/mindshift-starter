@@ -767,7 +767,16 @@ export default function CardDetailContent({
 
             {tab === "quiz" && <QuizTab quiz={quiz} cardStatus={card.status} />}
 
-            {tab === "chat" && <ChatTab card={card} showSourceMedia />}
+            {tab === "chat" && (
+              <ChatTab
+                card={card}
+                showSourceMedia
+                onNotesExported={(nextNotes) => {
+                  setCard((prev) => (prev ? { ...prev, notes_md: nextNotes } : prev));
+                  setNotes(nextNotes);
+                }}
+              />
+            )}
 
             {tab === "related" && (
               <RelatedTab
