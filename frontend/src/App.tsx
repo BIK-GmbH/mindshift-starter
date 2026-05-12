@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./lib/AuthContext";
 import AuthPage from "./pages/AuthPage";
 import CardDetailPage from "./pages/CardDetailPage";
 import ChatPage from "./pages/ChatPage";
+import DiscoverPage from "./pages/DiscoverPage";
 import EmbedCardPage from "./pages/EmbedCardPage";
 import FeedsPage from "./pages/FeedsPage";
 import GraphPage from "./pages/GraphPage";
@@ -92,6 +93,7 @@ function RootRoutes() {
         <Route path="chat" element={<ChatPage />} />
         <Route path="graph" element={<GraphPage />} />
         <Route path="review" element={<ReviewPage />} />
+        <Route path="discover" element={<DiscoverPage />} />
         <Route path="podcasts" element={<PodcastsPage />} />
         <Route path="podcasts/:playlistId" element={<PodcastsPage />} />
         <Route path="feeds" element={<FeedsPage />} />
