@@ -25,6 +25,7 @@ class DiscoverThemeOut(BaseModel):
     slug: str
     label: str
     query: str
+    queries: list[str] = []
     card_count: int
     from_cache: bool
     results: list[YouTubeSuggestionOut]

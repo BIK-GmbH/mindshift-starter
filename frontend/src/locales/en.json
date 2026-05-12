@@ -711,6 +711,13 @@
     "emptyBody": "Add top-level tags to a few cards — Discover clusters your library by those tags.",
     "cardCount": "{{count}} of your cards",
     "query": "Query",
+    "queriesPrefix": "Queries:",
+    "themes": "Themes",
+    "loadMore": "Load more",
     "themeEmpty": "No matches for this theme."
+  },
+  "discoverRow": {
+    "play": "Play preview",
+    "stop": "Stop"
   }
 }
