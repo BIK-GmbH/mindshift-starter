@@ -131,8 +131,8 @@ export default function DiscoverPage() {
         {/* Sticky header band — matches CardDetailPage's layout pattern.
          *  Mobile tweaks: tighter padding, smaller title, refresh button
          *  collapses to icon-only to free up width. */}
-        <div className="flex-shrink-0 border-b border-ink-800 bg-ink-950/70 px-4 py-3 backdrop-blur md:px-6 md:py-4">
-          <div className="flex items-start justify-between gap-3">
+        <div className="flex-shrink-0 border-b border-ink-800 bg-ink-950/70 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-start justify-between gap-3 px-4 py-3 md:px-6 md:py-4 lg:px-8">
             <div className="min-w-0">
               <p className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-ink-500">
                 <Sparkles className="h-3 w-3" />
@@ -173,7 +173,7 @@ export default function DiscoverPage() {
          *  we hide this from `md` upward. */}
         {data && data.api_enabled && data.themes.length > 0 && (
           <div
-            className="flex flex-shrink-0 items-center gap-2 overflow-x-auto border-b border-ink-800 bg-ink-950/40 px-3 py-2 md:hidden"
+            className="mx-auto flex w-full max-w-6xl flex-shrink-0 items-center gap-2 overflow-x-auto border-b border-ink-800 bg-ink-950/40 px-3 py-2 md:hidden"
             aria-label={t("discover.themes", { defaultValue: "Themen" }) ?? ""}
           >
             <ThemeChip
@@ -194,18 +194,21 @@ export default function DiscoverPage() {
           </div>
         )}
 
-        {/* Content — extra bottom padding on mobile to clear the
-         *  fixed MobileBottomNav (~56 px + iOS safe-area). */}
+        {/* Content — centered with the same max-width as LibraryPage
+         *  so wide monitors don't stretch the rows edge to edge.
+         *  Extra bottom padding on mobile to clear the fixed
+         *  MobileBottomNav (~56 px + iOS safe-area). */}
         <div className="min-h-0 flex-1 overflow-y-auto pb-20 md:pb-0">
+         <div className="mx-auto max-w-6xl px-3 sm:px-6 lg:px-8">
           {loading && (
-            <div className="flex items-center gap-2 px-6 py-12 text-sm text-ink-400">
+            <div className="flex items-center gap-2 py-12 text-sm text-ink-400">
               <Loader2 className="h-4 w-4 animate-spin" />
               {t("discover.loading", { defaultValue: "Lade Vorschläge…" })}
             </div>
           )}
 
           {!loading && error && (
-            <p className="mx-6 mt-4 rounded-md border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-300">
+            <p className="mt-4 rounded-md border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-300">
               {error}
             </p>
           )}
@@ -259,6 +262,7 @@ export default function DiscoverPage() {
               ))}
             </div>
           )}
+         </div>
         </div>
       </div>
     </div>

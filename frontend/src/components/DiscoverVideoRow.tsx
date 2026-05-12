@@ -10,7 +10,7 @@
  */
 
 import { Check, ExternalLink, Loader2, Pause, Play, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -35,10 +35,32 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
   const [savedCardId, setSavedCardId] = useState<string | null>(
     item.already_saved_card_id,
   );
+  // True once the user has hit Play at least once. We then keep the
+  // iframe mounted (toggling its `src` between the embed URL and
+  // about:blank) so the YouTube player's audio fully stops on Stop —
+  // pure conditional rendering leaves buffered audio playing in some
+  // browsers for a few seconds after unmount.
+  const [hasEverPlayed, setHasEverPlayed] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const watchUrl = `https://www.youtube.com/watch?v=${item.video_id}`;
   const embedSrc = `https://www.youtube-nocookie.com/embed/${item.video_id}?autoplay=1&modestbranding=1&rel=0`;
   const isSaved = !!savedCardId;
+
+  useEffect(() => {
+    if (playing) setHasEverPlayed(true);
+    // When the parent flips `playing` to false, explicitly point the
+    // iframe at about:blank so the audio stops immediately (some
+    // browsers keep playing for a second or two after just hiding it).
+    if (!playing && iframeRef.current) {
+      try {
+        iframeRef.current.src = "about:blank";
+      } catch {
+        // src assignment never throws in practice; the try/catch is
+        // just defensive against unexpected iframe states.
+      }
+    }
+  }, [playing]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -66,20 +88,27 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
        *  Desktop (sm+): horizontal row. The thumbnail's aspect-video
        *  on mobile keeps the touch target generous and matches the
        *  YouTube watch-app feel. */}
-      <div className="flex w-full flex-col gap-3 px-3 py-3 sm:flex-row sm:items-stretch sm:gap-4 sm:px-4">
-        {/* Thumbnail or active player — same footprint either way so
-         *  the layout doesn't reflow when the user clicks play. */}
-        <div className="relative aspect-video w-full flex-shrink-0 overflow-hidden rounded-md ring-1 ring-ink-700 sm:aspect-auto sm:h-[110px] sm:w-[196px]">
-          {playing ? (
+      <div className="flex w-full flex-col gap-3 px-4 py-4 sm:flex-row sm:items-stretch sm:gap-5 sm:px-5 sm:py-4">
+        {/* Thumbnail + player live in the same box so the layout
+         *  doesn't reflow when the user toggles play. Once played at
+         *  least once, the iframe stays mounted so we can yank its
+         *  `src` to about:blank on Stop — that fully kills the audio
+         *  immediately (pure unmount leaves it humming for a beat). */}
+        <div className="relative aspect-video w-full flex-shrink-0 overflow-hidden rounded-md ring-1 ring-ink-700 sm:aspect-auto sm:h-[126px] sm:w-[224px]">
+          {hasEverPlayed && (
             <iframe
-              key={item.video_id}
-              src={embedSrc}
+              ref={iframeRef}
+              src={playing ? embedSrc : "about:blank"}
               title={item.title}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
-              className="h-full w-full"
+              className={[
+                "absolute inset-0 h-full w-full",
+                playing ? "z-10" : "z-0 opacity-0 pointer-events-none",
+              ].join(" ")}
             />
-          ) : (
+          )}
+          {!playing && (
             <>
               {item.thumbnail_url ? (
                 <img
@@ -102,8 +131,8 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
                 aria-label={t("discoverRow.play", { defaultValue: "Vorschau abspielen" }) ?? ""}
                 className="absolute inset-0 flex items-center justify-center bg-black/20 text-white opacity-100 transition sm:bg-black/30 sm:opacity-0 sm:group-hover:opacity-100 sm:hover:opacity-100"
               >
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-ink-900 shadow-lg sm:h-9 sm:w-9">
-                  <Play className="h-5 w-5 fill-current sm:h-4 sm:w-4" />
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/95 text-ink-900 shadow-lg sm:h-10 sm:w-10">
+                  <Play className="h-5 w-5 fill-current" />
                 </span>
               </button>
               {item.duration_iso ? (
@@ -141,14 +170,14 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
             </div>
             <p
               className={[
-                "mt-0.5 line-clamp-2 text-sm font-medium leading-snug",
+                "mt-1 line-clamp-2 text-[15px] font-semibold leading-snug sm:text-base",
                 isSaved ? "text-ink-300" : "text-ink-100",
               ].join(" ")}
             >
               {item.title}
             </p>
             {item.description ? (
-              <p className="mt-1 line-clamp-2 hidden text-[11px] leading-snug text-ink-500 sm:block">
+              <p className="mt-1.5 line-clamp-2 hidden text-[12px] leading-snug text-ink-500 sm:block">
                 {item.description}
               </p>
             ) : null}
@@ -202,14 +231,15 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
             <a
               href={watchUrl}
               target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:text-ink-100"
+              rel="noopener"
+              referrerPolicy="strict-origin-when-cross-origin"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:text-ink-100 sm:h-7 sm:w-7"
               title={t("youtube.openInYouTube", { defaultValue: "Auf YouTube öffnen" }) ?? ""}
               aria-label={
                 t("youtube.openInYouTube", { defaultValue: "Auf YouTube öffnen" }) ?? ""
               }
             >
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
             </a>
           </div>
         </div>
