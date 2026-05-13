@@ -958,6 +958,22 @@ def get_card_links(
 
     # Lazy backfill.
     description = meta.get("description")
+    # YouTube cards saved before we started persisting the description
+    # in metadata_json have no cached description. The Data API call
+    # is cheap (~150ms, 1 quota unit) and the result gets stored, so
+    # subsequent opens are instant. Skip for non-YouTube sources.
+    if description is None and card.source_type == "youtube" and src and src.external_id:
+        try:
+            from app.services.youtube import fetch_metadata
+            yt = fetch_metadata(src.external_id)
+            if yt.description:
+                description = yt.description
+                meta["description"] = description
+                if yt.channel:
+                    meta.setdefault("channel", yt.channel)
+        except Exception:  # noqa: BLE001 — best-effort, fall through
+            pass
+
     transcript = db.execute(
         select(Transcript).where(Transcript.card_id == card.id).order_by(Transcript.created_at.desc())
     ).scalar_one_or_none()
