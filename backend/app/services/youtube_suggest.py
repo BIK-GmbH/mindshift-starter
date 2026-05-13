@@ -612,6 +612,61 @@ def _build_theme_pool(
     return (queries, pool)
 
 
+def search_custom(
+    db: Session,
+    user_id: UUID,
+    query: str,
+    *,
+    freshness: str = DEFAULT_FRESHNESS,
+    ui_lang: str = "en",
+    force_refresh: bool = False,
+) -> tuple[list[dict[str, Any]], bool]:
+    """User-typed query that bypasses the LLM + theme clustering.
+
+    Used by the Discover page's inline search bar — applies the same
+    duration/freshness filters and library-dedup as the auto themes,
+    but with the raw user query verbatim. Cached per (user, query,
+    freshness) so re-clicking a recent-search chip is free.
+    """
+    settings = get_settings()
+    if not settings.youtube_api_key.strip():
+        return ([], False)
+    q = (query or "").strip()
+    if not q:
+        return ([], False)
+
+    freshness_key = freshness if freshness in FRESHNESS_DAYS else DEFAULT_FRESHNESS
+    scope_key = f"{q.lower()}:{freshness_key}"
+    if not force_refresh:
+        cached = _fresh_cache_row(db, user_id, "custom_search", scope_key)
+        if cached is not None:
+            return (list(cached.results_json), True)
+
+    items, _next = _search_youtube(
+        q,
+        max_results=DISCOVER_POOL_SIZE,
+        video_duration=DISCOVER_VIDEO_DURATION,
+        published_after_days=FRESHNESS_DAYS[freshness_key],
+        relevance_language=ui_lang,
+    )
+    video_ids = [
+        ((it.get("id") or {}).get("videoId"))
+        for it in items
+        if (it.get("id") or {}).get("videoId")
+    ]
+    saved_map = _dedupe_against_library(db, user_id, video_ids)
+    duration_map = {
+        ((it.get("id") or {}).get("videoId")): it.get("_duration_iso")
+        for it in items
+        if it.get("_duration_iso")
+    }
+    parsed_objs = _parse_search_items(items, duration_map, saved_map)
+    parsed_objs = _diversify_by_channel(parsed_objs)
+    pool = [s.as_dict() for s in parsed_objs[:DISCOVER_POOL_SIZE]]
+    _write_cache(db, user_id, "custom_search", scope_key, q, pool)
+    return (pool, False)
+
+
 def discover_for_user(
     db: Session,
     user_id: UUID,

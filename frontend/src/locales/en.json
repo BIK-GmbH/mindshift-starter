@@ -722,7 +722,13 @@
       "quarter": "Past 3 months",
       "year": "Past year",
       "all": "All time"
-    }
+    },
+    "searchPlaceholder": "Search YouTube — e.g. \"MCP server tutorial 2026\"",
+    "searching": "Searching YouTube…",
+    "searchResultsFor": "Search results for \"{{query}}\"",
+    "closeSearch": "Close",
+    "searchEmpty": "No hits — try a different term?",
+    "recent": "Recent searches"
   },
   "discoverRow": {
     "play": "Play preview",

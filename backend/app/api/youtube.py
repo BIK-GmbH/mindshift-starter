@@ -21,12 +21,14 @@ from app.models.card import Card
 from app.models.user import User
 from app.schemas.youtube import (
     CardSuggestionsOut,
+    CustomSearchOut,
     DiscoverOut,
     DiscoverThemeOut,
     YouTubeSuggestionOut,
 )
 from app.services.youtube_suggest import (
     discover_for_user,
+    search_custom,
     suggest_for_card,
 )
 
@@ -102,6 +104,43 @@ def get_discover(
             )
             for b in bundles
         ],
+    )
+
+
+@router.get("/search", response_model=CustomSearchOut)
+def get_custom_search(
+    q: str = Query(min_length=1, max_length=200),
+    freshness: str = Query(default="month"),
+    refresh: bool = Query(default=False),
+    accept_language: str | None = Header(default=None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CustomSearchOut:
+    settings = get_settings()
+    api_enabled = bool(settings.youtube_api_key.strip())
+    if not api_enabled:
+        return CustomSearchOut(
+            query=q,
+            freshness=freshness,
+            from_cache=False,
+            api_enabled=False,
+            results=[],
+        )
+    ui_lang = _pick_ui_lang(accept_language)
+    results, from_cache = search_custom(
+        db,
+        current_user.id,
+        q,
+        freshness=freshness,
+        ui_lang=ui_lang,
+        force_refresh=refresh,
+    )
+    return CustomSearchOut(
+        query=q,
+        freshness=freshness,
+        from_cache=from_cache,
+        api_enabled=True,
+        results=[YouTubeSuggestionOut(**r) for r in results],
     )
 
 
