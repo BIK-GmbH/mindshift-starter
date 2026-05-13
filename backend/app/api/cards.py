@@ -932,6 +932,60 @@ def get_transcript(
     }
 
 
+@router.get("/{card_id}/links")
+def get_card_links(
+    card_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Return the URLs extracted from the card's description + transcript.
+
+    For new YouTube cards this is populated by the ingestion pipeline.
+    For older cards (no extracted_links in source.metadata_json yet)
+    we backfill lazily on the first request — extract from whatever
+    we still have (transcript + cached description, if any) and
+    persist back. Subsequent calls are instant.
+    """
+    from app.models.source import Source as _Source  # local: avoids cycle in module-load order
+    from app.services.link_extractor import extract_links
+
+    card = _get_owned_card(db, card_id, current_user.id)
+    src = db.get(_Source, card.source_id) if card.source_id else None
+    meta = dict((src.metadata_json or {}) if src else {})
+    existing = meta.get("extracted_links")
+    if existing is not None:
+        return {"card_id": str(card.id), "links": list(existing)}
+
+    # Lazy backfill.
+    description = meta.get("description")
+    # YouTube cards saved before we started persisting the description
+    # in metadata_json have no cached description. The Data API call
+    # is cheap (~150ms, 1 quota unit) and the result gets stored, so
+    # subsequent opens are instant. Skip for non-YouTube sources.
+    if description is None and card.source_type == "youtube" and src and src.external_id:
+        try:
+            from app.services.youtube import fetch_metadata
+            yt = fetch_metadata(src.external_id)
+            if yt.description:
+                description = yt.description
+                meta["description"] = description
+                if yt.channel:
+                    meta.setdefault("channel", yt.channel)
+        except Exception:  # noqa: BLE001 — best-effort, fall through
+            pass
+
+    transcript = db.execute(
+        select(Transcript).where(Transcript.card_id == card.id).order_by(Transcript.created_at.desc())
+    ).scalar_one_or_none()
+    transcript_text = transcript.text if transcript else None
+    links = extract_links(description=description, transcript=transcript_text)
+    if src is not None:
+        meta["extracted_links"] = links
+        src.metadata_json = meta
+        db.commit()
+    return {"card_id": str(card.id), "links": links}
+
+
 @router.get("/{card_id}/export.md")
 def export_card_markdown(
     card_id: UUID,
