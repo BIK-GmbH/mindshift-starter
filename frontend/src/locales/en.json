@@ -734,5 +734,20 @@
   "discoverRow": {
     "play": "Play preview",
     "stop": "Stop"
+  },
+  "links": {
+    "loading": "Scanning content for links…",
+    "emptyTitle": "No links in content",
+    "emptyBody": "The transcript and description don't contain any URLs.",
+    "lead": "{{count}} links — grouped by source. Each opens in a new tab.",
+    "section": {
+      "description": "From the description",
+      "transcript": "Mentioned in video",
+      "other": "Other"
+    },
+    "aiSection": "AI suggestions on this topic",
+    "aiLoading": "Researching repos, docs and web sources…",
+    "aiEmpty": "No additional sources found — the topic may be very niche or web search is disabled.",
+    "aiRefresh": "Regenerate"
   }
 }

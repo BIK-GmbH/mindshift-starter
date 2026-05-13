@@ -659,6 +659,10 @@ export const api = {
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
   getCardLinks: (id: string) =>
     request<{ card_id: string; links: ExtractedLink[] }>(`/api/cards/${id}/links`),
+  getCardAiResources: (id: string, refresh = false) =>
+    request<{ card_id: string; resources: AiResource[] }>(
+      `/api/cards/${id}/ai-resources${refresh ? "?refresh=1" : ""}`,
+    ),
   globalGraph: (params: {
     source_type?: string;
     tags?: string[];
@@ -1183,6 +1187,16 @@ export interface ExtractedLink {
   url: string;
   domain: string;
   context: "description" | "transcript" | "article" | string;
+}
+
+export interface AiResource {
+  url: string;
+  domain: string;
+  title: string;
+  snippet: string;
+  age: string | null;
+  kind: "github" | "doc" | "web" | string;
+  query: string;
 }
 
 export interface TagWithCount {

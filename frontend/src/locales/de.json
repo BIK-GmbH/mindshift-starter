@@ -734,5 +734,20 @@
   "discoverRow": {
     "play": "Vorschau abspielen",
     "stop": "Stop"
+  },
+  "links": {
+    "loading": "Suche Links im Inhalt…",
+    "emptyTitle": "Keine Links im Inhalt",
+    "emptyBody": "Im Transkript und in der Beschreibung dieses Inhalts sind keine URLs aufgetaucht.",
+    "lead": "{{count}} Links — gruppiert nach Quelle. Jeder öffnet sich in einem neuen Tab.",
+    "section": {
+      "description": "Aus der Beschreibung",
+      "transcript": "Im Video erwähnt",
+      "other": "Weitere"
+    },
+    "aiSection": "KI-Vorschläge zum Thema",
+    "aiLoading": "Recherchiere Repos, Docs und Web-Quellen…",
+    "aiEmpty": "Keine zusätzlichen Quellen gefunden — vielleicht ist das Thema sehr spezifisch oder die Web-Suche ist ausgeknipst.",
+    "aiRefresh": "Neu generieren"
   }
 }

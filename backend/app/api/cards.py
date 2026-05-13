@@ -999,6 +999,38 @@ def get_card_links(
     return {"card_id": str(card.id), "links": links}
 
 
+@router.get("/{card_id}/ai-resources")
+def get_card_ai_resources(
+    card_id: UUID,
+    refresh: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """LLM-suggested external resources for the card's topic.
+
+    Discovered via Brave Search using 3 focused queries the LLM
+    generates from the card's title, summary, tags and top entities.
+    Cached on `source.metadata_json["ai_resources"]` for 24 h.
+    """
+    from app.models.source import Source as _Source
+    from app.services.ai_resources import discover_for_card, is_fresh, stamp_now
+
+    card = _get_owned_card(db, card_id, current_user.id)
+    src = db.get(_Source, card.source_id) if card.source_id else None
+    meta = dict((src.metadata_json or {}) if src else {})
+
+    if not refresh and meta.get("ai_resources") is not None and is_fresh(meta):
+        return {"card_id": str(card.id), "resources": list(meta["ai_resources"])}
+
+    resources = discover_for_card(db, card, force_refresh=refresh)
+    if src is not None:
+        meta["ai_resources"] = resources
+        meta["ai_resources_at"] = stamp_now()
+        src.metadata_json = meta
+        db.commit()
+    return {"card_id": str(card.id), "resources": resources}
+
+
 @router.get("/{card_id}/export.md")
 def export_card_markdown(
     card_id: UUID,
