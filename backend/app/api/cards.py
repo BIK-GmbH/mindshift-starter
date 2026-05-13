@@ -935,16 +935,21 @@ def get_transcript(
 @router.get("/{card_id}/links")
 def get_card_links(
     card_id: UUID,
+    refresh: bool = False,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     """Return the URLs extracted from the card's description + transcript.
 
-    For new YouTube cards this is populated by the ingestion pipeline.
-    For older cards (no extracted_links in source.metadata_json yet)
-    we backfill lazily on the first request — extract from whatever
-    we still have (transcript + cached description, if any) and
-    persist back. Subsequent calls are instant.
+    `refresh=true` re-runs extraction even when a cached result exists.
+
+    Cache logic:
+      - cached non-empty list → return as-is (unless refresh).
+      - cached empty list on a YouTube card *without* description on
+        record → likely a stale pre-Data-API-hookup result; we re-run
+        so the Data-API description fetch below has a chance to
+        unearth real links.
+      - cached empty list elsewhere → trust it.
     """
     from app.models.source import Source as _Source  # local: avoids cycle in module-load order
     from app.services.link_extractor import extract_links
@@ -953,8 +958,16 @@ def get_card_links(
     src = db.get(_Source, card.source_id) if card.source_id else None
     meta = dict((src.metadata_json or {}) if src else {})
     existing = meta.get("extracted_links")
-    if existing is not None:
-        return {"card_id": str(card.id), "links": list(existing)}
+    if not refresh:
+        if existing:
+            return {"card_id": str(card.id), "links": list(existing)}
+        stale_yt_empty = (
+            existing == []
+            and card.source_type == "youtube"
+            and not meta.get("description")
+        )
+        if existing == [] and not stale_yt_empty:
+            return {"card_id": str(card.id), "links": []}
 
     # Lazy backfill.
     description = meta.get("description")
