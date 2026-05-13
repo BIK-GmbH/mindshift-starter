@@ -274,21 +274,28 @@ function formatIsoDuration(iso: string): string {
   return `${min}:${pad(s)}`;
 }
 
-/** Open a YouTube watch URL in a new tab.
+/** Open a YouTube watch URL in a new tab by synthesising a click on a
+ *  detached `<a>`. Why not `window.open()` or a real `<a>`:
  *
- *  We avoid `<a target="_blank">` because YouTube responds with
- *  `Cross-Origin-Opener-Policy: same-origin-allow-popups` and certain
- *  Chrome builds reject the navigation with ERR_BLOCKED_BY_RESPONSE
- *  when the source page also sets an opener-affecting `rel`. Using
- *  `window.open` makes the relationship explicit and side-steps the
- *  edge case. Falls back to `location.assign` if the popup is blocked. */
+ *  - `window.open(url, "_blank", "noopener")` always returns `null` per
+ *    spec, so any "popup blocked?" fallback that checks the return
+ *    value will misfire and navigate the current tab away from
+ *    Mindshift — losing the user's place.
+ *  - `<a target="_blank">` interacts with YouTube's
+ *    Cross-Origin-Opener-Policy in some Chrome builds, producing
+ *    ERR_BLOCKED_BY_RESPONSE.
+ *
+ *  The detached-anchor click pattern is what every major SPA framework
+ *  ships (e.g. download utilities). It opens the tab and never
+ *  destroys the source page even if the new tab fails to load. */
 function openWatchInNewTab(url: string) {
-  const win = window.open(url, "_blank", "noopener,noreferrer");
-  if (!win) {
-    // Popup blocker → navigate the current tab instead so the user
-    // still reaches the video.
-    window.location.assign(url);
-  }
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 function formatRelative(iso: string): string {

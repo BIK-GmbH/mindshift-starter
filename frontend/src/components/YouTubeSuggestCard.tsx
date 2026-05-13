@@ -156,12 +156,17 @@ function formatIsoDuration(iso: string): string {
   return `${min}:${pad(s)}`;
 }
 
-/** See sibling DiscoverVideoRow for why we use window.open() instead
- *  of `<a target="_blank">` — YouTube's COOP can otherwise trigger
- *  ERR_BLOCKED_BY_RESPONSE on the new tab. */
+/** See sibling DiscoverVideoRow.openWatchInNewTab for the full reasoning.
+ *  TL;DR: detached `<a>`.click() opens a new tab reliably without ever
+ *  navigating the current one away from Mindshift. */
 function openWatchInNewTab(url: string) {
-  const win = window.open(url, "_blank", "noopener,noreferrer");
-  if (!win) window.location.assign(url);
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 /** Best-effort short relative time, no extra dependency. */
