@@ -245,11 +245,9 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
             >
               {playing ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
             </button>
-            <a
-              href={watchUrl}
-              target="_blank"
-              rel="noopener"
-              referrerPolicy="strict-origin-when-cross-origin"
+            <button
+              type="button"
+              onClick={() => openWatchInNewTab(watchUrl)}
               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:text-ink-100 sm:h-7 sm:w-7"
               title={t("youtube.openInYouTube", { defaultValue: "Auf YouTube öffnen" }) ?? ""}
               aria-label={
@@ -257,7 +255,7 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
               }
             >
               <ExternalLink className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-            </a>
+            </button>
           </div>
         </div>
       </div>
@@ -274,6 +272,23 @@ function formatIsoDuration(iso: string): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   if (h > 0) return `${h}:${pad(min)}:${pad(s)}`;
   return `${min}:${pad(s)}`;
+}
+
+/** Open a YouTube watch URL in a new tab.
+ *
+ *  We avoid `<a target="_blank">` because YouTube responds with
+ *  `Cross-Origin-Opener-Policy: same-origin-allow-popups` and certain
+ *  Chrome builds reject the navigation with ERR_BLOCKED_BY_RESPONSE
+ *  when the source page also sets an opener-affecting `rel`. Using
+ *  `window.open` makes the relationship explicit and side-steps the
+ *  edge case. Falls back to `location.assign` if the popup is blocked. */
+function openWatchInNewTab(url: string) {
+  const win = window.open(url, "_blank", "noopener,noreferrer");
+  if (!win) {
+    // Popup blocker → navigate the current tab instead so the user
+    // still reaches the video.
+    window.location.assign(url);
+  }
 }
 
 function formatRelative(iso: string): string {

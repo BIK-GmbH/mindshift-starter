@@ -62,11 +62,10 @@ export default function YouTubeSuggestCard({ item, onSaved }: Props) {
           : "border-ink-800 hover:border-violet-500/40 hover:bg-ink-800/60",
       ].join(" ")}
     >
-      <a
-        href={watchUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="relative block aspect-video bg-ink-900"
+      <button
+        type="button"
+        onClick={() => openWatchInNewTab(watchUrl)}
+        className="relative block aspect-video w-full bg-ink-900"
         title={t("youtube.openInYouTube", { defaultValue: "Open in YouTube" }) ?? ""}
       >
         {item.thumbnail_url ? (
@@ -88,7 +87,7 @@ export default function YouTubeSuggestCard({ item, onSaved }: Props) {
             {t("youtube.alreadySaved", { defaultValue: "In Library" })}
           </span>
         ) : null}
-      </a>
+      </button>
 
       <div className="flex flex-1 flex-col gap-1.5 p-2.5">
         <h3
@@ -127,17 +126,15 @@ export default function YouTubeSuggestCard({ item, onSaved }: Props) {
               {t("youtube.saveToMindshift", { defaultValue: "Save" })}
             </button>
           )}
-          <a
-            href={watchUrl}
-            target="_blank"
-            rel="noopener"
-            referrerPolicy="strict-origin-when-cross-origin"
+          <button
+            type="button"
+            onClick={() => openWatchInNewTab(watchUrl)}
             className="rounded-md border border-ink-700 px-2 py-1.5 text-[11px] text-ink-300 transition hover:text-ink-100"
             title={t("youtube.openInYouTube", { defaultValue: "Open in YouTube" }) ?? ""}
             aria-label={t("youtube.openInYouTube", { defaultValue: "Open in YouTube" }) ?? ""}
           >
             ↗
-          </a>
+          </button>
         </div>
         {error && (
           <p className="text-[10px] text-red-300">{error}</p>
@@ -157,6 +154,14 @@ function formatIsoDuration(iso: string): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   if (h > 0) return `${h}:${pad(min)}:${pad(s)}`;
   return `${min}:${pad(s)}`;
+}
+
+/** See sibling DiscoverVideoRow for why we use window.open() instead
+ *  of `<a target="_blank">` — YouTube's COOP can otherwise trigger
+ *  ERR_BLOCKED_BY_RESPONSE on the new tab. */
+function openWatchInNewTab(url: string) {
+  const win = window.open(url, "_blank", "noopener,noreferrer");
+  if (!win) window.location.assign(url);
 }
 
 /** Best-effort short relative time, no extra dependency. */
