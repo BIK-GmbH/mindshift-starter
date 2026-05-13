@@ -42,6 +42,7 @@ import IngestionSkeleton from "./IngestionSkeleton";
 import StatusBadge from "./StatusBadge";
 import ChatTab from "./cardTabs/ChatTab";
 import HighlightsTab from "./cardTabs/HighlightsTab";
+import LinksTab from "./cardTabs/LinksTab";
 import NotesTab from "./cardTabs/NotesTab";
 import PostsTab from "./cardTabs/PostsTab";
 import QuizTab from "./cardTabs/QuizTab";
@@ -60,6 +61,7 @@ export type CardDetailTab =
   | "quiz"
   | "chat"
   | "related"
+  | "links"
   | "graph"
   | "podcast"
   | "posts";
@@ -72,6 +74,7 @@ const TAB_ICONS: Record<CardDetailTab, FC<{ className?: string }>> = {
   quiz: Sparkles,
   chat: MessageSquare,
   related: Link2,
+  links: ExternalLink,
   graph: Network,
   podcast: Headphones,
   posts: Megaphone,
@@ -386,6 +389,7 @@ export default function CardDetailContent({
     "posts",
     "chat",
     "related",
+    "links",
     "graph",
     "podcast",
   ];
@@ -784,6 +788,8 @@ export default function CardDetailContent({
                 onPick={(id) => navigate(`/cards/${id}`)}
               />
             )}
+
+            {tab === "links" && <LinksTab cardId={card.id} />}
 
             {tab === "highlights" && (
               <HighlightsTab
