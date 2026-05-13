@@ -1,7 +1,7 @@
 import { Brain, Check, Copy, FileText, Github, Globe, Loader2, Share2, Youtube, type LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import MarkdownView from "../components/MarkdownView";
 import RailFooterButtons from "../components/RailFooterButtons";
@@ -90,6 +90,23 @@ function CardView({ card }: { card: PublicCard }) {
   const { t } = useTranslation();
   const Icon = SOURCE_ICONS[card.source_type] ?? FileText;
   const [copied, setCopied] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Pipe video coordinates into the markdown views so `[t=NN]` pills
+  // come out clickable. Click handler writes `?t=<seconds>` which
+  // CardMedia reads to rebuild the iframe src with start+autoplay.
+  const videoId =
+    card.source_type === "youtube" ? card.external_id ?? null : null;
+  const sourceUrl = card.source_url ?? null;
+  const handleTimestampClick = useCallback(
+    (seconds: number) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("t", String(seconds));
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+  const onTimestampClick = videoId ? handleTimestampClick : undefined;
 
   const onShare = async () => {
     const url = window.location.href;
@@ -138,60 +155,95 @@ function CardView({ card }: { card: PublicCard }) {
         </button>
       </header>
 
-      <CardMedia card={card} />
+      {/* Media + content. On md+ we render two columns so the video
+       *  can stay sticky on the left while the user scrolls through
+       *  the takeaways / summary / notes on the right. On mobile we
+       *  fall back to the natural stacked order — the video pushed
+       *  away by scroll is acceptable there because there's no
+       *  horizontal room for two columns. */}
+      <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div className="md:sticky md:top-4 md:self-start">
+          <CardMedia card={card} />
+        </div>
 
-      {card.concise_summary_md && (
-        <section>
-          <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
-            TL;DR
-          </h2>
-          <p className="text-base leading-relaxed text-ink-200">{card.concise_summary_md}</p>
-        </section>
-      )}
+        <div className="space-y-6">
+          {card.concise_summary_md && (
+            <section>
+              <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+                TL;DR
+              </h2>
+              <MarkdownView
+                source={card.concise_summary_md}
+                youtubeVideoId={videoId}
+                youtubeUrl={sourceUrl}
+                onTimestampClick={onTimestampClick}
+                className="text-base text-ink-200"
+              />
+            </section>
+          )}
 
-      {Array.isArray(card.key_takeaways_json) && card.key_takeaways_json.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
-            {t("share.public.takeaways", { defaultValue: "Key takeaways" })}
-          </h2>
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {card.key_takeaways_json.map((item, i) => {
-              const text = typeof item === "string" ? item : (item as { text?: string })?.text;
-              if (!text) return null;
-              return (
-                <li
-                  key={i}
-                  className="rounded-lg border border-ink-800 bg-ink-800/40 p-3 text-sm text-ink-200"
-                >
-                  {text}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+          {Array.isArray(card.key_takeaways_json) && card.key_takeaways_json.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+                {t("share.public.takeaways", { defaultValue: "Key takeaways" })}
+              </h2>
+              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {card.key_takeaways_json.map((item, i) => {
+                  const text =
+                    typeof item === "string" ? item : (item as { text?: string })?.text;
+                  if (!text) return null;
+                  return (
+                    <li
+                      key={i}
+                      className="rounded-lg border border-ink-800 bg-ink-800/40 p-3 text-sm text-ink-200"
+                    >
+                      <MarkdownView
+                        source={text}
+                        youtubeVideoId={videoId}
+                        youtubeUrl={sourceUrl}
+                        onTimestampClick={onTimestampClick}
+                        className="!text-ink-200"
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
-      {card.detailed_summary_md && (
-        <section>
-          <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
-            {t("share.public.summary", { defaultValue: "Summary" })}
-          </h2>
-          <div className="rounded-lg border border-ink-800 bg-ink-800/40 px-5 py-4">
-            <MarkdownView source={card.detailed_summary_md} />
-          </div>
-        </section>
-      )}
+          {card.detailed_summary_md && (
+            <section>
+              <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+                {t("share.public.summary", { defaultValue: "Summary" })}
+              </h2>
+              <div className="rounded-lg border border-ink-800 bg-ink-800/40 px-5 py-4">
+                <MarkdownView
+                  source={card.detailed_summary_md}
+                  youtubeVideoId={videoId}
+                  youtubeUrl={sourceUrl}
+                  onTimestampClick={onTimestampClick}
+                />
+              </div>
+            </section>
+          )}
 
-      {card.notes_md && (
-        <section>
-          <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
-            {t("share.public.notes", { defaultValue: "Notes" })}
-          </h2>
-          <div className="rounded-lg border border-ink-800 bg-ink-800/40 px-5 py-4">
-            <MarkdownView source={card.notes_md} />
-          </div>
-        </section>
-      )}
+          {card.notes_md && (
+            <section>
+              <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+                {t("share.public.notes", { defaultValue: "Notes" })}
+              </h2>
+              <div className="rounded-lg border border-ink-800 bg-ink-800/40 px-5 py-4">
+                <MarkdownView
+                  source={card.notes_md}
+                  youtubeVideoId={videoId}
+                  youtubeUrl={sourceUrl}
+                  onTimestampClick={onTimestampClick}
+                />
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
 
       <footer className="border-t border-ink-800 pt-4 text-xs text-ink-500">
         {t("share.public.footer", { defaultValue: "This is a read-only view of a Mindshift card." })}
@@ -201,11 +253,22 @@ function CardView({ card }: { card: PublicCard }) {
 }
 
 function CardMedia({ card }: { card: PublicCard }) {
+  const [searchParams] = useSearchParams();
   if (card.source_type === "youtube" && card.external_id) {
+    // `?t=<seconds>` is written by the timestamp pills above. Add it
+    // as `start=…&autoplay=1` so clicking a pill scrubs the player.
+    const tParam = searchParams.get("t");
+    const startSec = tParam ? Math.max(0, Math.floor(Number(tParam) || 0)) : null;
+    const src = startSec
+      ? `https://www.youtube.com/embed/${card.external_id}?start=${startSec}&autoplay=1`
+      : `https://www.youtube.com/embed/${card.external_id}`;
     return (
       <div className="aspect-video w-full overflow-hidden rounded-xl ring-1 ring-ink-800">
         <iframe
-          src={`https://www.youtube.com/embed/${card.external_id}`}
+          // Force a remount on timestamp change so the iframe actually
+          // jumps — same-src ignores autoplay+start updates in Chrome.
+          key={startSec ?? "no-t"}
+          src={src}
           title={card.title}
           loading="lazy"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

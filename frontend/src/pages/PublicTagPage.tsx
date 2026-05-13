@@ -1,7 +1,7 @@
 import { ArrowLeft, FileText, Github, Globe, Hash, Loader2, Rss, Youtube, type LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import MarkdownView from "../components/MarkdownView";
 import PublicShell from "../components/PublicShell";
@@ -151,32 +151,9 @@ export default function PublicTagPage() {
                       {t("share.public.backToTag", { defaultValue: "Back to tag" })}
                     </button>
                   </div>
-                  <CardMedia card={activeCard} />
-                  {activeCard.concise_summary_md && (
-                    <p className="mb-4 text-base leading-relaxed text-ink-200">
-                      {activeCard.concise_summary_md}
-                    </p>
-                  )}
-                  {Array.isArray(activeCard.key_takeaways_json) && activeCard.key_takeaways_json.length > 0 && (
-                    <ul className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {activeCard.key_takeaways_json.map((item, i) => {
-                        const text =
-                          typeof item === "string" ? item : (item as { text?: string })?.text;
-                        if (!text) return null;
-                        return (
-                          <li
-                            key={i}
-                            className="rounded-md border border-ink-700 bg-ink-900/40 p-3 text-sm text-ink-200"
-                          >
-                            {text}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  {activeCard.detailed_summary_md && (
-                    <MarkdownView source={activeCard.detailed_summary_md} />
-                  )}
+                  <CardDetailBody card={activeCard} />
+                  {/* Reactions stay outside the 2-column body so they
+                   *  sit clearly under the content, full width. */}
                   <div className="mt-5 border-t border-ink-700/60 pt-4">
                     <Reactions username={username} cardId={activeCard.id} />
                   </div>
@@ -246,13 +223,93 @@ export default function PublicTagPage() {
   );
 }
 
+/** Detail body for a single open card on the public tag page.
+ *
+ *  Two-column on md+: sticky video on the left, scrolling text on the
+ *  right (TL;DR → key takeaways → detailed summary). All text fields
+ *  flow through MarkdownView with the YouTube props so `[t=NN]`
+ *  markers come out as clickable pills that scrub the iframe via
+ *  `?t=…` (read by CardMedia). */
+function CardDetailBody({ card }: { card: PublicCard }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const videoId =
+    card.source_type === "youtube" ? card.external_id ?? null : null;
+  const sourceUrl = card.source_url ?? null;
+  const handleTimestampClick = useCallback(
+    (seconds: number) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("t", String(seconds));
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+  const onTimestampClick = videoId ? handleTimestampClick : undefined;
+
+  return (
+    <div className="grid gap-5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div className="md:sticky md:top-4 md:self-start">
+        <CardMedia card={card} />
+      </div>
+      <div className="space-y-4">
+        {card.concise_summary_md && (
+          <MarkdownView
+            source={card.concise_summary_md}
+            youtubeVideoId={videoId}
+            youtubeUrl={sourceUrl}
+            onTimestampClick={onTimestampClick}
+            className="text-base text-ink-200"
+          />
+        )}
+        {Array.isArray(card.key_takeaways_json) && card.key_takeaways_json.length > 0 && (
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {card.key_takeaways_json.map((item, i) => {
+              const text =
+                typeof item === "string" ? item : (item as { text?: string })?.text;
+              if (!text) return null;
+              return (
+                <li
+                  key={i}
+                  className="rounded-md border border-ink-700 bg-ink-900/40 p-3 text-sm text-ink-200"
+                >
+                  <MarkdownView
+                    source={text}
+                    youtubeVideoId={videoId}
+                    youtubeUrl={sourceUrl}
+                    onTimestampClick={onTimestampClick}
+                    className="!text-ink-200"
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {card.detailed_summary_md && (
+          <MarkdownView
+            source={card.detailed_summary_md}
+            youtubeVideoId={videoId}
+            youtubeUrl={sourceUrl}
+            onTimestampClick={onTimestampClick}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CardMedia({ card }: { card: PublicCard }) {
+  const [searchParams] = useSearchParams();
   // YouTube → embed iframe (so the visitor can actually watch).
   if (card.source_type === "youtube" && card.external_id) {
+    const tParam = searchParams.get("t");
+    const startSec = tParam ? Math.max(0, Math.floor(Number(tParam) || 0)) : null;
+    const src = startSec
+      ? `https://www.youtube.com/embed/${card.external_id}?start=${startSec}&autoplay=1`
+      : `https://www.youtube.com/embed/${card.external_id}`;
     return (
-      <div className="mb-4 aspect-video w-full overflow-hidden rounded-lg ring-1 ring-ink-700">
+      <div className="aspect-video w-full overflow-hidden rounded-lg ring-1 ring-ink-700">
         <iframe
-          src={`https://www.youtube.com/embed/${card.external_id}`}
+          key={startSec ?? "no-t"}
+          src={src}
           title={card.title}
           loading="lazy"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
