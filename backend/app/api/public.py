@@ -191,14 +191,13 @@ def get_public_profile(
             playlists=out_playlists,
         )
 
-    # Card counts per public tag tree.
+    # Card counts per public tag tree. Every tag the user explicitly
+    # marked public gets its own profile entry — including sub-tags
+    # of a public parent. Earlier behaviour hid those to "avoid
+    # clutter", but it violated the principle of least surprise:
+    # toggle a tag public, the toggle silently no-ops on the profile.
     out_tags: list[PublicProfileTagOut] = []
-    public_set = {t.id for t in public_tags}
     for t in public_tags:
-        # Hide tags that live inside another public tag — they're
-        # already reachable via the parent's profile entry.
-        if t.parent_id and t.parent_id in public_set:
-            continue
         subtree_ids = _walk_public_subtree(db, user.id, t)
         count = db.execute(
             select(func.count(func.distinct(CardTag.card_id))).where(CardTag.tag_id.in_(subtree_ids))

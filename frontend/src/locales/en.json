@@ -146,6 +146,7 @@
     "graph": "Graph",
     "chat": "Chat",
     "review": "Learning",
+    "discover": "Discover",
     "podcasts": "Podcasts",
     "playlists": "Podcasts",
     "feeds": "Feeds",
@@ -274,6 +275,7 @@
     "quiz": "Quiz",
     "chat": "Chat",
     "related": "Related",
+    "links": "Links",
     "graph": "Graph",
     "podcast": "Podcast",
     "posts": "Posts",
@@ -678,5 +680,80 @@
     "errorUnsupported": "Voice recording not available in this browser.",
     "errorTooLarge": "Recording too long (max 25 MB).",
     "errorNoSpeech": "No speech detected — try again."
+  },
+  "youtube": {
+    "saveToMindshift": "Save",
+    "openCard": "Open card",
+    "alreadySaved": "In Library",
+    "openInYouTube": "Open in YouTube"
+  },
+  "related": {
+    "fromLibrary": "From Library",
+    "fromYouTube": "On YouTube",
+    "queryLabel": "Query",
+    "refresh": "Refresh",
+    "ytLoading": "Fetching YouTube suggestions…",
+    "ytDisabledTitle": "YouTube suggestions disabled",
+    "ytDisabledBody": "Set YOUTUBE_API_KEY in .env to suggest new videos based on this card's tags.",
+    "ytEmptyTitle": "No suggestions found",
+    "ytEmptyBody": "Not many specific tags on this card. Add a few relevant tags and try again.",
+    "ytLead": "{{count}} suggestions · cached for 24 h · videos already in your library are flagged."
+  },
+  "discover": {
+    "kicker": "Discover",
+    "title": "For you on YouTube",
+    "lead": "{{count}} cards in your library fed the theme set.",
+    "refresh": "Regenerate",
+    "allThemes": "All themes",
+    "loading": "Loading suggestions…",
+    "disabledTitle": "YouTube suggestions disabled",
+    "disabledBody": "Set YOUTUBE_API_KEY in .env to get theme-based YouTube videos suggested.",
+    "emptyTitle": "No themes detected yet",
+    "emptyBody": "Add top-level tags to a few cards — Discover clusters your library by those tags.",
+    "cardCount": "{{count}} of your cards",
+    "query": "Query",
+    "queriesPrefix": "Queries:",
+    "themes": "Themes",
+    "loadMore": "Load more",
+    "themeEmpty": "No matches for this theme.",
+    "freshness": {
+      "label": "Window",
+      "week": "Past week",
+      "month": "Past month",
+      "quarter": "Past 3 months",
+      "year": "Past year",
+      "all": "All time"
+    },
+    "searchPlaceholder": "Search YouTube — e.g. \"MCP server tutorial 2026\"",
+    "searching": "Searching YouTube…",
+    "searchResultsFor": "Search results for \"{{query}}\"",
+    "closeSearch": "Close",
+    "searchEmpty": "No hits — try a different term?",
+    "recent": "Recent searches"
+  },
+  "discoverRow": {
+    "play": "Play preview",
+    "stop": "Stop"
+  },
+  "cinema": {
+    "theater": "Theater mode",
+    "float": "Floating window",
+    "dock": "Dock",
+    "drag": "Drag"
+  },
+  "links": {
+    "loading": "Scanning content for links…",
+    "emptyTitle": "No links in content",
+    "emptyBody": "The transcript and description don't contain any URLs.",
+    "lead": "{{count}} links — grouped by source. Each opens in a new tab.",
+    "section": {
+      "description": "From the description",
+      "transcript": "Mentioned in video",
+      "other": "Other"
+    },
+    "aiSection": "AI suggestions on this topic",
+    "aiLoading": "Researching repos, docs and web sources…",
+    "aiEmpty": "No additional sources found — the topic may be very niche or web search is disabled.",
+    "aiRefresh": "Regenerate"
   }
 }

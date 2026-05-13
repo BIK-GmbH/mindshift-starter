@@ -657,6 +657,12 @@ export const api = {
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
+  getCardLinks: (id: string) =>
+    request<{ card_id: string; links: ExtractedLink[] }>(`/api/cards/${id}/links`),
+  getCardAiResources: (id: string, refresh = false) =>
+    request<{ card_id: string; resources: AiResource[] }>(
+      `/api/cards/${id}/ai-resources${refresh ? "?refresh=1" : ""}`,
+    ),
   globalGraph: (params: {
     source_type?: string;
     tags?: string[];
@@ -951,7 +957,72 @@ export const api = {
     }),
   deleteAdminUser: (id: string) =>
     request<void>(`/api/admin/users/${id}`, { method: "DELETE" }),
+
+  // ── YouTube suggestions ─────────────────────────────────────────
+  suggestYouTubeForCard: (cardId: string, refresh = false) =>
+    request<CardYouTubeSuggestions>(
+      `/api/youtube/suggest/card/${cardId}${refresh ? "?refresh=1" : ""}`,
+    ),
+  getYouTubeDiscover: (refresh = false, freshness: YouTubeFreshness = "month") => {
+    const params = new URLSearchParams();
+    if (refresh) params.set("refresh", "1");
+    if (freshness) params.set("freshness", freshness);
+    const qs = params.toString();
+    return request<YouTubeDiscover>(`/api/youtube/discover${qs ? `?${qs}` : ""}`);
+  },
+  searchYouTube: (q: string, freshness: YouTubeFreshness = "month", refresh = false) => {
+    const params = new URLSearchParams();
+    params.set("q", q);
+    params.set("freshness", freshness);
+    if (refresh) params.set("refresh", "1");
+    return request<YouTubeCustomSearch>(`/api/youtube/search?${params.toString()}`);
+  },
 };
+
+export type YouTubeFreshness = "week" | "month" | "quarter" | "year" | "all";
+
+export interface YouTubeCustomSearch {
+  query: string;
+  freshness: YouTubeFreshness;
+  from_cache: boolean;
+  api_enabled: boolean;
+  results: YouTubeSuggestion[];
+}
+
+export interface YouTubeSuggestion {
+  video_id: string;
+  title: string;
+  channel: string;
+  description: string;
+  thumbnail_url: string;
+  published_at: string;
+  duration_iso: string | null;
+  already_saved_card_id: string | null;
+}
+
+export interface CardYouTubeSuggestions {
+  query: string;
+  results: YouTubeSuggestion[];
+  from_cache: boolean;
+  api_enabled: boolean;
+}
+
+export interface YouTubeDiscoverTheme {
+  slug: string;
+  label: string;
+  query: string;
+  /** Discrete sub-queries the LLM generated for this theme (v2). */
+  queries: string[];
+  card_count: number;
+  from_cache: boolean;
+  results: YouTubeSuggestion[];
+}
+
+export interface YouTubeDiscover {
+  api_enabled: boolean;
+  themes: YouTubeDiscoverTheme[];
+  freshness: YouTubeFreshness;
+}
 
 export interface FeedOut {
   id: string;
@@ -1110,6 +1181,22 @@ export interface Connection {
   tags: string[];
   score: number;
   reasons: ConnectionReason[];
+}
+
+export interface ExtractedLink {
+  url: string;
+  domain: string;
+  context: "description" | "transcript" | "article" | string;
+}
+
+export interface AiResource {
+  url: string;
+  domain: string;
+  title: string;
+  snippet: string;
+  age: string | null;
+  kind: "github" | "doc" | "web" | string;
+  query: string;
 }
 
 export interface TagWithCount {

@@ -1,10 +1,11 @@
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 
 import AppLayout from "./components/AppLayout";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import AuthPage from "./pages/AuthPage";
 import CardDetailPage from "./pages/CardDetailPage";
 import ChatPage from "./pages/ChatPage";
+import DiscoverPage from "./pages/DiscoverPage";
 import EmbedCardPage from "./pages/EmbedCardPage";
 import FeedsPage from "./pages/FeedsPage";
 import GraphPage from "./pages/GraphPage";
@@ -38,7 +39,13 @@ function RootRoutes() {
   // authenticated (it's the side-panel iframe target — relies on the
   // user's existing localStorage session), so we whitelist only the
   // public-token embed paths here.
-  const path = window.location.pathname;
+  //
+  // Subscribe to react-router's location so a <Link to="/"> from a
+  // public surface re-renders this gate and bounces a logged-in user
+  // back into the app (or a guest to the auth page). Reading
+  // window.location.pathname directly was a one-shot read — the URL
+  // changed but the gate didn't notice.
+  const path = useLocation().pathname;
   if (
     path.startsWith("/share/") ||
     path.startsWith("/embed/episode/") ||
@@ -92,6 +99,7 @@ function RootRoutes() {
         <Route path="chat" element={<ChatPage />} />
         <Route path="graph" element={<GraphPage />} />
         <Route path="review" element={<ReviewPage />} />
+        <Route path="discover" element={<DiscoverPage />} />
         <Route path="podcasts" element={<PodcastsPage />} />
         <Route path="podcasts/:playlistId" element={<PodcastsPage />} />
         <Route path="feeds" element={<FeedsPage />} />
