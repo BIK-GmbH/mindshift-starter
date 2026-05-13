@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 
 import AppLayout from "./components/AppLayout";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
@@ -39,7 +39,13 @@ function RootRoutes() {
   // authenticated (it's the side-panel iframe target — relies on the
   // user's existing localStorage session), so we whitelist only the
   // public-token embed paths here.
-  const path = window.location.pathname;
+  //
+  // Subscribe to react-router's location so a <Link to="/"> from a
+  // public surface re-renders this gate and bounces a logged-in user
+  // back into the app (or a guest to the auth page). Reading
+  // window.location.pathname directly was a one-shot read — the URL
+  // changed but the gate didn't notice.
+  const path = useLocation().pathname;
   if (
     path.startsWith("/share/") ||
     path.startsWith("/embed/episode/") ||
