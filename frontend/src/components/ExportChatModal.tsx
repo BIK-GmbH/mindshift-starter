@@ -167,10 +167,14 @@ export default function ExportChatModal({
           </div>
         </div>
 
-        {/* Body — two-column on wide enough, stacked on narrow */}
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5 md:flex-row">
+        {/* Body — two-column on wide enough, stacked on narrow.
+         *  Narrow mode: the body itself scrolls and the children size to
+         *  their content (no flex-1) so they never overlap. Wide mode:
+         *  the body is overflow-hidden, both children get flex-1 with
+         *  their own internal scroll. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5 md:flex-row md:overflow-hidden">
           {/* Message picker */}
-          <div className="min-h-0 flex-1 space-y-1.5 md:overflow-y-auto md:pr-2">
+          <div className="space-y-1.5 md:min-h-0 md:flex-1 md:overflow-y-auto md:pr-2">
             {messages.length === 0 && (
               <p className="text-xs text-ink-500">
                 {t("chatExport.empty", { defaultValue: "No messages yet — send something first." })}
@@ -232,11 +236,11 @@ export default function ExportChatModal({
           </div>
 
           {/* Preview */}
-          <div className="flex min-h-0 flex-1 flex-col rounded-md border border-ink-800 bg-ink-800/30 md:overflow-hidden">
+          <div className="flex flex-col rounded-md border border-ink-800 bg-ink-800/30 md:min-h-0 md:flex-1 md:overflow-hidden">
             <div className="border-b border-ink-800 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
               {t("chatExport.preview", { defaultValue: "Preview" })}
             </div>
-            <pre className="flex-1 overflow-y-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-200 whitespace-pre-wrap break-words">
+            <pre className="max-h-[40vh] overflow-y-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-200 whitespace-pre-wrap break-words md:max-h-none md:flex-1">
               {formatted || t("chatExport.previewEmpty", { defaultValue: "(nothing selected)" })}
             </pre>
           </div>

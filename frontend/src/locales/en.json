@@ -146,6 +146,7 @@
     "graph": "Graph",
     "chat": "Chat",
     "review": "Learning",
+    "discover": "Discover",
     "podcasts": "Podcasts",
     "playlists": "Podcasts",
     "feeds": "Feeds",
@@ -678,5 +679,53 @@
     "errorUnsupported": "Voice recording not available in this browser.",
     "errorTooLarge": "Recording too long (max 25 MB).",
     "errorNoSpeech": "No speech detected — try again."
+  },
+  "youtube": {
+    "saveToMindshift": "Save",
+    "openCard": "Open card",
+    "alreadySaved": "In Library",
+    "openInYouTube": "Open in YouTube"
+  },
+  "related": {
+    "fromLibrary": "From Library",
+    "fromYouTube": "On YouTube",
+    "queryLabel": "Query",
+    "refresh": "Refresh",
+    "ytLoading": "Fetching YouTube suggestions…",
+    "ytDisabledTitle": "YouTube suggestions disabled",
+    "ytDisabledBody": "Set YOUTUBE_API_KEY in .env to suggest new videos based on this card's tags.",
+    "ytEmptyTitle": "No suggestions found",
+    "ytEmptyBody": "Not many specific tags on this card. Add a few relevant tags and try again.",
+    "ytLead": "{{count}} suggestions · cached for 24 h · videos already in your library are flagged."
+  },
+  "discover": {
+    "kicker": "Discover",
+    "title": "For you on YouTube",
+    "lead": "{{count}} cards in your library fed the theme set.",
+    "refresh": "Regenerate",
+    "allThemes": "All themes",
+    "loading": "Loading suggestions…",
+    "disabledTitle": "YouTube suggestions disabled",
+    "disabledBody": "Set YOUTUBE_API_KEY in .env to get theme-based YouTube videos suggested.",
+    "emptyTitle": "No themes detected yet",
+    "emptyBody": "Add top-level tags to a few cards — Discover clusters your library by those tags.",
+    "cardCount": "{{count}} of your cards",
+    "query": "Query",
+    "queriesPrefix": "Queries:",
+    "themes": "Themes",
+    "loadMore": "Load more",
+    "themeEmpty": "No matches for this theme.",
+    "freshness": {
+      "label": "Window",
+      "week": "Past week",
+      "month": "Past month",
+      "quarter": "Past 3 months",
+      "year": "Past year",
+      "all": "All time"
+    }
+  },
+  "discoverRow": {
+    "play": "Play preview",
+    "stop": "Stop"
   }
 }

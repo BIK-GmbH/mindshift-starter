@@ -951,7 +951,57 @@ export const api = {
     }),
   deleteAdminUser: (id: string) =>
     request<void>(`/api/admin/users/${id}`, { method: "DELETE" }),
+
+  // ── YouTube suggestions ─────────────────────────────────────────
+  suggestYouTubeForCard: (cardId: string, refresh = false) =>
+    request<CardYouTubeSuggestions>(
+      `/api/youtube/suggest/card/${cardId}${refresh ? "?refresh=1" : ""}`,
+    ),
+  getYouTubeDiscover: (refresh = false, freshness: YouTubeFreshness = "month") => {
+    const params = new URLSearchParams();
+    if (refresh) params.set("refresh", "1");
+    if (freshness) params.set("freshness", freshness);
+    const qs = params.toString();
+    return request<YouTubeDiscover>(`/api/youtube/discover${qs ? `?${qs}` : ""}`);
+  },
 };
+
+export type YouTubeFreshness = "week" | "month" | "quarter" | "year" | "all";
+
+export interface YouTubeSuggestion {
+  video_id: string;
+  title: string;
+  channel: string;
+  description: string;
+  thumbnail_url: string;
+  published_at: string;
+  duration_iso: string | null;
+  already_saved_card_id: string | null;
+}
+
+export interface CardYouTubeSuggestions {
+  query: string;
+  results: YouTubeSuggestion[];
+  from_cache: boolean;
+  api_enabled: boolean;
+}
+
+export interface YouTubeDiscoverTheme {
+  slug: string;
+  label: string;
+  query: string;
+  /** Discrete sub-queries the LLM generated for this theme (v2). */
+  queries: string[];
+  card_count: number;
+  from_cache: boolean;
+  results: YouTubeSuggestion[];
+}
+
+export interface YouTubeDiscover {
+  api_enabled: boolean;
+  themes: YouTubeDiscoverTheme[];
+  freshness: YouTubeFreshness;
+}
 
 export interface FeedOut {
   id: string;
