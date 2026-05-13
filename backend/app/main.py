@@ -34,6 +34,7 @@ from app.api.highlights import router as highlights_router
 from app.api.transcribe import router as transcribe_router
 from app.api.translations import router as translations_router
 from app.api.wiki import router as wiki_router
+from app.api.youtube import router as youtube_router
 from app.core.config import get_settings
 from app.services.feed_scheduler import start_scheduler, stop_scheduler
 from app.services.recovery import reap_stuck_processing
@@ -110,6 +111,7 @@ app.include_router(paths_public_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(feeds_router, prefix="/api")
 app.include_router(wiki_router, prefix="/api")
+app.include_router(youtube_router, prefix="/api")
 app.include_router(import_router, prefix="/api")
 app.include_router(share_router, prefix="/api")
 app.include_router(files_router, prefix="/api")
