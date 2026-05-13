@@ -32,6 +32,7 @@ from app.models.source import Source  # noqa: F401
 from app.models.tag import CardTag, Tag  # noqa: F401
 from app.models.transcript import Transcript  # noqa: F401
 from app.models.user import User  # noqa: F401
+from app.models.youtube_suggestion import YouTubeSuggestionCache  # noqa: F401
 
 
 def register_models() -> None:

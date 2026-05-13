@@ -69,11 +69,49 @@ class YouTubeMetadata:
     thumbnail_url: str | None
     duration_seconds: int | None
     published_at: str | None
+    description: str | None
     raw: dict
 
 
 def fetch_metadata(video_id: str) -> YouTubeMetadata:
-    """Fetch metadata via YouTube's public oEmbed endpoint (no API key required)."""
+    """Fetch metadata. Prefers Data API v3 if a key is configured — gives
+    us the full description (essential for link extraction). Falls back
+    to oEmbed which only carries title + channel + thumbnail."""
+    from app.core.config import get_settings  # local import: cheap, avoids cycles
+
+    settings = get_settings()
+    key = (settings.youtube_api_key or "").strip()
+
+    if key:
+        try:
+            with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+                r = client.get(
+                    "https://www.googleapis.com/youtube/v3/videos",
+                    params={"id": video_id, "key": key, "part": "snippet,contentDetails"},
+                )
+                r.raise_for_status()
+                items = (r.json().get("items") or [])
+                if items:
+                    snip = items[0].get("snippet") or {}
+                    thumbs = snip.get("thumbnails") or {}
+                    thumb = (
+                        thumbs.get("maxres") or thumbs.get("high") or thumbs.get("medium")
+                        or thumbs.get("default") or {}
+                    ).get("url")
+                    return YouTubeMetadata(
+                        video_id=video_id,
+                        title=snip.get("title") or f"YouTube {video_id}",
+                        channel=snip.get("channelTitle"),
+                        thumbnail_url=thumb,
+                        duration_seconds=None,
+                        published_at=snip.get("publishedAt"),
+                        description=snip.get("description") or None,
+                        raw={"data_api": items[0]},
+                    )
+        except httpx.HTTPError:
+            # Quota exhausted or transient — fall through to oEmbed.
+            pass
+
     url = "https://www.youtube.com/oembed"
     params = {"url": f"https://www.youtube.com/watch?v={video_id}", "format": "json"}
     with httpx.Client(timeout=15.0, follow_redirects=True) as client:
@@ -88,6 +126,7 @@ def fetch_metadata(video_id: str) -> YouTubeMetadata:
         thumbnail_url=data.get("thumbnail_url"),
         duration_seconds=None,
         published_at=None,
+        description=None,
         raw=data,
     )
 

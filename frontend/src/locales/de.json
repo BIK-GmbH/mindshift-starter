@@ -146,6 +146,7 @@
     "graph": "Graph",
     "chat": "Chat",
     "review": "Learning",
+    "discover": "Discover",
     "podcasts": "Podcasts",
     "playlists": "Podcasts",
     "feeds": "Feeds",
@@ -274,6 +275,7 @@
     "quiz": "Quiz",
     "chat": "Chat",
     "related": "Verbunden",
+    "links": "Links",
     "graph": "Graph",
     "podcast": "Podcast",
     "posts": "Posts",
@@ -678,5 +680,59 @@
     "errorUnsupported": "Sprachaufnahme in diesem Browser nicht verfügbar.",
     "errorTooLarge": "Aufnahme zu lang (max 25 MB).",
     "errorNoSpeech": "Keine Sprache erkannt — bitte erneut versuchen."
+  },
+  "youtube": {
+    "saveToMindshift": "Speichern",
+    "openCard": "Karte öffnen",
+    "alreadySaved": "In Library",
+    "openInYouTube": "Auf YouTube öffnen"
+  },
+  "related": {
+    "fromLibrary": "Aus Library",
+    "fromYouTube": "Auf YouTube",
+    "queryLabel": "Query",
+    "refresh": "Aktualisieren",
+    "ytLoading": "Suche YouTube-Vorschläge…",
+    "ytDisabledTitle": "YouTube-Vorschläge sind aus",
+    "ytDisabledBody": "Setze YOUTUBE_API_KEY in der .env, um auf Basis der Karten-Tags neue Videos vorzuschlagen.",
+    "ytEmptyTitle": "Keine Vorschläge gefunden",
+    "ytEmptyBody": "Wenig spezifische Tags an dieser Karte. Vergib ein paar passende Tags und probier es nochmal.",
+    "ytLead": "{{count}} Vorschläge · gecached für 24 h · bereits gespeicherte Videos werden markiert."
+  },
+  "discover": {
+    "kicker": "Discover",
+    "title": "Für dich auf YouTube",
+    "lead": "{{count}} Karten in deiner Library haben das Themen-Set gespeist.",
+    "refresh": "Neu generieren",
+    "allThemes": "Alle Themen",
+    "loading": "Lade Vorschläge…",
+    "disabledTitle": "YouTube-Vorschläge sind aus",
+    "disabledBody": "Setze YOUTUBE_API_KEY in der .env, um Themen-basiert YouTube-Videos vorgeschlagen zu bekommen.",
+    "emptyTitle": "Noch keine Themen erkannt",
+    "emptyBody": "Vergib Top-Level-Tags an ein paar Karten — Discover gruppiert deine Library nach diesen Tags.",
+    "cardCount": "{{count}} deiner Karten",
+    "query": "Query",
+    "queriesPrefix": "Queries:",
+    "themes": "Themen",
+    "loadMore": "Mehr laden",
+    "themeEmpty": "Keine Treffer für dieses Thema.",
+    "freshness": {
+      "label": "Zeitraum",
+      "week": "Letzte Woche",
+      "month": "Letzter Monat",
+      "quarter": "Letzte 3 Monate",
+      "year": "Letztes Jahr",
+      "all": "Alle"
+    },
+    "searchPlaceholder": "Auf YouTube suchen — z. B. „MCP server tutorial 2026“",
+    "searching": "Suche auf YouTube…",
+    "searchResultsFor": "Suchergebnisse für „{{query}}“",
+    "closeSearch": "Schließen",
+    "searchEmpty": "Keine Treffer — anderes Stichwort?",
+    "recent": "Zuletzt gesucht"
+  },
+  "discoverRow": {
+    "play": "Vorschau abspielen",
+    "stop": "Stop"
   }
 }
