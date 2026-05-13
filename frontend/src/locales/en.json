@@ -735,6 +735,12 @@
     "play": "Play preview",
     "stop": "Stop"
   },
+  "cinema": {
+    "theater": "Theater mode",
+    "float": "Floating window",
+    "dock": "Dock",
+    "drag": "Drag"
+  },
   "links": {
     "loading": "Scanning content for links…",
     "emptyTitle": "No links in content",

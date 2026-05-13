@@ -735,6 +735,12 @@
     "play": "Vorschau abspielen",
     "stop": "Stop"
   },
+  "cinema": {
+    "theater": "Theater-Modus",
+    "float": "Schwebendes Fenster",
+    "dock": "Andocken",
+    "drag": "Ziehen"
+  },
   "links": {
     "loading": "Suche Links im Inhalt…",
     "emptyTitle": "Keine Links im Inhalt",

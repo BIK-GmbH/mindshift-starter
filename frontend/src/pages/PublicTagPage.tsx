@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
+import CardCinemaLayout from "../components/CardCinemaLayout";
 import MarkdownView from "../components/MarkdownView";
 import PublicShell from "../components/PublicShell";
 import Reactions from "../components/Reactions";
@@ -246,53 +247,48 @@ function CardDetailBody({ card }: { card: PublicCard }) {
   const onTimestampClick = videoId ? handleTimestampClick : undefined;
 
   return (
-    <div className="grid gap-5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-      <div className="md:sticky md:top-4 md:self-start">
-        <CardMedia card={card} />
-      </div>
-      <div className="space-y-4">
-        {card.concise_summary_md && (
-          <MarkdownView
-            source={card.concise_summary_md}
-            youtubeVideoId={videoId}
-            youtubeUrl={sourceUrl}
-            onTimestampClick={onTimestampClick}
-            className="text-base text-ink-200"
-          />
-        )}
-        {Array.isArray(card.key_takeaways_json) && card.key_takeaways_json.length > 0 && (
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {card.key_takeaways_json.map((item, i) => {
-              const text =
-                typeof item === "string" ? item : (item as { text?: string })?.text;
-              if (!text) return null;
-              return (
-                <li
-                  key={i}
-                  className="rounded-md border border-ink-700 bg-ink-900/40 p-3 text-sm text-ink-200"
-                >
-                  <MarkdownView
-                    source={text}
-                    youtubeVideoId={videoId}
-                    youtubeUrl={sourceUrl}
-                    onTimestampClick={onTimestampClick}
-                    className="!text-ink-200"
-                  />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {card.detailed_summary_md && (
-          <MarkdownView
-            source={card.detailed_summary_md}
-            youtubeVideoId={videoId}
-            youtubeUrl={sourceUrl}
-            onTimestampClick={onTimestampClick}
-          />
-        )}
-      </div>
-    </div>
+    <CardCinemaLayout video={() => <CardMedia card={card} />}>
+      {card.concise_summary_md && (
+        <MarkdownView
+          source={card.concise_summary_md}
+          youtubeVideoId={videoId}
+          youtubeUrl={sourceUrl}
+          onTimestampClick={onTimestampClick}
+          className="text-base text-ink-200"
+        />
+      )}
+      {Array.isArray(card.key_takeaways_json) && card.key_takeaways_json.length > 0 && (
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {card.key_takeaways_json.map((item, i) => {
+            const text =
+              typeof item === "string" ? item : (item as { text?: string })?.text;
+            if (!text) return null;
+            return (
+              <li
+                key={i}
+                className="rounded-md border border-ink-700 bg-ink-900/40 p-3 text-sm text-ink-200"
+              >
+                <MarkdownView
+                  source={text}
+                  youtubeVideoId={videoId}
+                  youtubeUrl={sourceUrl}
+                  onTimestampClick={onTimestampClick}
+                  className="!text-ink-200"
+                />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {card.detailed_summary_md && (
+        <MarkdownView
+          source={card.detailed_summary_md}
+          youtubeVideoId={videoId}
+          youtubeUrl={sourceUrl}
+          onTimestampClick={onTimestampClick}
+        />
+      )}
+    </CardCinemaLayout>
   );
 }
 

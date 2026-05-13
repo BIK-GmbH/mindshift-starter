@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
+import CardCinemaLayout from "../components/CardCinemaLayout";
 import MarkdownView from "../components/MarkdownView";
 import RailFooterButtons from "../components/RailFooterButtons";
 import { api, type PublicCard } from "../lib/api";
@@ -155,95 +156,83 @@ function CardView({ card }: { card: PublicCard }) {
         </button>
       </header>
 
-      {/* Media + content. On md+ we render two columns so the video
-       *  can stay sticky on the left while the user scrolls through
-       *  the takeaways / summary / notes on the right. On mobile we
-       *  fall back to the natural stacked order — the video pushed
-       *  away by scroll is acceptable there because there's no
-       *  horizontal room for two columns. */}
-      <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <div className="md:sticky md:top-4 md:self-start">
-          <CardMedia card={card} />
-        </div>
+      <CardCinemaLayout video={() => <CardMedia card={card} />}>
+        {card.concise_summary_md && (
+          <section>
+            <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+              TL;DR
+            </h2>
+            <MarkdownView
+              source={card.concise_summary_md}
+              youtubeVideoId={videoId}
+              youtubeUrl={sourceUrl}
+              onTimestampClick={onTimestampClick}
+              className="text-base text-ink-200"
+            />
+          </section>
+        )}
 
-        <div className="space-y-6">
-          {card.concise_summary_md && (
-            <section>
-              <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
-                TL;DR
-              </h2>
+        {Array.isArray(card.key_takeaways_json) && card.key_takeaways_json.length > 0 && (
+          <section>
+            <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+              {t("share.public.takeaways", { defaultValue: "Key takeaways" })}
+            </h2>
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {card.key_takeaways_json.map((item, i) => {
+                const text =
+                  typeof item === "string" ? item : (item as { text?: string })?.text;
+                if (!text) return null;
+                return (
+                  <li
+                    key={i}
+                    className="rounded-lg border border-ink-800 bg-ink-800/40 p-3 text-sm text-ink-200"
+                  >
+                    <MarkdownView
+                      source={text}
+                      youtubeVideoId={videoId}
+                      youtubeUrl={sourceUrl}
+                      onTimestampClick={onTimestampClick}
+                      className="!text-ink-200"
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
+        {card.detailed_summary_md && (
+          <section>
+            <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+              {t("share.public.summary", { defaultValue: "Summary" })}
+            </h2>
+            <div className="rounded-lg border border-ink-800 bg-ink-800/40 px-5 py-4">
               <MarkdownView
-                source={card.concise_summary_md}
+                source={card.detailed_summary_md}
                 youtubeVideoId={videoId}
                 youtubeUrl={sourceUrl}
                 onTimestampClick={onTimestampClick}
-                className="text-base text-ink-200"
               />
-            </section>
-          )}
+            </div>
+          </section>
+        )}
 
-          {Array.isArray(card.key_takeaways_json) && card.key_takeaways_json.length > 0 && (
-            <section>
-              <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
-                {t("share.public.takeaways", { defaultValue: "Key takeaways" })}
-              </h2>
-              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {card.key_takeaways_json.map((item, i) => {
-                  const text =
-                    typeof item === "string" ? item : (item as { text?: string })?.text;
-                  if (!text) return null;
-                  return (
-                    <li
-                      key={i}
-                      className="rounded-lg border border-ink-800 bg-ink-800/40 p-3 text-sm text-ink-200"
-                    >
-                      <MarkdownView
-                        source={text}
-                        youtubeVideoId={videoId}
-                        youtubeUrl={sourceUrl}
-                        onTimestampClick={onTimestampClick}
-                        className="!text-ink-200"
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
-
-          {card.detailed_summary_md && (
-            <section>
-              <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
-                {t("share.public.summary", { defaultValue: "Summary" })}
-              </h2>
-              <div className="rounded-lg border border-ink-800 bg-ink-800/40 px-5 py-4">
-                <MarkdownView
-                  source={card.detailed_summary_md}
-                  youtubeVideoId={videoId}
-                  youtubeUrl={sourceUrl}
-                  onTimestampClick={onTimestampClick}
-                />
-              </div>
-            </section>
-          )}
-
-          {card.notes_md && (
-            <section>
-              <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
-                {t("share.public.notes", { defaultValue: "Notes" })}
-              </h2>
-              <div className="rounded-lg border border-ink-800 bg-ink-800/40 px-5 py-4">
-                <MarkdownView
-                  source={card.notes_md}
-                  youtubeVideoId={videoId}
-                  youtubeUrl={sourceUrl}
-                  onTimestampClick={onTimestampClick}
-                />
-              </div>
-            </section>
-          )}
-        </div>
-      </div>
+        {card.notes_md && (
+          <section>
+            <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-500">
+              {t("share.public.notes", { defaultValue: "Notes" })}
+            </h2>
+            <div className="rounded-lg border border-ink-800 bg-ink-800/40 px-5 py-4">
+              <MarkdownView
+                source={card.notes_md}
+                youtubeVideoId={videoId}
+                youtubeUrl={sourceUrl}
+                onTimestampClick={onTimestampClick}
+              />
+            </div>
+          </section>
+        )}
+      </CardCinemaLayout>
 
       <footer className="border-t border-ink-800 pt-4 text-xs text-ink-500">
         {t("share.public.footer", { defaultValue: "This is a read-only view of a Mindshift card." })}
