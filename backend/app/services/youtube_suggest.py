@@ -59,9 +59,19 @@ DISCOVER_PER_QUERY = 10
 # Hard filter — "medium" = 4–20 min, kills Shorts and 3 h conference
 # talks that overwhelm the watch surface.
 DISCOVER_VIDEO_DURATION = "medium"
-# Don't suggest stale stuff for a fast-moving subject.
-DISCOVER_PUBLISHED_AFTER_DAYS = 365
 DISCOVER_MAX_PER_CHANNEL = 2
+
+# Freshness presets. Default is "month" (30 days) — AI tooling moves
+# fast and anything older is usually superseded by a newer take. The
+# user can override per-request via /api/youtube/discover?freshness=…
+FRESHNESS_DAYS: dict[str, int | None] = {
+    "week": 7,
+    "month": 30,
+    "quarter": 90,
+    "year": 365,
+    "all": None,
+}
+DEFAULT_FRESHNESS = "month"
 
 
 @dataclass
@@ -552,7 +562,11 @@ def suggest_for_card(
 
 
 def _build_theme_pool(
-    db: Session, user_id: UUID, theme: ThemeInfo, ui_lang: str
+    db: Session,
+    user_id: UUID,
+    theme: ThemeInfo,
+    ui_lang: str,
+    published_after_days: int | None,
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """Run the v2 algorithm for one theme and return (queries, results-pool).
 
@@ -571,7 +585,7 @@ def _build_theme_pool(
             q,
             max_results=DISCOVER_PER_QUERY,
             video_duration=DISCOVER_VIDEO_DURATION,
-            published_after_days=DISCOVER_PUBLISHED_AFTER_DAYS,
+            published_after_days=published_after_days,
             relevance_language=ui_lang,
         )
         for it in items:
@@ -604,22 +618,31 @@ def discover_for_user(
     *,
     force_refresh: bool = False,
     ui_lang: str = "en",
+    freshness: str = DEFAULT_FRESHNESS,
 ) -> list[dict[str, Any]]:
     """Return a list of theme bundles for the Discover page.
 
     Each bundle: {slug, label, query, queries, card_count, results,
-    from_cache}. `query` stays for backwards-compat (joined queries
-    string); `queries` is the new explicit list the UI can display.
+    from_cache, freshness}. `query` is a ' || '-joined string of the
+    queries for backwards-compat; `queries` is the explicit list.
+
+    `freshness` is a preset name (see FRESHNESS_DAYS) — unknown values
+    fall back to the default. The cache scope_key embeds the freshness
+    so each preset has its own 24 h cache lane.
     """
     settings = get_settings()
     if not settings.youtube_api_key.strip():
         return []
 
+    freshness_key = freshness if freshness in FRESHNESS_DAYS else DEFAULT_FRESHNESS
+    published_after_days = FRESHNESS_DAYS[freshness_key]
+
     themes = discover_themes(db, user_id)
     out: list[dict[str, Any]] = []
     for theme in themes:
+        scope_key = f"{theme.slug}:{freshness_key}"
         if not force_refresh:
-            cached = _fresh_cache_row(db, user_id, "discover_theme", theme.slug)
+            cached = _fresh_cache_row(db, user_id, "discover_theme", scope_key)
             if cached is not None:
                 cached_queries = (cached.query or theme.label).split(" || ")
                 out.append(
@@ -631,13 +654,16 @@ def discover_for_user(
                         "card_count": theme.card_count,
                         "results": list(cached.results_json),
                         "from_cache": True,
+                        "freshness": freshness_key,
                     }
                 )
                 continue
 
-        queries, pool = _build_theme_pool(db, user_id, theme, ui_lang)
+        queries, pool = _build_theme_pool(
+            db, user_id, theme, ui_lang, published_after_days
+        )
         joined_query = " || ".join(queries)
-        _write_cache(db, user_id, "discover_theme", theme.slug, joined_query, pool)
+        _write_cache(db, user_id, "discover_theme", scope_key, joined_query, pool)
         out.append(
             {
                 "slug": theme.slug,
@@ -647,6 +673,7 @@ def discover_for_user(
                 "card_count": theme.card_count,
                 "results": pool,
                 "from_cache": False,
+                "freshness": freshness_key,
             }
         )
     return out

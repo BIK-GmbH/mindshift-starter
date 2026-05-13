@@ -957,11 +957,16 @@ export const api = {
     request<CardYouTubeSuggestions>(
       `/api/youtube/suggest/card/${cardId}${refresh ? "?refresh=1" : ""}`,
     ),
-  getYouTubeDiscover: (refresh = false) =>
-    request<YouTubeDiscover>(
-      `/api/youtube/discover${refresh ? "?refresh=1" : ""}`,
-    ),
+  getYouTubeDiscover: (refresh = false, freshness: YouTubeFreshness = "month") => {
+    const params = new URLSearchParams();
+    if (refresh) params.set("refresh", "1");
+    if (freshness) params.set("freshness", freshness);
+    const qs = params.toString();
+    return request<YouTubeDiscover>(`/api/youtube/discover${qs ? `?${qs}` : ""}`);
+  },
 };
+
+export type YouTubeFreshness = "week" | "month" | "quarter" | "year" | "all";
 
 export interface YouTubeSuggestion {
   video_id: string;
@@ -995,6 +1000,7 @@ export interface YouTubeDiscoverTheme {
 export interface YouTubeDiscover {
   api_enabled: boolean;
   themes: YouTubeDiscoverTheme[];
+  freshness: YouTubeFreshness;
 }
 
 export interface FeedOut {

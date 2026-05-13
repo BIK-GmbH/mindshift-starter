@@ -18,14 +18,39 @@
  * before deciding whether to save the video to Mindshift.
  */
 
-import { Loader2, RefreshCw, Sparkles, Youtube } from "lucide-react";
+import { CalendarClock, Loader2, RefreshCw, Sparkles, Youtube } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import DiscoverVideoRow from "../components/DiscoverVideoRow";
-import { api, type YouTubeDiscover, type YouTubeDiscoverTheme } from "../lib/api";
+import {
+  api,
+  type YouTubeDiscover,
+  type YouTubeDiscoverTheme,
+  type YouTubeFreshness,
+} from "../lib/api";
 
 const PAGE_SIZE = 8;
+const FRESHNESS_STORAGE_KEY = "mindshift.discover.freshness";
+const FRESHNESS_OPTIONS: { value: YouTubeFreshness; labelKey: string; fallback: string }[] = [
+  { value: "week", labelKey: "discover.freshness.week", fallback: "Woche" },
+  { value: "month", labelKey: "discover.freshness.month", fallback: "Monat" },
+  { value: "quarter", labelKey: "discover.freshness.quarter", fallback: "Quartal" },
+  { value: "year", labelKey: "discover.freshness.year", fallback: "Jahr" },
+  { value: "all", labelKey: "discover.freshness.all", fallback: "Alle" },
+];
+
+function readPersistedFreshness(): YouTubeFreshness {
+  try {
+    const v = localStorage.getItem(FRESHNESS_STORAGE_KEY);
+    if (v && FRESHNESS_OPTIONS.some((o) => o.value === v)) {
+      return v as YouTubeFreshness;
+    }
+  } catch {
+    // localStorage may be unavailable (private mode, SSR) — silent default.
+  }
+  return "month";
+}
 
 export default function DiscoverPage() {
   const { t } = useTranslation();
@@ -38,14 +63,19 @@ export default function DiscoverPage() {
   const [visible, setVisible] = useState<Record<string, number>>({});
   // Which row is currently playing — only one at a time.
   const [playingId, setPlayingId] = useState<string | null>(null);
+  // Sticky per-browser via localStorage so a user's last pick lives
+  // across visits without a server-side preference column.
+  const [freshness, setFreshness] = useState<YouTubeFreshness>(() =>
+    readPersistedFreshness(),
+  );
 
-  const load = async (refresh: boolean) => {
+  const load = async (refresh: boolean, fresh: YouTubeFreshness = freshness) => {
     if (refresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
     setPlayingId(null);
     try {
-      const res = await api.getYouTubeDiscover(refresh);
+      const res = await api.getYouTubeDiscover(refresh, fresh);
       setData(res);
       setVisible(Object.fromEntries(res.themes.map((th) => [th.slug, PAGE_SIZE])));
     } catch (err) {
@@ -58,7 +88,19 @@ export default function DiscoverPage() {
 
   useEffect(() => {
     void load(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleFreshnessChange = (next: YouTubeFreshness) => {
+    if (next === freshness) return;
+    setFreshness(next);
+    try {
+      localStorage.setItem(FRESHNESS_STORAGE_KEY, next);
+    } catch {
+      // ignore
+    }
+    void load(false, next);
+  };
 
   const visibleThemes = useMemo(() => {
     if (!data) return [];
@@ -151,20 +193,27 @@ export default function DiscoverPage() {
                 </p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => void load(true)}
-              disabled={refreshing || loading}
-              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md border border-ink-700 px-2.5 py-1 text-[11px] text-ink-300 hover:text-ink-100 disabled:opacity-50"
-              aria-label={t("discover.refresh", { defaultValue: "Neu generieren" }) ?? ""}
-            >
-              <RefreshCw
-                className={["h-3 w-3", refreshing ? "animate-spin" : ""].join(" ")}
+            <div className="flex flex-shrink-0 items-center gap-2 text-[11px]">
+              <FreshnessSelect
+                value={freshness}
+                onChange={handleFreshnessChange}
+                disabled={loading || refreshing}
               />
-              <span className="hidden sm:inline">
-                {t("discover.refresh", { defaultValue: "Neu generieren" })}
-              </span>
-            </button>
+              <button
+                type="button"
+                onClick={() => void load(true)}
+                disabled={refreshing || loading}
+                className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 px-2.5 py-1 text-ink-300 hover:text-ink-100 disabled:opacity-50"
+                aria-label={t("discover.refresh", { defaultValue: "Neu generieren" }) ?? ""}
+              >
+                <RefreshCw
+                  className={["h-3 w-3", refreshing ? "animate-spin" : ""].join(" ")}
+                />
+                <span className="hidden sm:inline">
+                  {t("discover.refresh", { defaultValue: "Neu generieren" })}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -345,6 +394,45 @@ function ThemeSection({
         </>
       )}
     </section>
+  );
+}
+
+function FreshnessSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: YouTubeFreshness;
+  onChange: (next: YouTubeFreshness) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <label
+      className={[
+        "inline-flex items-center gap-1.5 rounded-md border border-ink-700 px-2 py-1 text-ink-300",
+        disabled ? "opacity-50" : "hover:text-ink-100",
+      ].join(" ")}
+      title={t("discover.freshness.label", { defaultValue: "Zeitraum" }) ?? ""}
+    >
+      <CalendarClock className="h-3 w-3" />
+      <span className="hidden sm:inline text-[11px]">
+        {t("discover.freshness.label", { defaultValue: "Zeitraum" })}:
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as YouTubeFreshness)}
+        disabled={disabled}
+        className="appearance-none bg-transparent text-[11px] font-medium text-ink-100 focus:outline-none"
+        aria-label={t("discover.freshness.label", { defaultValue: "Zeitraum" }) ?? ""}
+      >
+        {FRESHNESS_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value} className="bg-ink-900 text-ink-100">
+            {t(opt.labelKey, { defaultValue: opt.fallback })}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
