@@ -737,9 +737,7 @@
   },
   "cinema": {
     "theater": "Theater-Modus",
-    "float": "Schwebendes Fenster",
-    "dock": "Andocken",
-    "drag": "Ziehen"
+    "dock": "Andocken"
   },
   "links": {
     "loading": "Suche Links im Inhalt…",
