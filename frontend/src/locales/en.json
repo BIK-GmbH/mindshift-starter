@@ -652,7 +652,19 @@
       "takeaways": "Key takeaways",
       "summary": "Summary",
       "notes": "Notes",
-      "footer": "This is a read-only view of a Mindshift card."
+      "footer": "This is a read-only view of a Mindshift card.",
+      "inclSubtags_one": "incl. {{count}} sub-tag",
+      "inclSubtags_other": "incl. {{count}} sub-tags",
+      "showSubtags_one": "Show {{count}} sub-tag",
+      "showSubtags_other": "Show {{count}} sub-tags",
+      "hideSubtags_one": "Hide {{count}} sub-tag",
+      "hideSubtags_other": "Hide {{count}} sub-tags",
+      "searchPlaceholder": "Search this profile…",
+      "searchInTag": "Search in this collection…",
+      "cardHits": "Cards",
+      "noCardHits": "No cards match this search.",
+      "noTagHits": "No collections match this search.",
+      "backToProfile": "Back to profile"
     }
   },
   "pdf": {

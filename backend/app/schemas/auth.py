@@ -86,6 +86,14 @@ class PublicProfileTagOut(BaseModel):
     name: str
     slug: str  # path slug — for nested tags this is e.g. "finance/investment"
     card_count: int
+    # Full ancestor → leaf name chain (e.g. ["Finance", "Investment"]). The
+    # frontend renders this as a breadcrumb so nested public tags are
+    # visually distinguishable from top-level ones with the same leaf name.
+    name_path: list[str] = Field(default_factory=list)
+    # Number of descendant tags belonging to this tag's subtree (excludes
+    # the tag itself). When > 0 the profile card adds an "incl. N sub-tags"
+    # hint so the card_count is not misread as a flat list.
+    subtag_count: int = 0
 
 
 class PublicProfilePathOut(BaseModel):
@@ -141,6 +149,27 @@ class PublicTagDetail(BaseModel):
     slug: str
     card_count: int
     cards: list["PublicCardSummary"] = Field(default_factory=list)
+    # Direct child tags so the detail view can render a drill-down chip
+    # row. Sub-tags inherit visibility from the public ancestor — we list
+    # every direct child regardless of its own `is_public` flag.
+    subtags: list["PublicSubtagOut"] = Field(default_factory=list)
+    # Ancestor → leaf names for the breadcrumb header.
+    name_path: list[str] = Field(default_factory=list)
+
+
+class PublicSubtagOut(BaseModel):
+    """Direct child of a public tag — chip on the detail page."""
+
+    name: str
+    slug: str  # full path slug, ready for `/u/:username/<slug>`
+    card_count: int  # cards in this child's subtree
+
+
+class PublicProfileSearchOut(BaseModel):
+    """Hit list for the search bar on a public profile."""
+
+    query: str
+    cards: list["PublicCardSummary"] = Field(default_factory=list)
 
 
 class PublicCardSummary(BaseModel):
@@ -160,3 +189,5 @@ class PublicCardSummary(BaseModel):
 
 PublicProfileOut.model_rebuild()
 PublicTagDetail.model_rebuild()
+PublicSubtagOut.model_rebuild()
+PublicProfileSearchOut.model_rebuild()

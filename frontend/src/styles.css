@@ -784,6 +784,14 @@
   to   { background-position: -200% 0; }
 }
 
+/* Hide the browser-native search cancel button — we render our own
+   clear `<X>` button so the input doesn't end up with two of them. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 /* Honor prefers-reduced-motion — strip every animation defined above
    plus Tailwind's transitions to ~instant. */
 @media (prefers-reduced-motion: reduce) {

@@ -24,7 +24,7 @@ import html as _html
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -45,7 +45,9 @@ from app.schemas.auth import (
     PublicProfileOut,
     PublicProfilePathOut,
     PublicProfilePlaylistOut,
+    PublicProfileSearchOut,
     PublicProfileTagOut,
+    PublicSubtagOut,
     PublicTagDetail,
 )
 from app.schemas.card import CardOut
@@ -83,10 +85,9 @@ def _walk_public_subtree(db: Session, user_id: UUID, root_tag: Tag) -> set[UUID]
     return visited
 
 
-def _slug_path(db: Session, user_id: UUID, tag: Tag) -> str:
-    """Build `parent/child/leaf` style slug from a tag up to the root.
-    Tag names are already lowercase + dash-separated, so they double
-    as URL-safe slugs.
+def _name_path(db: Session, user_id: UUID, tag: Tag) -> list[str]:
+    """Ancestor → leaf chain of tag names, used for both the URL slug
+    and the breadcrumb on the public profile.
     """
     parts: list[str] = [tag.name]
     cursor = db.get(Tag, tag.parent_id) if tag.parent_id else None
@@ -97,7 +98,16 @@ def _slug_path(db: Session, user_id: UUID, tag: Tag) -> str:
         parts.append(cursor.name)
         cursor = db.get(Tag, cursor.parent_id) if cursor.parent_id else None
         safety += 1
-    return "/".join(reversed(parts))
+    parts.reverse()
+    return parts
+
+
+def _slug_path(db: Session, user_id: UUID, tag: Tag) -> str:
+    """Build `parent/child/leaf` style slug from a tag up to the root.
+    Tag names are already lowercase + dash-separated, so they double
+    as URL-safe slugs.
+    """
+    return "/".join(_name_path(db, user_id, tag))
 
 
 @router.get("/users/{username}", response_model=PublicProfileOut)
@@ -202,11 +212,14 @@ def get_public_profile(
         count = db.execute(
             select(func.count(func.distinct(CardTag.card_id))).where(CardTag.tag_id.in_(subtree_ids))
         ).scalar_one()
+        path = _name_path(db, user.id, t)
         out_tags.append(
             PublicProfileTagOut(
                 name=t.name,
-                slug=_slug_path(db, user.id, t),
+                slug="/".join(path),
                 card_count=int(count or 0),
+                name_path=path,
+                subtag_count=max(0, len(subtree_ids) - 1),
             )
         )
 
@@ -303,12 +316,114 @@ def get_public_tag(
             external_id=s.external_id if s else None,
         )
 
+    # Direct child tags → chip row on the detail page. Sub-tags inherit
+    # visibility from the public ancestor, so we list every direct child
+    # regardless of its own `is_public` flag. card_count uses the same
+    # recursive subtree-count rule that the profile cards use.
+    direct_children = db.execute(
+        select(Tag)
+        .where(Tag.user_id == user.id, Tag.parent_id == tag.id)
+        .order_by(Tag.name)
+    ).scalars().all()
+    subtag_out: list[PublicSubtagOut] = []
+    for child in direct_children:
+        child_subtree = _walk_public_subtree(db, user.id, child)
+        child_count = db.execute(
+            select(func.count(func.distinct(CardTag.card_id))).where(
+                CardTag.tag_id.in_(child_subtree)
+            )
+        ).scalar_one()
+        if not child_count:
+            # A child with zero cards anywhere in its own subtree is just
+            # visual noise on the chip row — skip it.
+            continue
+        subtag_out.append(
+            PublicSubtagOut(
+                name=child.name,
+                slug=_slug_path(db, user.id, child),
+                card_count=int(child_count or 0),
+            )
+        )
+
+    path = _name_path(db, user.id, tag)
     return PublicTagDetail(
         name=tag.name,
-        slug=_slug_path(db, user.id, tag),
+        slug="/".join(path),
         card_count=len(cards),
         cards=[_summary(c) for c in cards],
+        subtags=subtag_out,
+        name_path=path,
     )
+
+
+@router.get("/users/{username}/search", response_model=PublicProfileSearchOut)
+def search_public_profile(
+    username: str,
+    q: str = Query("", max_length=120),
+    limit: int = Query(30, ge=1, le=50),
+    db: Session = Depends(get_db),
+) -> PublicProfileSearchOut:
+    """Full-text-ish search across a user's public cards.
+
+    Searches `title` + `concise_summary_md` via ILIKE for the given
+    query string. Scope is restricted to cards reachable through at
+    least one of the user's public tag subtrees — same visibility
+    rule as the per-tag detail page. Returns at most `limit` results
+    (cap 50). Empty / too-short queries return an empty list rather
+    than 400, so the frontend can fire on every keystroke without
+    extra guarding.
+    """
+    user = _load_public_user(db, username)
+    needle = q.strip()
+    if len(needle) < 2:
+        return PublicProfileSearchOut(query=needle, cards=[])
+
+    # Visible tag scope: union of every public tag subtree.
+    public_roots = db.execute(
+        select(Tag).where(Tag.user_id == user.id, Tag.is_public.is_(True))
+    ).scalars().all()
+    visible_tag_ids: set[UUID] = set()
+    for root in public_roots:
+        visible_tag_ids |= _walk_public_subtree(db, user.id, root)
+    if not visible_tag_ids:
+        return PublicProfileSearchOut(query=needle, cards=[])
+
+    pattern = f"%{needle}%"
+    cards = db.execute(
+        select(Card)
+        .where(
+            Card.user_id == user.id,
+            Card.status == "completed",
+            Card.id.in_(
+                select(CardTag.card_id).where(CardTag.tag_id.in_(visible_tag_ids))
+            ),
+            (Card.title.ilike(pattern)) | (Card.concise_summary_md.ilike(pattern)),
+        )
+        .order_by(Card.created_at.desc())
+        .limit(limit)
+    ).scalars().all()
+
+    source_ids = {c.source_id for c in cards if c.source_id}
+    sources_by_id: dict = {}
+    if source_ids:
+        from app.models.source import Source
+
+        rows = db.execute(select(Source).where(Source.id.in_(source_ids))).scalars().all()
+        sources_by_id = {s.id: s for s in rows}
+
+    def _summary(c: Card) -> PublicCardSummary:
+        s = sources_by_id.get(c.source_id) if c.source_id else None
+        return PublicCardSummary(
+            id=c.id,
+            title=c.title,
+            source_type=c.source_type,
+            thumbnail_url=c.thumbnail_url,
+            concise_summary_md=c.concise_summary_md,
+            source_url=s.canonical_url or s.url if s else None,
+            external_id=s.external_id if s else None,
+        )
+
+    return PublicProfileSearchOut(query=needle, cards=[_summary(c) for c in cards])
 
 
 @router.get("/users/{username}/cards/{card_id}")

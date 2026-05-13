@@ -652,7 +652,19 @@
       "takeaways": "Kernaussagen",
       "summary": "Zusammenfassung",
       "notes": "Notizen",
-      "footer": "Das ist eine Read-only-Ansicht einer Mindshift-Card."
+      "footer": "Das ist eine Read-only-Ansicht einer Mindshift-Card.",
+      "inclSubtags_one": "inkl. {{count}} Unter-Tag",
+      "inclSubtags_other": "inkl. {{count}} Unter-Tags",
+      "showSubtags_one": "{{count}} Unter-Tag anzeigen",
+      "showSubtags_other": "{{count}} Unter-Tags anzeigen",
+      "hideSubtags_one": "{{count}} Unter-Tag verbergen",
+      "hideSubtags_other": "{{count}} Unter-Tags verbergen",
+      "searchPlaceholder": "Dieses Profil durchsuchen…",
+      "searchInTag": "In dieser Sammlung suchen…",
+      "cardHits": "Karten",
+      "noCardHits": "Keine Karten passen zu dieser Suche.",
+      "noTagHits": "Keine Sammlungen passen zu dieser Suche.",
+      "backToProfile": "Zurück zum Profil"
     }
   },
   "pdf": {

@@ -99,7 +99,7 @@ export default function PublicPlaylistPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 pb-16 pt-6 sm:pt-10">
+      <main className="mx-auto max-w-3xl px-4 pb-16 pt-6 page-enter sm:pt-10">
         {loading && (
           <p className="flex items-center gap-2 text-sm text-ink-400">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -145,7 +145,7 @@ export default function PublicPlaylistPage() {
                 })}
               </p>
             ) : (
-              <ul className="space-y-4">
+              <ul className="cards-stagger space-y-4">
                 {detail.episodes.map((ep) => (
                   <li
                     key={ep.id}

@@ -429,6 +429,10 @@ export const api = {
     request<PublicCard>(
       `/api/public/users/${encodeURIComponent(username)}/cards/${cardId}`,
     ),
+  searchPublicProfile: (username: string, q: string, limit = 30) =>
+    request<PublicProfileSearchOut>(
+      `/api/public/users/${encodeURIComponent(username)}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
   getPublicCardReactions: (username: string, cardId: string) =>
     request<ReactionsState>(
       `/api/public/users/${encodeURIComponent(username)}/cards/${cardId}/reactions`,
@@ -1569,6 +1573,16 @@ export interface PublicProfileTagOut {
   name: string;
   slug: string;
   card_count: number;
+  /** Ancestor → leaf names. ["finance", "investment"] for nested tags. */
+  name_path: string[];
+  /** Descendant tag count (excludes the tag itself). 0 = leaf tag. */
+  subtag_count: number;
+}
+
+export interface PublicSubtagOut {
+  name: string;
+  slug: string;
+  card_count: number;
 }
 
 export interface PublicProfilePathOut {
@@ -1632,6 +1646,13 @@ export interface PublicTagDetail {
   name: string;
   slug: string;
   card_count: number;
+  cards: PublicCardSummary[];
+  subtags: PublicSubtagOut[];
+  name_path: string[];
+}
+
+export interface PublicProfileSearchOut {
+  query: string;
   cards: PublicCardSummary[];
 }
 

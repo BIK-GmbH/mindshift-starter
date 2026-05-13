@@ -114,7 +114,7 @@ export default function PublicPathPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 pb-16 pt-8">
+      <main className="mx-auto max-w-3xl px-4 pb-16 pt-8 page-enter">
         {/* Hero */}
         <div className="mb-8">
           {path.cover_url && (
@@ -180,7 +180,7 @@ export default function PublicPathPage() {
         </div>
 
         {/* Steps */}
-        <ol className="space-y-3">
+        <ol className="cards-stagger space-y-3">
           {path.cards.map((c, i) => {
             const Icon = SOURCE_ICONS[c.source_type] ?? FileText;
             const isDone = completed.has(i);
