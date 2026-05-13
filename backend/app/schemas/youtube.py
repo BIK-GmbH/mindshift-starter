@@ -34,3 +34,4 @@ class DiscoverThemeOut(BaseModel):
 class DiscoverOut(BaseModel):
     api_enabled: bool
     themes: list[DiscoverThemeOut]
+    freshness: str = "month"

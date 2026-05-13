@@ -714,7 +714,15 @@
     "queriesPrefix": "Queries:",
     "themes": "Themen",
     "loadMore": "Mehr laden",
-    "themeEmpty": "Keine Treffer für dieses Thema."
+    "themeEmpty": "Keine Treffer für dieses Thema.",
+    "freshness": {
+      "label": "Zeitraum",
+      "week": "Letzte Woche",
+      "month": "Letzter Monat",
+      "quarter": "Letzte 3 Monate",
+      "year": "Letztes Jahr",
+      "all": "Alle"
+    }
   },
   "discoverRow": {
     "play": "Vorschau abspielen",

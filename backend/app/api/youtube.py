@@ -63,6 +63,7 @@ def get_card_suggestions(
 @router.get("/discover", response_model=DiscoverOut)
 def get_discover(
     refresh: bool = Query(default=False),
+    freshness: str = Query(default="month"),
     accept_language: str | None = Header(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -70,17 +71,25 @@ def get_discover(
     settings = get_settings()
     api_enabled = bool(settings.youtube_api_key.strip())
     if not api_enabled:
-        return DiscoverOut(api_enabled=False, themes=[])
+        return DiscoverOut(api_enabled=False, themes=[], freshness=freshness)
 
     # Two-letter language code passed to YouTube's `relevanceLanguage`
     # — derived from the browser's Accept-Language header so German
     # users get DE-leaning results without an explicit preference.
     ui_lang = _pick_ui_lang(accept_language)
     bundles = discover_for_user(
-        db, current_user.id, force_refresh=refresh, ui_lang=ui_lang
+        db,
+        current_user.id,
+        force_refresh=refresh,
+        ui_lang=ui_lang,
+        freshness=freshness,
     )
+    # All bundles share the same effective freshness — pick from the
+    # first, fall back to the request value if there are no themes.
+    effective_freshness = bundles[0]["freshness"] if bundles else freshness
     return DiscoverOut(
         api_enabled=True,
+        freshness=effective_freshness,
         themes=[
             DiscoverThemeOut(
                 slug=b["slug"],

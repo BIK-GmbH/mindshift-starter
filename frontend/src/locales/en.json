@@ -714,7 +714,15 @@
     "queriesPrefix": "Queries:",
     "themes": "Themes",
     "loadMore": "Load more",
-    "themeEmpty": "No matches for this theme."
+    "themeEmpty": "No matches for this theme.",
+    "freshness": {
+      "label": "Window",
+      "week": "Past week",
+      "month": "Past month",
+      "quarter": "Past 3 months",
+      "year": "Past year",
+      "all": "All time"
+    }
   },
   "discoverRow": {
     "play": "Play preview",
