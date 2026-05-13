@@ -51,7 +51,6 @@ export default function CardCinemaLayout({ video, children, enableFloat = true }
   // entry into float mode (top-right of the viewport with a margin).
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const dragOriginRef = useRef<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null);
-  const draggingRef = useRef(false);
 
   // Init position when first switching to float — anchor near top-right.
   useEffect(() => {
@@ -89,38 +88,61 @@ export default function CardCinemaLayout({ video, children, enableFloat = true }
     return () => window.removeEventListener("resize", onResize);
   }, [mode]);
 
-  const onDragStart = useCallback((e: React.PointerEvent) => {
-    if (!pos) return;
-    draggingRef.current = true;
-    dragOriginRef.current = {
-      pointerX: e.clientX,
-      pointerY: e.clientY,
-      x: pos.x,
-      y: pos.y,
+  // Track active-drag state so we can disable iframe pointer-events
+  // while the user is moving the float window. Without this, once
+  // the pointer crosses over the YouTube iframe it captures the
+  // event and our drag stops mid-motion.
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Drag is wired through document-level listeners on pointerdown
+  // so we don't depend on the pointer staying inside the header
+  // element. setPointerCapture seemed promising but broke when the
+  // pointer crossed the iframe boundary. Document listeners + ref
+  // origin make the drag follow the cursor reliably.
+  const onDragStart = useCallback(
+    (e: React.PointerEvent) => {
+      if (!pos) return;
+      e.preventDefault();
+      dragOriginRef.current = {
+        pointerX: e.clientX,
+        pointerY: e.clientY,
+        x: pos.x,
+        y: pos.y,
+      };
+      setIsDragging(true);
+    },
+    [pos],
+  );
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const onMove = (e: PointerEvent) => {
+      if (!dragOriginRef.current) return;
+      const dx = e.clientX - dragOriginRef.current.pointerX;
+      const dy = e.clientY - dragOriginRef.current.pointerY;
+      const nx = Math.min(
+        Math.max(FLOAT_MARGIN, dragOriginRef.current.x + dx),
+        window.innerWidth - FLOAT_DEFAULT_WIDTH - FLOAT_MARGIN,
+      );
+      const ny = Math.min(
+        Math.max(FLOAT_MARGIN, dragOriginRef.current.y + dy),
+        window.innerHeight - FLOAT_DEFAULT_HEIGHT - FLOAT_MARGIN,
+      );
+      setPos({ x: nx, y: ny });
     };
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-  }, [pos]);
-
-  const onDragMove = useCallback((e: React.PointerEvent) => {
-    if (!draggingRef.current || !dragOriginRef.current) return;
-    const dx = e.clientX - dragOriginRef.current.pointerX;
-    const dy = e.clientY - dragOriginRef.current.pointerY;
-    const nx = Math.min(
-      Math.max(FLOAT_MARGIN, dragOriginRef.current.x + dx),
-      window.innerWidth - FLOAT_DEFAULT_WIDTH - FLOAT_MARGIN,
-    );
-    const ny = Math.min(
-      Math.max(FLOAT_MARGIN, dragOriginRef.current.y + dy),
-      window.innerHeight - FLOAT_DEFAULT_HEIGHT - FLOAT_MARGIN,
-    );
-    setPos({ x: nx, y: ny });
-  }, []);
-
-  const onDragEnd = useCallback((e: React.PointerEvent) => {
-    draggingRef.current = false;
-    dragOriginRef.current = null;
-    (e.target as Element).releasePointerCapture?.(e.pointerId);
-  }, []);
+    const onUp = () => {
+      dragOriginRef.current = null;
+      setIsDragging(false);
+    };
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+    return () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
+    };
+  }, [isDragging]);
 
   // Mode-controls overlay rendered on top of the video. Three small
   // pill buttons in the top-right corner — Theater, Float (when
@@ -156,11 +178,23 @@ export default function CardCinemaLayout({ video, children, enableFloat = true }
   );
 
   if (mode === "theater") {
+    // Sticky-top theater: video stays at the top of the viewport
+    // while the user scrolls through the content below. We constrain
+    // the height to 55vh max so the text underneath still has room
+    // to breathe — at very wide viewports the video would otherwise
+    // be > 80vh tall and the sticky behaviour becomes useless.
     return (
       <div className="space-y-5">
-        <div className="relative">
-          {video("theater")}
-          {renderModeControls("theater")}
+        <div className="sticky top-0 z-20 -mx-3 bg-ink-900/95 px-3 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          <div
+            className="relative mx-auto"
+            style={{
+              width: "min(100%, calc(55vh * 16 / 9))",
+            }}
+          >
+            <div className="aspect-video w-full">{video("theater")}</div>
+            {renderModeControls("theater")}
+          </div>
         </div>
         <div className="space-y-4">{children}</div>
       </div>
@@ -176,7 +210,10 @@ export default function CardCinemaLayout({ video, children, enableFloat = true }
           <div
             role="dialog"
             aria-label={t("cinema.float", { defaultValue: "Schwebendes Video" }) ?? ""}
-            className="fixed z-40 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 shadow-2xl"
+            className={[
+              "fixed z-40 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 shadow-2xl",
+              isDragging ? "select-none" : "",
+            ].join(" ")}
             style={{
               left: pos.x,
               top: pos.y,
@@ -184,19 +221,20 @@ export default function CardCinemaLayout({ video, children, enableFloat = true }
             }}
           >
             <div
-              className="flex h-7 cursor-grab items-center justify-between gap-2 border-b border-ink-800 bg-ink-900/95 px-2 active:cursor-grabbing"
+              className={[
+                "flex h-7 items-center justify-between gap-2 border-b border-ink-800 bg-ink-900/95 px-2 touch-none",
+                isDragging ? "cursor-grabbing" : "cursor-grab",
+              ].join(" ")}
               onPointerDown={onDragStart}
-              onPointerMove={onDragMove}
-              onPointerUp={onDragEnd}
-              onPointerCancel={onDragEnd}
             >
-              <span className="inline-flex items-center gap-1 text-[10px] text-ink-400">
+              <span className="pointer-events-none inline-flex items-center gap-1 text-[10px] text-ink-400">
                 <Move className="h-3 w-3" />
                 {t("cinema.drag", { defaultValue: "Ziehen" })}
               </span>
               <button
                 type="button"
                 onClick={() => setMode("dock")}
+                onPointerDown={(e) => e.stopPropagation()}
                 className="inline-flex h-5 w-5 items-center justify-center rounded text-ink-400 hover:text-ink-100"
                 aria-label={t("cinema.dock", { defaultValue: "Andocken" }) ?? ""}
                 title={t("cinema.dock", { defaultValue: "Andocken" }) ?? ""}
@@ -204,7 +242,15 @@ export default function CardCinemaLayout({ video, children, enableFloat = true }
                 <X className="h-3 w-3" />
               </button>
             </div>
-            <div className="relative aspect-video w-full bg-ink-950">
+            {/* While dragging we disable pointer events on the iframe
+             *  so the YouTube player doesn't capture the move and
+             *  break the drag mid-motion. */}
+            <div
+              className={[
+                "relative aspect-video w-full bg-ink-950",
+                isDragging ? "pointer-events-none" : "",
+              ].join(" ")}
+            >
               {video("float")}
             </div>
           </div>
