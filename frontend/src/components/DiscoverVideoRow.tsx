@@ -213,7 +213,7 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
             <button
               type="button"
               onClick={() => savedCardId && navigate(`/cards/${savedCardId}`)}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-ink-700 bg-ink-900/60 px-2.5 py-2 text-[12px] font-medium text-ink-200 transition hover:text-ink-100 sm:flex-none sm:py-1.5 sm:text-[11px]"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-ink-700 bg-ink-800/60 px-3 py-2 text-[12px] font-medium text-ink-200 transition hover:border-ink-500 hover:text-ink-100 sm:flex-none sm:py-1.5 sm:text-[11px]"
             >
               {t("youtube.openCard", { defaultValue: "Karte öffnen" })}
             </button>
@@ -222,7 +222,7 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-violet-500 px-2.5 py-2 text-[12px] font-semibold text-white transition hover:bg-violet-400 disabled:opacity-60 sm:flex-none sm:py-1.5 sm:text-[11px]"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-ink-100 px-3 py-2 text-[12px] font-semibold text-ink-900 shadow-sm transition hover:bg-ink-200 disabled:opacity-60 sm:flex-none sm:py-1.5 sm:text-[11px]"
             >
               {saving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin sm:h-3 sm:w-3" />

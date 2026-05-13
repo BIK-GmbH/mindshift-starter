@@ -108,7 +108,7 @@ export default function YouTubeSuggestCard({ item, onSaved }: Props) {
             <button
               type="button"
               onClick={() => savedCardId && navigate(`/cards/${savedCardId}`)}
-              className="flex-1 rounded-md border border-ink-700 bg-ink-900/60 px-2 py-1.5 text-[11px] font-medium text-ink-200 transition hover:text-ink-100"
+              className="flex-1 rounded-md border border-ink-700 bg-ink-800/60 px-2 py-1.5 text-[11px] font-medium text-ink-200 transition hover:border-ink-500 hover:text-ink-100"
             >
               {t("youtube.openCard", { defaultValue: "Open card" })}
             </button>
@@ -117,7 +117,7 @@ export default function YouTubeSuggestCard({ item, onSaved }: Props) {
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 inline-flex items-center justify-center gap-1 rounded-md bg-violet-500 px-2 py-1.5 text-[11px] font-semibold text-white transition hover:bg-violet-400 disabled:opacity-60"
+              className="flex-1 inline-flex items-center justify-center gap-1 rounded-md bg-ink-100 px-2 py-1.5 text-[11px] font-semibold text-ink-900 shadow-sm transition hover:bg-ink-200 disabled:opacity-60"
             >
               {saving ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -130,7 +130,8 @@ export default function YouTubeSuggestCard({ item, onSaved }: Props) {
           <a
             href={watchUrl}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
+            referrerPolicy="strict-origin-when-cross-origin"
             className="rounded-md border border-ink-700 px-2 py-1.5 text-[11px] text-ink-300 transition hover:text-ink-100"
             title={t("youtube.openInYouTube", { defaultValue: "Open in YouTube" }) ?? ""}
             aria-label={t("youtube.openInYouTube", { defaultValue: "Open in YouTube" }) ?? ""}

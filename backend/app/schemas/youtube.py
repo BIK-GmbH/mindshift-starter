@@ -35,3 +35,11 @@ class DiscoverOut(BaseModel):
     api_enabled: bool
     themes: list[DiscoverThemeOut]
     freshness: str = "month"
+
+
+class CustomSearchOut(BaseModel):
+    query: str
+    freshness: str
+    from_cache: bool
+    api_enabled: bool
+    results: list[YouTubeSuggestionOut]

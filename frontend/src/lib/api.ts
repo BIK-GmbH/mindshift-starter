@@ -964,9 +964,24 @@ export const api = {
     const qs = params.toString();
     return request<YouTubeDiscover>(`/api/youtube/discover${qs ? `?${qs}` : ""}`);
   },
+  searchYouTube: (q: string, freshness: YouTubeFreshness = "month", refresh = false) => {
+    const params = new URLSearchParams();
+    params.set("q", q);
+    params.set("freshness", freshness);
+    if (refresh) params.set("refresh", "1");
+    return request<YouTubeCustomSearch>(`/api/youtube/search?${params.toString()}`);
+  },
 };
 
 export type YouTubeFreshness = "week" | "month" | "quarter" | "year" | "all";
+
+export interface YouTubeCustomSearch {
+  query: string;
+  freshness: YouTubeFreshness;
+  from_cache: boolean;
+  api_enabled: boolean;
+  results: YouTubeSuggestion[];
+}
 
 export interface YouTubeSuggestion {
   video_id: string;
