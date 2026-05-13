@@ -737,9 +737,7 @@
   },
   "cinema": {
     "theater": "Theater mode",
-    "float": "Floating window",
-    "dock": "Dock",
-    "drag": "Drag"
+    "dock": "Dock"
   },
   "links": {
     "loading": "Scanning content for links…",
