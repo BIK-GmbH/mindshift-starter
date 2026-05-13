@@ -932,6 +932,105 @@ def get_transcript(
     }
 
 
+@router.get("/{card_id}/links")
+def get_card_links(
+    card_id: UUID,
+    refresh: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Return the URLs extracted from the card's description + transcript.
+
+    `refresh=true` re-runs extraction even when a cached result exists.
+
+    Cache logic:
+      - cached non-empty list → return as-is (unless refresh).
+      - cached empty list on a YouTube card *without* description on
+        record → likely a stale pre-Data-API-hookup result; we re-run
+        so the Data-API description fetch below has a chance to
+        unearth real links.
+      - cached empty list elsewhere → trust it.
+    """
+    from app.models.source import Source as _Source  # local: avoids cycle in module-load order
+    from app.services.link_extractor import extract_links
+
+    card = _get_owned_card(db, card_id, current_user.id)
+    src = db.get(_Source, card.source_id) if card.source_id else None
+    meta = dict((src.metadata_json or {}) if src else {})
+    existing = meta.get("extracted_links")
+    if not refresh:
+        if existing:
+            return {"card_id": str(card.id), "links": list(existing)}
+        stale_yt_empty = (
+            existing == []
+            and card.source_type == "youtube"
+            and not meta.get("description")
+        )
+        if existing == [] and not stale_yt_empty:
+            return {"card_id": str(card.id), "links": []}
+
+    # Lazy backfill.
+    description = meta.get("description")
+    # YouTube cards saved before we started persisting the description
+    # in metadata_json have no cached description. The Data API call
+    # is cheap (~150ms, 1 quota unit) and the result gets stored, so
+    # subsequent opens are instant. Skip for non-YouTube sources.
+    if description is None and card.source_type == "youtube" and src and src.external_id:
+        try:
+            from app.services.youtube import fetch_metadata
+            yt = fetch_metadata(src.external_id)
+            if yt.description:
+                description = yt.description
+                meta["description"] = description
+                if yt.channel:
+                    meta.setdefault("channel", yt.channel)
+        except Exception:  # noqa: BLE001 — best-effort, fall through
+            pass
+
+    transcript = db.execute(
+        select(Transcript).where(Transcript.card_id == card.id).order_by(Transcript.created_at.desc())
+    ).scalar_one_or_none()
+    transcript_text = transcript.text if transcript else None
+    links = extract_links(description=description, transcript=transcript_text)
+    if src is not None:
+        meta["extracted_links"] = links
+        src.metadata_json = meta
+        db.commit()
+    return {"card_id": str(card.id), "links": links}
+
+
+@router.get("/{card_id}/ai-resources")
+def get_card_ai_resources(
+    card_id: UUID,
+    refresh: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """LLM-suggested external resources for the card's topic.
+
+    Discovered via Brave Search using 3 focused queries the LLM
+    generates from the card's title, summary, tags and top entities.
+    Cached on `source.metadata_json["ai_resources"]` for 24 h.
+    """
+    from app.models.source import Source as _Source
+    from app.services.ai_resources import discover_for_card, is_fresh, stamp_now
+
+    card = _get_owned_card(db, card_id, current_user.id)
+    src = db.get(_Source, card.source_id) if card.source_id else None
+    meta = dict((src.metadata_json or {}) if src else {})
+
+    if not refresh and meta.get("ai_resources") is not None and is_fresh(meta):
+        return {"card_id": str(card.id), "resources": list(meta["ai_resources"])}
+
+    resources = discover_for_card(db, card, force_refresh=refresh)
+    if src is not None:
+        meta["ai_resources"] = resources
+        meta["ai_resources_at"] = stamp_now()
+        src.metadata_json = meta
+        db.commit()
+    return {"card_id": str(card.id), "resources": resources}
+
+
 @router.get("/{card_id}/export.md")
 def export_card_markdown(
     card_id: UUID,

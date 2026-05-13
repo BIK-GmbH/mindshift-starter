@@ -1,4 +1,4 @@
-import { Compass, Headphones, Library, Search } from "lucide-react";
+import { Compass, Headphones, Library, Search, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router-dom";
 
@@ -30,6 +30,7 @@ import { playSound } from "../lib/sounds";
  */
 const items = [
   { to: "/", labelKey: "nav.library", Icon: Library, end: true },
+  { to: "/discover", labelKey: "nav.discover", Icon: Sparkles, end: false },
   { to: "/paths", labelKey: "nav.paths", Icon: Compass, end: false },
   { to: "/podcasts", labelKey: "nav.playlists", Icon: Headphones, end: false },
 ];

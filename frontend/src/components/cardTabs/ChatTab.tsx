@@ -17,9 +17,13 @@ interface ChatTabProps {
    *  bounded flex container — the embed's tab-content area, for
    *  example. Library uses the default false (fixed height). */
   fitParent?: boolean;
+  /** Fires after the user appends chat messages to this card's notes
+   *  via the export modal. The parent should refresh its in-memory
+   *  notes_md so the Notes tab shows the new content without a reload. */
+  onNotesExported?: (newNotesMd: string) => void;
 }
 
-export default function ChatTab({ card, showSourceMedia = false, fitParent = false }: ChatTabProps) {
+export default function ChatTab({ card, showSourceMedia = false, fitParent = false, onNotesExported }: ChatTabProps) {
   const { t } = useTranslation();
   const [playerVisible, setPlayerVisible] = useState(false);
   const hasMedia = showSourceMedia && card.source_type === "youtube" && !!card.external_id;
@@ -56,7 +60,11 @@ export default function ChatTab({ card, showSourceMedia = false, fitParent = fal
           }
           placeholder={t("chat.placeholderCard") ?? ""}
           emptyHint={t("chat.cardEmpty") ?? ""}
-          exportTarget={{ cardId: card.id, cardTitle: card.title }}
+          exportTarget={{
+            cardId: card.id,
+            cardTitle: card.title,
+            onSaved: onNotesExported,
+          }}
         />
       </div>
     </div>
