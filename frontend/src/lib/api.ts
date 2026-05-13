@@ -657,6 +657,8 @@ export const api = {
   exportCardMarkdownUrl: (id: string) => `${BASE_URL}/api/cards/${id}/export.md`,
   cardConnections: (id: string, limit = 10) =>
     request<Connection[]>(`/api/cards/${id}/connections?limit=${limit}`),
+  getCardLinks: (id: string) =>
+    request<{ card_id: string; links: ExtractedLink[] }>(`/api/cards/${id}/links`),
   globalGraph: (params: {
     source_type?: string;
     tags?: string[];
@@ -1175,6 +1177,12 @@ export interface Connection {
   tags: string[];
   score: number;
   reasons: ConnectionReason[];
+}
+
+export interface ExtractedLink {
+  url: string;
+  domain: string;
+  context: "description" | "transcript" | "article" | string;
 }
 
 export interface TagWithCount {

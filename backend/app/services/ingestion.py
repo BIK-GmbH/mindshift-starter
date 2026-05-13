@@ -14,6 +14,7 @@ from app.models.embedding import Embedding
 from app.models.entity import CardEntity, Entity
 from app.models.job import Job
 from app.models.quiz import QuizQuestion
+from app.models.source import Source
 from app.models.tag import CardTag, Tag
 from app.models.transcript import Transcript
 from app.services.article import fetch_article
@@ -21,6 +22,7 @@ from app.services.embeddings import chunk_text, embed_texts
 from app.services.github import build_summary_block, fetch_repo
 from app.services.openai_summarizer import summarize_transcript
 from app.services.pdf import extract_pdf
+from app.services.link_extractor import extract_links
 from app.services.youtube import TranscriptIpBlocked, fetch_metadata, fetch_transcript
 
 logger = logging.getLogger(__name__)
@@ -36,6 +38,20 @@ def process_youtube_card(card_id: UUID, job_id: UUID, video_id: str) -> None:
         metadata = fetch_metadata(video_id)
         card.title = metadata.title
         card.thumbnail_url = metadata.thumbnail_url
+        # Persist description + channel on the source so the links tab
+        # has something to extract from even before the transcript
+        # finishes. We merge into the existing metadata dict instead of
+        # overwriting (other code paths may write into it later).
+        if card.source_id:
+            src = db.get(Source, card.source_id)
+            if src is not None:
+                meta = dict(src.metadata_json or {})
+                if metadata.description is not None:
+                    meta["description"] = metadata.description
+                if metadata.channel:
+                    meta["channel"] = metadata.channel
+                src.metadata_json = meta
+                db.commit()
         db.commit()
 
         try:
@@ -62,6 +78,21 @@ def process_youtube_card(card_id: UUID, job_id: UUID, video_id: str) -> None:
             )
         )
         db.commit()
+
+        # Link extraction over (description + transcript). Stored on
+        # the source so the per-card endpoint can return it without a
+        # transcript round-trip.
+        if card.source_id:
+            src = db.get(Source, card.source_id)
+            if src is not None:
+                links = extract_links(
+                    description=metadata.description,
+                    transcript=transcript_result.text,
+                )
+                meta = dict(src.metadata_json or {})
+                meta["extracted_links"] = links
+                src.metadata_json = meta
+                db.commit()
 
         _summarize_and_attach(
             db, card, transcript_result.text, segments=transcript_result.segments
