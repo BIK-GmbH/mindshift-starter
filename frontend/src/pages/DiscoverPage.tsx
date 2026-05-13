@@ -562,7 +562,7 @@ function SearchResultsSection({
         </p>
       ) : (
         <>
-          <ul className="overflow-hidden rounded-lg border border-ink-800 bg-ink-900/40">
+          <ul className="cards-stagger overflow-hidden rounded-lg border border-ink-800 bg-ink-900/40">
             {items.map((r: YouTubeSuggestion) => (
               <DiscoverVideoRow
                 key={r.video_id}
@@ -637,7 +637,7 @@ function ThemeSection({
         </p>
       ) : (
         <>
-          <ul className="overflow-hidden rounded-lg border border-ink-800 bg-ink-900/40">
+          <ul className="cards-stagger overflow-hidden rounded-lg border border-ink-800 bg-ink-900/40">
             {items.map((r) => (
               <DiscoverVideoRow
                 key={r.video_id}
