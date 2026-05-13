@@ -36,6 +36,8 @@ export default function YouTubeSuggestCard({ item, onSaved }: Props) {
   );
 
   const watchUrl = `https://www.youtube.com/watch?v=${item.video_id}`;
+  // See DiscoverVideoRow for why we use youtu.be for external nav.
+  const externalUrl = `https://youtu.be/${item.video_id}`;
   const isSaved = !!savedCardId;
 
   const handleSave = async () => {
@@ -64,7 +66,7 @@ export default function YouTubeSuggestCard({ item, onSaved }: Props) {
     >
       <button
         type="button"
-        onClick={() => openWatchInNewTab(watchUrl)}
+        onClick={() => openWatchInNewTab(externalUrl)}
         className="relative block aspect-video w-full bg-ink-900"
         title={t("youtube.openInYouTube", { defaultValue: "Open in YouTube" }) ?? ""}
       >
@@ -128,7 +130,7 @@ export default function YouTubeSuggestCard({ item, onSaved }: Props) {
           )}
           <button
             type="button"
-            onClick={() => openWatchInNewTab(watchUrl)}
+            onClick={() => openWatchInNewTab(externalUrl)}
             className="rounded-md border border-ink-700 px-2 py-1.5 text-[11px] text-ink-300 transition hover:text-ink-100"
             title={t("youtube.openInYouTube", { defaultValue: "Open in YouTube" }) ?? ""}
             aria-label={t("youtube.openInYouTube", { defaultValue: "Open in YouTube" }) ?? ""}

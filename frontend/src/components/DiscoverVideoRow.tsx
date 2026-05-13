@@ -46,6 +46,13 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const watchUrl = `https://www.youtube.com/watch?v=${item.video_id}`;
+  // Short-URL variant for the external "open in YouTube" CTA. Many
+  // privacy/anti-tracker extensions specifically block
+  // www.youtube.com/watch top-level navigations from third-party
+  // origins (Chrome ERR_BLOCKED_BY_RESPONSE) but leave youtu.be
+  // alone — it's less commonly on tracking-blocklists. The backend
+  // resolves either form, so the save flow stays on watchUrl.
+  const externalUrl = `https://youtu.be/${item.video_id}`;
   // enablejsapi=1 lets us postMessage `pauseVideo` to the player
   // before we yank the iframe — defence in depth alongside the
   // key-driven remount.
@@ -247,7 +254,7 @@ export default function DiscoverVideoRow({ item, playing, onTogglePlay, onSaved 
             </button>
             <button
               type="button"
-              onClick={() => openWatchInNewTab(watchUrl)}
+              onClick={() => openWatchInNewTab(externalUrl)}
               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-ink-700 text-ink-300 transition hover:text-ink-100 sm:h-7 sm:w-7"
               title={t("youtube.openInYouTube", { defaultValue: "Auf YouTube öffnen" }) ?? ""}
               aria-label={
