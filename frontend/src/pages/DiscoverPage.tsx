@@ -34,6 +34,7 @@ import { useTranslation } from "react-i18next";
 
 import DiscoverVideoRow from "../components/DiscoverVideoRow";
 import PageHeader from "../components/PageHeader";
+import VoiceRecordButton from "../components/VoiceRecordButton";
 import {
   api,
   type YouTubeCustomSearch,
@@ -230,7 +231,7 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex h-full">
-      {/* Desktop theme sidebar */}
+      {/* Desktop theme + recent-search sidebar */}
       <aside className="panel-elevated relative hidden w-64 flex-shrink-0 flex-col border-r border-ink-800 bg-ink-900/60 md:flex">
         <div className="flex flex-shrink-0 items-center justify-between border-b border-ink-800 px-4 py-3">
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
@@ -238,23 +239,48 @@ export default function DiscoverPage() {
             {t("discover.themes", { defaultValue: "Themen" })}
           </span>
         </div>
-        <nav className="flex-1 overflow-y-auto py-2">
-          <ThemeNavButton
-            label={t("discover.allThemes", { defaultValue: "Alle Themen" })}
-            count={totalCards}
-            active={activeSlug === null}
-            onClick={() => setActiveSlug(null)}
-          />
-          {data?.themes.map((th) => (
+        <div className="flex-1 overflow-y-auto">
+          <nav className="py-2">
             <ThemeNavButton
-              key={th.slug}
-              label={th.label}
-              count={th.card_count}
-              active={activeSlug === th.slug}
-              onClick={() => setActiveSlug(th.slug)}
+              label={t("discover.allThemes", { defaultValue: "Alle Themen" })}
+              count={totalCards}
+              active={activeSlug === null}
+              onClick={() => setActiveSlug(null)}
             />
-          ))}
-        </nav>
+            {data?.themes.map((th) => (
+              <ThemeNavButton
+                key={th.slug}
+                label={th.label}
+                count={th.card_count}
+                active={activeSlug === th.slug}
+                onClick={() => setActiveSlug(th.slug)}
+              />
+            ))}
+          </nav>
+
+          {recentSearches.length > 0 && (
+            <div className="border-t border-ink-800 pt-2 pb-3">
+              <div className="px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
+                {t("discover.recent", { defaultValue: "Letzte Suchen" })}
+              </div>
+              <ul>
+                {recentSearches.map((q) => (
+                  <li key={q}>
+                    <RecentSearchRow
+                      label={q}
+                      active={searchActive?.query.toLowerCase() === q.toLowerCase()}
+                      onClick={() => {
+                        setSearchInput(q);
+                        void runSearch(q);
+                      }}
+                      onRemove={() => removeRecent(q)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -298,7 +324,10 @@ export default function DiscoverPage() {
                 <SearchIcon className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-ink-500" />
                 <input
                   ref={searchInputRef}
-                  type="search"
+                  // `type="text"` (not "search") — Safari/Chrome render
+                  // their own clear-X for type=search, which collided
+                  // with our custom one and showed two X's stacked.
+                  type="text"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder={
@@ -306,18 +335,28 @@ export default function DiscoverPage() {
                       defaultValue: "Auf YouTube suchen — z. B. MCP server tutorial 2026",
                     }) ?? ""
                   }
-                  className="h-9 w-full rounded-md border border-ink-700 bg-ink-800/60 pl-9 pr-9 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
+                  className="h-9 w-full rounded-md border border-ink-700 bg-ink-800/60 pl-9 pr-16 text-sm text-ink-100 placeholder:text-ink-500 focus:border-ink-500 focus:outline-none focus:ring-2 focus:ring-ink-700/40"
                 />
-                {searchInput && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchInput("")}
-                    aria-label={t("common.clear", { defaultValue: "Leeren" }) ?? ""}
-                    className="absolute right-2 inline-flex h-6 w-6 items-center justify-center rounded text-ink-500 hover:text-ink-200"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
+                <div className="absolute right-1 flex items-center gap-0.5">
+                  {searchInput && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchInput("")}
+                      aria-label={t("common.clear", { defaultValue: "Leeren" }) ?? ""}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-500 hover:text-ink-200"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  <VoiceRecordButton
+                    onTranscribed={(text) => {
+                      const next = (searchInput + " " + text).trim();
+                      setSearchInput(next);
+                      void runSearch(next);
+                    }}
+                    showStatusLine={false}
+                  />
+                </div>
               </form>
               <FreshnessSelect
                 value={freshness}
@@ -325,27 +364,6 @@ export default function DiscoverPage() {
                 disabled={loading || refreshing || searching}
               />
             </div>
-
-            {/* Recent searches */}
-            {recentSearches.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] uppercase tracking-wider text-ink-500">
-                  {t("discover.recent", { defaultValue: "Zuletzt gesucht" })}:
-                </span>
-                {recentSearches.map((q) => (
-                  <RecentChip
-                    key={q}
-                    label={q}
-                    active={searchActive?.query.toLowerCase() === q.toLowerCase()}
-                    onClick={() => {
-                      setSearchInput(q);
-                      void runSearch(q);
-                    }}
-                    onRemove={() => removeRecent(q)}
-                  />
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
@@ -368,6 +386,30 @@ export default function DiscoverPage() {
                 count={th.card_count}
                 active={activeSlug === th.slug}
                 onClick={() => setActiveSlug(th.slug)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Mobile recent-search chips — desktop shows these in the
+         *  sidebar so we hide from md upward. Sits in its own band
+         *  below the theme chips, also horizontal-scrollable so a
+         *  long history doesn't force the page to grow vertically. */}
+        {recentSearches.length > 0 && (
+          <div className="mx-auto flex w-full max-w-6xl flex-shrink-0 items-center gap-1.5 overflow-x-auto border-b border-ink-800 bg-ink-950/30 px-3 py-1.5 md:hidden">
+            <span className="flex-shrink-0 text-[9px] uppercase tracking-wider text-ink-500">
+              {t("discover.recent", { defaultValue: "Letzte Suchen" })}:
+            </span>
+            {recentSearches.map((q) => (
+              <RecentChip
+                key={q}
+                label={q}
+                active={searchActive?.query.toLowerCase() === q.toLowerCase()}
+                onClick={() => {
+                  setSearchInput(q);
+                  void runSearch(q);
+                }}
+                onRemove={() => removeRecent(q)}
               />
             ))}
           </div>
@@ -722,6 +764,8 @@ function ThemeNavButton({
   );
 }
 
+/** Compact pill for mobile (horizontal-scroll band under theme chips).
+ *  Desktop uses <RecentSearchRow> in the sidebar instead. */
 function RecentChip({
   label,
   active,
@@ -736,7 +780,7 @@ function RecentChip({
   return (
     <span
       className={[
-        "group inline-flex items-center gap-0.5 rounded-full border text-[11px] transition",
+        "inline-flex flex-shrink-0 items-center gap-0.5 rounded-full border text-[11px] transition",
         active
           ? "border-ink-100/40 bg-ink-100 text-ink-900"
           : "border-ink-700 bg-ink-800/40 text-ink-300 hover:border-ink-500 hover:text-ink-100",
@@ -761,6 +805,51 @@ function RecentChip({
         <X className="h-3 w-3" />
       </button>
     </span>
+  );
+}
+
+/** Sidebar row that re-runs a past search. Matches the visual rhythm
+ *  of <ThemeNavButton> — single-line item with the X visible only on
+ *  hover/focus so the row stays readable in long lists. */
+function RecentSearchRow({
+  label,
+  active,
+  onClick,
+  onRemove,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div
+      className={[
+        "group flex w-full items-center gap-1 px-2 transition",
+        active ? "bg-ink-800/70" : "hover:bg-ink-800/40",
+      ].join(" ")}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        title={label}
+        className={[
+          "flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1.5 text-left text-xs transition",
+          active ? "text-ink-100" : "text-ink-300 group-hover:text-ink-100",
+        ].join(" ")}
+      >
+        <SearchIcon className="h-3 w-3 flex-shrink-0 text-ink-500" />
+        <span className="truncate">{label}</span>
+      </button>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="remove"
+        className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-ink-600 opacity-0 transition hover:bg-ink-700 hover:text-ink-100 focus:opacity-100 group-hover:opacity-100"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </div>
   );
 }
 
