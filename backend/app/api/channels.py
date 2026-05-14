@@ -38,6 +38,9 @@ from app.schemas.channel import (
     ChannelVideoOut,
 )
 from app.services.channel_polling import (
+    _create_card_for_video,
+    _drain_pending_in_background,
+    _run_single_ingestion,
     poll_channel,
     unread_count as _unread_count,
 )
@@ -397,13 +400,7 @@ def save_video(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ChannelSaveResult:
-    """Save one video as a Card. If it's already a card, returns that.
-
-    The actual ingestion runs in a daemon thread spawned inside
-    `_queue_card_ingestion` — same pattern as auto-ingest.
-    """
-    from app.services.channel_polling import _queue_card_ingestion
-
+    """Save one video as a Card. If it's already a card, returns that."""
     sub = _get_owned_sub(db, current_user, sub_id)
     row = db.execute(
         select(ChannelVideo).where(
@@ -424,10 +421,11 @@ def save_video(
         db.add(row)
         db.flush()
 
-    card_id = _queue_card_ingestion(db, current_user.id, row)
+    card_id, job_id = _create_card_for_video(db, current_user.id, row)
     db.commit()
-    if card_id is None:
-        raise HTTPException(status_code=500, detail="Could not queue ingestion")
+    # job_id is None when the video was already a card — nothing to do.
+    if job_id is not None:
+        _run_single_ingestion(card_id, job_id, video_id)
     return ChannelSaveResult(card_id=card_id)
 
 
@@ -440,8 +438,10 @@ def save_all_unread(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ChannelBulkSaveResult:
-    from app.services.channel_polling import _queue_card_ingestion
-
+    """Persist all unread inbox rows as cards and drain the ingestion
+    sequentially in one background thread (4 s between YouTube items)
+    so the transcript API doesn't IP-block us when the user bulk-saves
+    a fresh channel."""
     sub = _get_owned_sub(db, current_user, sub_id)
 
     unread_rows = db.execute(
@@ -453,18 +453,25 @@ def save_all_unread(
         .order_by(ChannelVideo.published_at.asc().nullslast())
     ).scalars().all()
 
-    queued = 0
+    pending: list[tuple[UUID, UUID, str]] = []
     for row in unread_rows:
         if sub.exclude_shorts and row.is_short:
             continue
         try:
-            _queue_card_ingestion(db, current_user.id, row)
-            queued += 1
+            card_id, job_id = _create_card_for_video(db, current_user.id, row)
         except Exception as exc:  # noqa: BLE001
-            logger.exception("save-all-unread queue failed for %s: %s", row.video_id, exc)
-    sub.items_ingested = (sub.items_ingested or 0) + queued
+            logger.exception(
+                "save-all-unread row creation failed for %s: %s",
+                row.video_id,
+                exc,
+            )
+            continue
+        if job_id is not None:
+            pending.append((card_id, job_id, row.video_id))
+    sub.items_ingested = (sub.items_ingested or 0) + len(pending)
     db.commit()
-    return ChannelBulkSaveResult(queued=queued)
+    _drain_pending_in_background(pending)
+    return ChannelBulkSaveResult(queued=len(pending))
 
 
 @router.post(

@@ -260,11 +260,17 @@ def test_poll_channel_auto_ingest_skips_shorts(monkeypatch, db: Session, fresh_u
 
     queued_ids: list[str] = []
 
-    def fake_queue(db_session, user_id, row):
+    def fake_create(db_session, user_id, row):
         queued_ids.append(row.video_id)
-        return uuid.uuid4()
+        return (uuid.uuid4(), uuid.uuid4())
 
-    monkeypatch.setattr(channel_polling, "_queue_card_ingestion", fake_queue)
+    drained_calls: list[list] = []
+
+    def fake_drain(pending):
+        drained_calls.append(list(pending))
+
+    monkeypatch.setattr(channel_polling, "_create_card_for_video", fake_create)
+    monkeypatch.setattr(channel_polling, "_drain_pending_in_background", fake_drain)
 
     from app.services import http_polling as hp
 
@@ -280,6 +286,11 @@ def test_poll_channel_auto_ingest_skips_shorts(monkeypatch, db: Session, fresh_u
     # Only the long-form video should hit the ingestion queue.
     assert queued_ids == ["abc1234XYZA"]
     assert result["queued_ingestion"] == 1
+    # The drainer is invoked exactly once for the whole batch — no
+    # per-video threads. That's the IP-ban guard.
+    assert len(drained_calls) == 1
+    assert len(drained_calls[0]) == 1
+    assert drained_calls[0][0][2] == "abc1234XYZA"
 
 
 def test_poll_channel_handles_fetch_error(monkeypatch, db: Session, fresh_user: User):
@@ -406,6 +417,53 @@ def test_library_suggestions_backfills_missing_channel_id(
     for sid in src_ids:
         meta = db.get(Source, sid).metadata_json
         assert meta.get("channel_id") == "UCRESOLVED"
+
+
+def test_save_all_unread_drains_sequentially_not_per_video_threads(
+    monkeypatch, db: Session, fresh_user: User
+):
+    """save-all-unread used to spawn one thread per video, which gets
+    the transcript endpoint to IP-block us at ~5 videos. The refactor
+    forces all unread items through a single drainer call instead."""
+    from app.api.channels import save_all_unread
+
+    sub = _make_sub(db, fresh_user)
+    # Seed three unread inbox rows (non-shorts so exclude_shorts can't
+    # filter them out).
+    for vid in ["vidA0000000", "vidB0000000", "vidC0000000"]:
+        db.add(ChannelVideo(
+            subscription_id=sub.id,
+            video_id=vid,
+            title=vid,
+            is_short=False,
+            discovered_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        ))
+    db.commit()
+
+    # Stub out the two seams.
+    from app.services import channel_polling
+
+    def fake_create(db_session, user_id, row):
+        return (uuid.uuid4(), uuid.uuid4())
+
+    drained_calls: list[list] = []
+
+    def fake_drain(pending):
+        drained_calls.append(list(pending))
+
+    monkeypatch.setattr(channel_polling, "_create_card_for_video", fake_create)
+    monkeypatch.setattr(channel_polling, "_drain_pending_in_background", fake_drain)
+    # Need to also patch the symbols imported into the API module.
+    from app.api import channels as channels_api
+    monkeypatch.setattr(channels_api, "_create_card_for_video", fake_create)
+    monkeypatch.setattr(channels_api, "_drain_pending_in_background", fake_drain)
+
+    fresh_user.token = "ignored"  # type: ignore[attr-defined]
+    result = save_all_unread(sub.id, current_user=fresh_user, db=db)
+    assert result.queued == 3
+    # Crucially: a single drainer call, three items, not three calls.
+    assert len(drained_calls) == 1
+    assert len(drained_calls[0]) == 3
 
 
 def test_library_suggestions_filters_existing_subs(db: Session, fresh_user: User):

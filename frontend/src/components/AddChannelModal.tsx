@@ -79,6 +79,11 @@ export default function AddChannelModal({
   const [searchResults, setSearchResults] = useState<ChannelSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  // Cache: query → results, alive for the modal's lifetime. Channel
+  // search costs 100 Data-API units per call (out of a 10k/day quota),
+  // so re-submitting the same query — accidentally double-clicking,
+  // tab-flipping back to "Search" — must NOT burn another 100 units.
+  const searchCacheRef = useRef<Map<string, ChannelSearchResult[]>>(new Map());
 
   // Paste tab
   const [pasteInput, setPasteInput] = useState("");
@@ -107,6 +112,7 @@ export default function AddChannelModal({
     setPasteResult(null);
     setRowStates({});
     setBulkMode("manual");
+    searchCacheRef.current.clear();
     // Pre-fetch suggestions in the background so switching to the tab
     // is instant — they are free (no API quota).
     setSuggestionsLoading(true);
@@ -135,11 +141,25 @@ export default function AddChannelModal({
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const q = searchInput.trim();
-    if (!q) return;
+    if (!q || searching) return;
+    const cacheKey = q.toLowerCase();
+    const cached = searchCacheRef.current.get(cacheKey);
+    if (cached) {
+      setSearchResults(cached);
+      setError(
+        cached.length === 0
+          ? t("discover.channels.noSearchResults", {
+              defaultValue: "Keine Channels gefunden.",
+            })
+          : null,
+      );
+      return;
+    }
     setSearching(true);
     setError(null);
     try {
       const res = await api.searchChannels(q);
+      searchCacheRef.current.set(cacheKey, res);
       setSearchResults(res);
       if (res.length === 0) {
         setError(

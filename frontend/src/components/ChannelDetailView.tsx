@@ -29,7 +29,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import {
   api,
@@ -38,6 +38,7 @@ import {
   type ChannelVideo,
 } from "../lib/api";
 import { useDialog } from "../lib/DialogContext";
+import { useToast } from "../lib/ToastContext";
 
 interface Props {
   subscription: ChannelSubscription;
@@ -56,8 +57,26 @@ export default function ChannelDetailView({
 }: Props) {
   const { t } = useTranslation();
   const dialog = useDialog();
+  const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [sub, setSub] = useState(subscription);
-  const [tab, setTab] = useState<ChannelTab>("latest");
+
+  // The active tab survives a reload AND switching channels — it
+  // lives in `?tab=…`. Default `latest` when unset or invalid.
+  const tab: ChannelTab = useMemo(() => {
+    const raw = searchParams.get("tab");
+    return raw === "popular" || raw === "saved" ? raw : "latest";
+  }, [searchParams]);
+
+  const setTab = useCallback(
+    (next: ChannelTab) => {
+      const sp = new URLSearchParams(searchParams);
+      if (next === "latest") sp.delete("tab");
+      else sp.set("tab", next);
+      setSearchParams(sp, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
   const [videos, setVideos] = useState<ChannelVideo[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -362,14 +381,15 @@ export default function ChannelDetailView({
         setSub(fresh);
         onMutated(fresh);
       }
-      // Brief toast-style message: piggyback on error slot since we
-      // don't have a toast system here.
-      setError(
-        t("discover.channels.unread.savedQueued", {
+      toast.show({
+        kind: "success",
+        message: t("discover.channels.unread.savedQueued", {
           count: res.queued,
           defaultValue: "{{count}} Karten in die Pipeline geschickt.",
         }),
-      );
+      });
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setBulkBusy(false);
     }

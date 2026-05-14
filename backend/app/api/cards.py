@@ -600,14 +600,25 @@ def _card_response(db: Session, card: Card) -> CardOut:
             out.source_url = s.canonical_url or s.url
             out.external_id = s.external_id
             out.source_metadata = s.metadata_json
-            # Subscribe-context for YouTube cards. Skip cheaply when the
-            # card isn't from YouTube or the ingestion never captured a
-            # channel_id (pre-2026-05-13 rows that still need re-ingest
-            # for the channel_id to surface).
+            # Subscribe-context for YouTube cards. Cards ingested before
+            # channel_id capture landed (pre-2026-05-13) carry only the
+            # channel title — we lazy-resolve those once via the Data API
+            # and persist the result back into metadata_json.
             if s.source_type == "youtube":
-                meta = s.metadata_json or {}
+                meta = dict(s.metadata_json or {})
                 channel_id = (meta.get("channel_id") or "").strip() or None
                 channel_title = (meta.get("channel") or "").strip() or None
+                if not channel_id and s.external_id:
+                    # One-shot backfill — quota cost: 1 unit per call.
+                    from app.services.channel_search import (
+                        _backfill_channel_ids,
+                    )
+
+                    _backfill_channel_ids(db, [(s.id, s.external_id)])
+                    db.refresh(s)
+                    meta = dict(s.metadata_json or {})
+                    channel_id = (meta.get("channel_id") or "").strip() or None
+                    channel_title = (meta.get("channel") or "").strip() or None
                 if channel_id:
                     from app.models.channel_subscription import ChannelSubscription
 

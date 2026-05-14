@@ -174,22 +174,36 @@ def poll_channel(
         # subscription is in auto mode). Run after the commit above so
         # the new rows exist for the dispatched jobs to point at.
         if allow_auto_ingest and sub.ingest_mode == "auto":
-            queued = 0
+            pending: list[tuple[UUID, UUID, str]] = []
+            queue_errors: list[str] = []
             for row in new_rows:
                 if sub.exclude_shorts and row.is_short:
                     continue
                 try:
-                    _queue_card_ingestion(db, sub.user_id, row)
-                    queued += 1
+                    card_id, job_id = _create_card_for_video(db, sub.user_id, row)
                 except Exception as exc:  # noqa: BLE001
                     logger.exception(
-                        "Auto-ingest queue failed for video %s: %s",
+                        "Auto-ingest row creation failed for video %s: %s",
                         row.video_id,
                         exc,
                     )
-            sub.items_ingested = (sub.items_ingested or 0) + queued
+                    queue_errors.append(row.video_id)
+                    continue
+                if job_id is not None:
+                    pending.append((card_id, job_id, row.video_id))
+            sub.items_ingested = (sub.items_ingested or 0) + len(pending)
+            if queue_errors:
+                # Surface the per-row failure summary on the
+                # subscription itself so the channel detail can flag it.
+                sub.last_error = (
+                    f"Auto-ingest queue failed for {len(queue_errors)} video(s): "
+                    f"{', '.join(queue_errors[:3])}"
+                )[:500]
             db.commit()
-            summary["queued_ingestion"] = queued
+            # Spawn the single drainer thread AFTER commit — the thread
+            # reads the rows we just inserted, so they must be visible.
+            _drain_pending_in_background(pending)
+            summary["queued_ingestion"] = len(pending)
 
         return summary
     finally:
@@ -245,27 +259,40 @@ def _parse_atom_entries(body: bytes) -> Iterable[PolledVideo]:
         )
 
 
-def _queue_card_ingestion(
+# ── Sequential ingestion drainer ─────────────────────────────────────
+#
+# Same idea as `services/feeds.py::_drain_pending_in_background`:
+# YouTube's transcript endpoint IP-blocks the caller within a second or
+# two when 10+ video-id requests land in parallel. Per-channel auto-
+# ingest and save-all-unread can easily fan out that wide, so both
+# paths now share a single drainer thread that walks the queue with a
+# polite delay between YouTube fetches.
+
+# Seconds between transcript calls inside one drain. Matches the value
+# proven safe in `services/feeds.py`.
+_YT_DRAIN_DELAY_SECONDS = 4.0
+
+
+def _create_card_for_video(
     db: Session,
     user_id: UUID,
     video_row: ChannelVideo,
-) -> UUID | None:
-    """Spawn the existing `process_youtube_card` background task.
+) -> tuple[UUID, UUID | None]:
+    """Insert Source / Card / Job rows for an inbox video, link it back
+    to the inbox row, and return `(card_id, job_id)`.
 
-    Mirrors `app.api.cards.create_card_from_youtube`'s persistence: a
-    Source row, a queued Card, a Job, and a background thread that drives
-    the actual pipeline. We start a daemon thread directly instead of
-    relying on FastAPI BackgroundTasks because this is invoked from the
-    scheduler context (no request).
+    Idempotent — when the user already has a card for this video, the
+    inbox row is linked to the existing card and `job_id` is None (no
+    ingestion work to schedule).
 
-    Returns the new card id, or `None` if a card for this video already
-    exists for the user (idempotent — saving the same video twice is a
-    no-op that still flips the inbox row to `saved`).
+    Does NOT spawn ingestion. The caller must call
+    `_drain_pending_in_background` (or `_run_single_ingestion`) with the
+    returned `(card_id, job_id, video_id)` once the surrounding
+    transaction has been committed.
     """
-    from app.services.ingestion import process_youtube_card
-
     video_id = video_row.video_id
     canonical = f"https://www.youtube.com/watch?v={video_id}"
+    now = datetime.now(tz=timezone.utc)
 
     existing_card_id = db.execute(
         select(Card.id)
@@ -279,10 +306,9 @@ def _queue_card_ingestion(
     ).scalar_one_or_none()
 
     if existing_card_id is not None:
-        # Tie the inbox row to the existing card and mark read.
         video_row.saved_card_id = existing_card_id
-        video_row.read_at = datetime.now(tz=timezone.utc)
-        return existing_card_id
+        video_row.read_at = now
+        return existing_card_id, None
 
     source = Source(
         source_type="youtube",
@@ -304,26 +330,51 @@ def _queue_card_ingestion(
     db.flush()
     job = Job(card_id=card.id, job_type="youtube_ingest", status="queued")
     db.add(job)
+    db.flush()
 
     video_row.saved_card_id = card.id
-    # Mark read so it disappears from the unread inbox immediately.
-    # If the pipeline later fails, the user sees the failed card in
-    # their library — the inbox is a "new uploads" stream, not a
-    # processing dashboard.
-    video_row.read_at = datetime.now(tz=timezone.utc)
+    # Flip read_at so the inbox count drops immediately. A later
+    # ingestion failure surfaces as a `failed` card in the library
+    # rather than re-opening the inbox row.
+    video_row.read_at = now
+    return card.id, job.id
 
-    # Capture the IDs we need outside the db-managed thread.
-    card_id = card.id
-    job_id = job.id
+
+def _drain_pending_in_background(
+    pending: list[tuple[UUID, UUID, str]],
+) -> None:
+    """Walk pending `(card_id, job_id, video_id)` tuples in one daemon
+    thread, sequentially. A `_YT_DRAIN_DELAY_SECONDS` pause is inserted
+    between items so YouTube's transcript endpoint doesn't IP-block us.
+
+    A no-op when `pending` is empty.
+    """
+    if not pending:
+        return
+
+    from app.services.ingestion import process_youtube_card
+
+    def _run() -> None:
+        import time
+
+        for index, (card_id, job_id, video_id) in enumerate(pending):
+            if index > 0:
+                time.sleep(_YT_DRAIN_DELAY_SECONDS)
+            try:
+                process_youtube_card(card_id, job_id, video_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.exception(
+                    "Channel-drain ingestion failed for %s: %s", card_id, exc
+                )
 
     import threading
 
-    threading.Thread(
-        target=process_youtube_card,
-        args=(card_id, job_id, video_id),
-        daemon=True,
-    ).start()
-    return card_id
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def _run_single_ingestion(card_id: UUID, job_id: UUID, video_id: str) -> None:
+    """Single-video shortcut — no inter-item delay needed."""
+    _drain_pending_in_background([(card_id, job_id, video_id)])
 
 
 def poll_all_due_channels() -> int:

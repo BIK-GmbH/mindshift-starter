@@ -394,7 +394,70 @@ New env vars:
 13. Manual smoke test: subscribe via all four paths, toggle auto-ingest,
     poll, save-all-unread, unsubscribe.
 
-## 10. Out of scope (named explicitly to avoid scope creep)
+## 10. Post-MVP iterations (landed)
+
+The MVP shipped on the date above. The following refinements were
+added in subsequent commits — captured here so the spec stays in
+sync with what the codebase actually does.
+
+### 10a. Lazy channel_id backfill (commit `df28b20`)
+
+Cards ingested before this work captured only the channel title in
+`source.metadata_json`, not the channel_id. The suggestions endpoint
++ the card-detail `_card_response` both now batch-resolve missing
+ids via `videos.list` (1 unit per 50 video ids), persist the result
+into `metadata_json` so subsequent calls are free, and surface the
+„Subscribe to channel" chip on legacy cards.
+
+### 10b. Inline subscribe + per-row Auto pill + bulk subscribe (commit `cfc9d7f`)
+
+`AddChannelModal` no longer auto-jumps into the channel detail. The
+clicked row flips inline to `✓ Abonniert · Manuell/Auto`, modal stays
+open. Each row carries a `⚡ Auto` pill (default off) that decides
+the ingest mode at subscribe time — no confirm dialog needed, because
+toggling the pill IS the explicit gesture. The library-suggestions
+tab additionally renders a „Alle N abonnieren" bulk action with its
+own ⚡ Auto pill.
+
+### 10c. Inline + sticky-mini video player (commit `0be391c`)
+
+Channel video rows let you preview videos before importing. A click
+on the thumbnail (or the title) expands a 16:9 YouTube embed in the
+row. When the active row scrolls out of the viewport, the SAME
+iframe is repositioned via `createPortal` to a fixed 320×180
+bottom-right corner — no remount, video keeps playing. Mini-mode
+controls: close (`Esc` also works) and „Zur Liste" (scroll back to
+the active row).
+
+### 10d. Stability (commit `<this PR>`)
+
+- **Sequential ingestion drain.** `save-all-unread` and auto-ingest
+  inside `poll_channel` previously spawned one daemon thread per
+  video. With 10+ unreads or a fresh channel posting a burst, the
+  parallel transcript fetches against `youtube-transcript-api` cause
+  IP-level rate-limiting from YouTube. Both paths now use the same
+  drain-with-delay pattern proven in `services/feeds.py`: 4 s
+  between YouTube items, single worker thread.
+
+- **`?channel=<id>&tab=<latest|popular|saved>` URL state.** The active
+  tab survives reload and is preserved when switching channels.
+
+- **Quota-friendly search debounce.** The channel search field in the
+  AddChannelModal debounces by 300 ms before firing the Data API call
+  (100 units / call), preventing each keystroke from burning quota.
+
+- **Auto-ingest errors visible.** When auto-ingest fails to queue a
+  card (rare — usually quota / config), the subscription's
+  `last_error` carries the message so the channel detail can flag it.
+
+- **Toast for bulk save success.** The earlier `setError(...)` hack
+  to surface „N cards queued" is replaced by `useToast()`.
+
+- **Optimistic-update rollback.** Save-one / mark-read / save-all
+  now revert their local state changes when the underlying API call
+  fails, so the UI can't diverge from the backend.
+
+## 11. Out of scope (named explicitly to avoid scope creep)
 
 - Title/description keyword filters for auto-ingest.
 - Notifications (push, badge in icon-rail).
@@ -406,3 +469,7 @@ New env vars:
 - Webhook-based / PubSubHubbub realtime ingestion. (Possible follow-up —
   YouTube's RSS feeds support PSHB, but the 30 min polling is fine for
   MVP.)
+- Free-drag mini-player (was option C in the inline-player brainstorm;
+  the sticky corner is fine).
+- Per-channel notification settings beyond the global auto/manual
+  toggle.
