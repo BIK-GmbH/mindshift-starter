@@ -809,7 +809,11 @@
         "modeAuto": "Neue Uploads automatisch ingesten",
         "modeManual": "Nur abonnieren — manuell speichern"
       },
-      "unsubscribeTitle": "Channel-Abo entfernen?"
+      "unsubscribeTitle": "Channel-Abo entfernen?",
+      "player": {
+        "play": "Abspielen",
+        "jumpToRow": "Zur Liste"
+      }
     }
   },
   "discoverRow": {

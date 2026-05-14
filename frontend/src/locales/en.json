@@ -809,7 +809,11 @@
         "modeAuto": "Auto-ingest new uploads",
         "modeManual": "Subscribe only — save manually"
       },
-      "unsubscribeTitle": "Unsubscribe from channel?"
+      "unsubscribeTitle": "Unsubscribe from channel?",
+      "player": {
+        "play": "Play",
+        "jumpToRow": "Jump to list"
+      }
     }
   },
   "discoverRow": {
