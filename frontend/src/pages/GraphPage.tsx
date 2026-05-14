@@ -33,6 +33,7 @@ import {
   type GraphView,
   type TagWithCount,
 } from "../lib/api";
+import { useDialog } from "../lib/DialogContext";
 import { playSound } from "../lib/sounds";
 import { type ColorMode, SOURCE_COLORS, nodeColor } from "../lib/graphColors";
 import { useTheme } from "../lib/ThemeContext";
@@ -72,6 +73,7 @@ function linkEndpointId(endpoint: unknown): string {
 
 export default function GraphPage() {
   const { t } = useTranslation();
+  const { confirm } = useDialog();
   const { theme } = useTheme();
   const graphBg = theme === "light" ? "rgb(248,250,252)" : "rgb(11,13,18)";
   const containerRef = useRef<HTMLDivElement>(null);
@@ -219,9 +221,19 @@ export default function GraphPage() {
     if (!activePresetId) return;
     const preset = presets.find((p) => p.id === activePresetId);
     if (!preset) return;
-    if (!window.confirm(t("graph.preset.confirmDelete", { name: preset.name, defaultValue: `Delete preset "${preset.name}"?` }) ?? "")) {
-      return;
-    }
+    const ok = await confirm({
+      title: t("graph.preset.confirmDeleteTitle", {
+        defaultValue: "Preset löschen?",
+      }),
+      body: t("graph.preset.confirmDelete", {
+        name: preset.name,
+        defaultValue: `Preset „${preset.name}" wird endgültig entfernt.`,
+      }),
+      confirmLabel: t("common.delete", { defaultValue: "Löschen" }),
+      cancelLabel: t("common.cancel", { defaultValue: "Abbrechen" }),
+      danger: true,
+    });
+    if (!ok) return;
     await api.deleteGraphPreset(activePresetId);
     setPresets((prev) => prev.filter((p) => p.id !== activePresetId));
     setActivePresetId("");

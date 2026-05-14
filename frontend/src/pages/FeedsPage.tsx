@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import PageHeader from "../components/PageHeader";
 import { api, type FeedOut } from "../lib/api";
+import { useDialog } from "../lib/DialogContext";
 
 interface ToastState {
   kind: "ok" | "err";
@@ -235,6 +236,7 @@ interface FeedRowProps {
 
 function FeedRow({ feed, onChanged, onDeleted, onError, onToast }: FeedRowProps) {
   const { t } = useTranslation();
+  const { confirm } = useDialog();
   const [refreshing, setRefreshing] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(feed.title);
@@ -276,9 +278,17 @@ function FeedRow({ feed, onChanged, onDeleted, onError, onToast }: FeedRowProps)
   };
 
   const remove = async () => {
-    if (!window.confirm(t("feeds.confirmDelete", { defaultValue: "Remove this subscription?" }) ?? "")) {
-      return;
-    }
+    const ok = await confirm({
+      title: t("feeds.confirmDeleteTitle", { defaultValue: "Feed entfernen?" }),
+      body: t("feeds.confirmDelete", {
+        defaultValue:
+          "Das Abo wird entfernt. Bereits gespeicherte Karten aus diesem Feed bleiben in der Library.",
+      }),
+      confirmLabel: t("common.delete", { defaultValue: "Entfernen" }),
+      cancelLabel: t("common.cancel", { defaultValue: "Abbrechen" }),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteFeed(feed.id);
       onDeleted();

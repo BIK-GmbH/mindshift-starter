@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ApiError, api, tokenStorage, type CardAudioOut } from "../lib/api";
+import { useDialog } from "../lib/DialogContext";
 
 interface Props {
   cardId: string;
@@ -27,6 +28,7 @@ const POLL_MS = 4000;
  */
 export default function CardPodcastPlayer({ cardId }: Props) {
   const { t } = useTranslation();
+  const { confirm } = useDialog();
   const [phase, setPhase] = useState<Phase>("idle");
   const [audio, setAudio] = useState<CardAudioOut | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -145,9 +147,14 @@ export default function CardPodcastPlayer({ cardId }: Props) {
   };
 
   const remove = async () => {
-    if (!window.confirm(t("podcast.confirmDelete", { defaultValue: "Delete generated podcast?" }) ?? "")) {
-      return;
-    }
+    const ok = await confirm({
+      title: t("podcast.confirmDeleteTitle", { defaultValue: "Podcast löschen?" }),
+      body: t("podcast.confirmDelete", { defaultValue: "Soll der generierte Podcast wirklich gelöscht werden?" }),
+      confirmLabel: t("common.delete", { defaultValue: "Löschen" }),
+      cancelLabel: t("common.cancel", { defaultValue: "Abbrechen" }),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteCardAudio(cardId);
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);

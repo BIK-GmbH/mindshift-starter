@@ -26,6 +26,7 @@ import { createPortal } from "react-dom";
 import TurndownService from "turndown";
 
 import { api } from "../lib/api";
+import { useDialog } from "../lib/DialogContext";
 import VoiceRecordButton from "./VoiceRecordButton";
 
 interface Props {
@@ -386,6 +387,7 @@ function Toolbar({
   customActive: boolean;
   onVoice: (text: string) => void;
 }) {
+  const { prompt } = useDialog();
   const { from, to } = editor.state.selection;
   const hasSelection = from < to;
   const aiTooltip = hasSelection ? " (selection)" : " (whole note)";
@@ -445,15 +447,20 @@ function Toolbar({
         Icon={Link2}
         label="Link"
         active={editor.isActive("link")}
-        onClick={() => {
+        onClick={async () => {
           const previous = editor.getAttributes("link").href as string | undefined;
-          const url = window.prompt("Link URL", previous ?? "https://");
+          const url = await prompt({
+            title: "Link",
+            placeholder: "https://",
+            defaultValue: previous ?? "",
+            confirmLabel: previous ? "Aktualisieren" : "Einfügen",
+          });
           if (url === null) return; // cancelled
-          if (url === "") {
+          if (url.trim() === "") {
             editor.chain().focus().extendMarkRange("link").unsetLink().run();
             return;
           }
-          editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+          editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
         }}
       />
       <span className="mx-1 h-4 w-px bg-ink-700" />
