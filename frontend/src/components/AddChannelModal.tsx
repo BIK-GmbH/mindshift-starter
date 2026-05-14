@@ -258,15 +258,15 @@ export default function AddChannelModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-ink-950/80 px-4 pt-20 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink-950/80 backdrop-blur-sm sm:items-start sm:px-4 sm:pt-20"
       onClick={onClose}
     >
       <div
-        className="panel-elevated w-full max-w-2xl rounded-xl border border-ink-800 bg-ink-900 shadow-2xl"
+        className="panel-elevated w-full overflow-hidden rounded-t-2xl border-t border-ink-800 bg-ink-900 shadow-2xl sm:max-w-2xl sm:rounded-xl sm:border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-ink-800 px-5 py-3">
+        <div className="flex items-center justify-between border-b border-ink-800 px-4 py-3 sm:px-5">
           <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-ink-100">
             <Users className="h-4 w-4 text-violet-300" />
             {t("discover.channels.addModal.title", {
@@ -277,14 +277,15 @@ export default function AddChannelModal({
             type="button"
             onClick={onClose}
             aria-label={t("common.close", { defaultValue: "Schließen" }) ?? ""}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-ink-400 hover:bg-ink-800 hover:text-ink-100"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-ink-800 bg-ink-950/30 px-3">
+        {/* Tabs — horizontal-scrollable on mobile so long labels never
+         *  break onto a second row. */}
+        <div className="flex gap-1 overflow-x-auto border-b border-ink-800 bg-ink-950/30 px-2 sm:px-3">
           <TabButton
             active={tab === "search"}
             onClick={() => setTab("search")}
@@ -311,8 +312,9 @@ export default function AddChannelModal({
           />
         </div>
 
-        {/* Content */}
-        <div className="max-h-[60vh] overflow-y-auto px-5 py-4">
+        {/* Content — sheet style on mobile (≤70 vh) gives room for the
+         *  bottom safe-area; centered on desktop. */}
+        <div className="max-h-[70vh] overflow-y-auto px-4 pb-8 pt-4 sm:max-h-[60vh] sm:px-5 sm:pb-4">
           {error && (
             <p className="mb-3 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-300">
               {error}
@@ -435,7 +437,7 @@ export default function AddChannelModal({
                     showCardCount
                   />
                   {remainingBulk > 1 && (
-                    <div className="mt-3 flex items-center gap-2 rounded-md border border-ink-700 bg-ink-900/60 px-3 py-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-ink-700 bg-ink-900/60 px-3 py-2.5">
                       <button
                         type="button"
                         onClick={() =>
@@ -448,7 +450,7 @@ export default function AddChannelModal({
                           }) ?? ""
                         }
                         className={[
-                          "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] font-medium transition",
+                          "inline-flex h-8 items-center gap-1 rounded-full border px-2.5 text-[11px] font-medium transition sm:h-6 sm:px-2 sm:text-[10px]",
                           bulkMode === "auto"
                             ? "border-violet-500 bg-violet-500/15 text-violet-200"
                             : "border-ink-700 text-ink-400 hover:text-ink-100",
@@ -459,7 +461,7 @@ export default function AddChannelModal({
                           defaultValue: "Auto",
                         })}
                       </button>
-                      <span className="text-[11px] text-ink-400">
+                      <span className="min-w-0 flex-1 text-[11px] text-ink-400 sm:flex-none">
                         {bulkMode === "auto"
                           ? t("discover.channels.bulk.modeAuto", {
                               defaultValue:
@@ -470,15 +472,15 @@ export default function AddChannelModal({
                                 "Nur abonnieren — manuell speichern",
                             })}
                       </span>
-                      <span className="ml-auto" />
+                      <span className="ml-auto hidden sm:block" />
                       <button
                         type="button"
                         onClick={subscribeAll}
                         disabled={bulkBusy}
-                        className="inline-flex h-7 items-center gap-1 rounded-md bg-violet-500 px-3 text-[11px] font-medium text-white transition hover:bg-violet-400 disabled:opacity-50"
+                        className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-violet-500 px-3 text-[12px] font-medium text-white transition hover:bg-violet-400 disabled:opacity-50 sm:h-7 sm:w-auto sm:text-[11px]"
                       >
                         {bulkBusy ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin sm:h-3 sm:w-3" />
                         ) : null}
                         {t("discover.channels.bulk.subscribeAll", {
                           count: remainingBulk,
@@ -652,7 +654,7 @@ function RowActions({
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex flex-shrink-0 items-center gap-1">
       <button
         type="button"
         onClick={() => onToggleMode(channelId)}
@@ -663,22 +665,24 @@ function RowActions({
         }
         aria-pressed={rowState.mode === "auto"}
         className={[
-          "inline-flex h-7 items-center gap-1 rounded-full border px-2 text-[10px] font-medium transition",
+          "inline-flex h-9 items-center gap-1 rounded-full border px-2.5 text-[11px] font-medium transition sm:h-7 sm:px-2 sm:text-[10px]",
           rowState.mode === "auto"
             ? "border-violet-500 bg-violet-500/15 text-violet-200"
             : "border-ink-700 text-ink-400 hover:text-ink-100",
         ].join(" ")}
       >
-        <Zap className="h-3 w-3" />
+        <Zap className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
         {t("discover.channels.autoIngest.short", { defaultValue: "Auto" })}
       </button>
       <button
         type="button"
         onClick={() => onSubscribe(channelId, rowState.mode)}
         disabled={rowState.busy}
-        className="inline-flex h-7 items-center gap-1 rounded-md bg-ink-100 px-3 text-[11px] font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+        className="inline-flex h-9 items-center gap-1 rounded-md bg-ink-100 px-3 text-[12px] font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-50 sm:h-7 sm:text-[11px]"
       >
-        {rowState.busy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+        {rowState.busy ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin sm:h-3 sm:w-3" />
+        ) : null}
         {t("discover.channels.subscribe", { defaultValue: "Abonnieren" })}
       </button>
     </div>

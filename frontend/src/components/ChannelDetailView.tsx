@@ -150,12 +150,17 @@ export default function ChannelDetailView({
           return;
         }
       }
-      // Mini mode: bottom-right corner, 320×180. Clamp for small screens.
-      const W = Math.min(320, vw - 24);
+      // Mini mode. Smaller floater on phones (240×135) so it doesn't
+      // dominate the screen; full size on tablets and up.
+      const isMobile = vw < 640;
+      const W = isMobile ? Math.min(240, vw - 24) : Math.min(320, vw - 24);
       const H = Math.round((W * 9) / 16);
+      // Leave room for an iOS-style home indicator + safe area padding
+      // on mobile by lifting the player ~24 px off the bottom edge.
+      const bottomOffset = isMobile ? 24 : 16;
       setPlayerRect({
         mode: "mini",
-        top: vh - H - 16,
+        top: vh - H - bottomOffset,
         left: vw - W - 16,
         width: W,
         height: H,
@@ -418,55 +423,60 @@ export default function ChannelDetailView({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex-shrink-0 border-b border-ink-800 bg-ink-950/40 px-4 py-3">
-        <div className="mx-auto flex max-w-6xl items-start gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="mt-1 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-ink-400 hover:bg-ink-800 hover:text-ink-100"
-            aria-label={t("common.back", { defaultValue: "Zurück" }) ?? ""}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          {sub.thumbnail_url ? (
-            <img
-              src={sub.thumbnail_url}
-              alt=""
-              referrerPolicy="no-referrer"
-              className="h-12 w-12 flex-shrink-0 rounded-full bg-ink-800 object-cover"
-            />
-          ) : (
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-ink-800 text-base font-semibold text-ink-400">
-              {sub.title.slice(0, 1).toUpperCase()}
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-base font-semibold text-ink-100">
-              {sub.title || sub.channel_id}
-            </h1>
-            <p className="truncate text-[11px] text-ink-500">
-              {[
-                sub.handle,
-                sub.subscriber_count != null
-                  ? `${formatSubs(sub.subscriber_count)} ${t(
-                      "discover.channels.subscribers",
-                      { defaultValue: "Abos" },
-                    )}`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-            {sub.description && (
-              <p className="mt-1 line-clamp-2 text-[11px] text-ink-400">
-                {sub.description}
-              </p>
+      {/* Header — two-row layout on mobile so the action cluster gets
+       *  its own line and the title doesn't fight for horizontal real
+       *  estate. Desktop keeps the single-row layout. */}
+      <div className="flex-shrink-0 border-b border-ink-800 bg-ink-950/40 px-3 py-2.5 sm:px-4 sm:py-3">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+          <div className="flex min-w-0 items-start gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="mt-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+              aria-label={t("common.back", { defaultValue: "Zurück" }) ?? ""}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            {sub.thumbnail_url ? (
+              <img
+                src={sub.thumbnail_url}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="h-10 w-10 flex-shrink-0 rounded-full bg-ink-800 object-cover sm:h-12 sm:w-12"
+              />
+            ) : (
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-ink-800 text-base font-semibold text-ink-400 sm:h-12 sm:w-12">
+                {sub.title.slice(0, 1).toUpperCase()}
+              </div>
             )}
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-sm font-semibold text-ink-100 sm:text-base">
+                {sub.title || sub.channel_id}
+              </h1>
+              <p className="truncate text-[11px] text-ink-500">
+                {[
+                  sub.handle,
+                  sub.subscriber_count != null
+                    ? `${formatSubs(sub.subscriber_count)} ${t(
+                        "discover.channels.subscribers",
+                        { defaultValue: "Abos" },
+                      )}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              {sub.description && (
+                <p className="mt-1 line-clamp-2 hidden text-[11px] text-ink-400 sm:block">
+                  {sub.description}
+                </p>
+              )}
+            </div>
           </div>
 
-          {/* Action cluster */}
-          <div className="flex flex-shrink-0 items-center gap-1">
+          {/* Action cluster — full-row + flex-start on mobile so it
+           *  doesn't fight with the title row. */}
+          <div className="flex flex-shrink-0 items-center justify-start gap-1 sm:justify-end">
             <button
               type="button"
               onClick={toggleAutoIngest}
@@ -474,7 +484,7 @@ export default function ChannelDetailView({
                 defaultValue: "Auto-Ingest",
               }) ?? ""}
               className={[
-                "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] transition",
+                "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-[11px] transition",
                 sub.ingest_mode === "auto"
                   ? "border-violet-500 bg-violet-500/15 text-violet-200"
                   : "border-ink-700 text-ink-400 hover:text-ink-100",
@@ -495,7 +505,7 @@ export default function ChannelDetailView({
               type="button"
               onClick={() => setSettingsOpen((s) => !s)}
               aria-label={t("common.settings", { defaultValue: "Einstellungen" }) ?? ""}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 text-ink-400 hover:text-ink-100"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-ink-700 text-ink-400 hover:text-ink-100"
             >
               <SettingsIcon className="h-3.5 w-3.5" />
             </button>
@@ -504,7 +514,7 @@ export default function ChannelDetailView({
               onClick={handleRefresh}
               disabled={refreshing}
               aria-label={t("common.refresh", { defaultValue: "Aktualisieren" }) ?? ""}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 text-ink-400 hover:text-ink-100 disabled:opacity-50"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-ink-700 text-ink-400 hover:text-ink-100 disabled:opacity-50"
             >
               <RefreshCw
                 className={[
@@ -574,9 +584,9 @@ export default function ChannelDetailView({
 
       {/* Unread action bar */}
       {unreadVisible && (
-        <div className="flex-shrink-0 border-b border-ink-800 bg-violet-500/5 px-4 py-2">
-          <div className="mx-auto flex max-w-6xl items-center gap-2 text-xs">
-            <Radio className="h-3.5 w-3.5 text-violet-300" />
+        <div className="flex-shrink-0 border-b border-ink-800 bg-violet-500/5 px-3 py-2 sm:px-4">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 text-xs">
+            <Radio className="h-3.5 w-3.5 flex-shrink-0 text-violet-300" />
             <span className="text-ink-300">
               {t("discover.channels.unread.count", {
                 count: sub.unread_count,
@@ -588,12 +598,12 @@ export default function ChannelDetailView({
               type="button"
               onClick={saveAll}
               disabled={bulkBusy}
-              className="inline-flex h-7 items-center gap-1 rounded-md bg-violet-500 px-3 text-[11px] font-medium text-white transition hover:bg-violet-400 disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1 rounded-md bg-violet-500 px-3 text-[12px] font-medium text-white transition hover:bg-violet-400 disabled:opacity-50 sm:h-7 sm:text-[11px]"
             >
               {bulkBusy ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin sm:h-3 sm:w-3" />
               ) : (
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
               )}
               {t("discover.channels.unread.saveAll", {
                 defaultValue: "Alle speichern",
@@ -603,7 +613,7 @@ export default function ChannelDetailView({
               type="button"
               onClick={markAllRead}
               disabled={bulkBusy}
-              className="inline-flex h-7 items-center gap-1 rounded-md border border-ink-700 px-3 text-[11px] font-medium text-ink-300 hover:text-ink-100 disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1 rounded-md border border-ink-700 px-3 text-[12px] font-medium text-ink-300 hover:text-ink-100 disabled:opacity-50 sm:h-7 sm:text-[11px]"
             >
               <Check className="h-3 w-3" />
               {t("discover.channels.unread.markAllRead", {
@@ -876,15 +886,15 @@ function ChannelVideoRow({
               .join(" · ")}
           </p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-shrink-0 items-center gap-1">
           <a
             href={watchUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-500 hover:text-ink-100"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-500 hover:text-ink-100 sm:h-7 sm:w-7"
             aria-label="YouTube"
           >
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
           </a>
           {isSaved ? (
             <button
@@ -893,9 +903,9 @@ function ChannelVideoRow({
                 video.saved_card_id &&
                 navigate(`/card/${video.saved_card_id}`)
               }
-              className="inline-flex h-7 items-center gap-1 rounded-md border border-emerald-500/30 px-2.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/10"
+              className="inline-flex h-9 items-center gap-1 rounded-md border border-emerald-500/30 px-3 text-[12px] font-medium text-emerald-300 hover:bg-emerald-500/10 sm:h-7 sm:px-2.5 sm:text-[11px]"
             >
-              <Check className="h-3 w-3" />
+              <Check className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
               {t("discover.channels.openSaved", { defaultValue: "Öffnen" })}
             </button>
           ) : (
@@ -903,12 +913,12 @@ function ChannelVideoRow({
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex h-7 items-center gap-1 rounded-md bg-ink-100 px-2.5 text-[11px] font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1 rounded-md bg-ink-100 px-3 text-[12px] font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-50 sm:h-7 sm:px-2.5 sm:text-[11px]"
             >
               {saving ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin sm:h-3 sm:w-3" />
               ) : (
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
               )}
               {t("common.save", { defaultValue: "Speichern" })}
             </button>

@@ -481,6 +481,38 @@ export default function DiscoverPage() {
           </div>
         </div>
 
+        {/* Mobile channel chips — desktop shows these in the sidebar,
+         *  on mobile we surface them as a dedicated horizontal-scroll
+         *  band above the themes so a phone user can switch channels
+         *  without first opening the Add-Channel modal. The leading
+         *  '+' chip opens the modal so adding stays one tap away. */}
+        {(channels.length > 0 || channelsLoaded) && (
+          <div
+            className="mx-auto flex w-full max-w-6xl flex-shrink-0 items-center gap-2 overflow-x-auto border-b border-ink-800 bg-ink-950/40 px-3 py-2 md:hidden"
+            aria-label={t("discover.channels.title", { defaultValue: "Channels" }) ?? ""}
+          >
+            <button
+              type="button"
+              onClick={() => setAddChannelOpen(true)}
+              aria-label={t("discover.channels.add", { defaultValue: "Channel hinzufügen" }) ?? ""}
+              className="inline-flex h-8 flex-shrink-0 items-center gap-1 rounded-full border border-violet-500/40 bg-violet-500/10 px-3 text-[11px] font-medium text-violet-200 hover:bg-violet-500/20"
+            >
+              <Plus className="h-3 w-3" />
+              {t("discover.channels.title", { defaultValue: "Channels" })}
+            </button>
+            {channels.map((c) => (
+              <ChannelMobileChip
+                key={c.id}
+                title={c.title || c.channel_id}
+                avatar={c.thumbnail_url}
+                unread={c.unread_count}
+                active={activeChannelId === c.id}
+                onClick={() => openChannel(c.id)}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Mobile theme chips */}
         {data && data.api_enabled && data.themes.length > 0 && (
           <div
@@ -633,6 +665,58 @@ export default function DiscoverPage() {
         alreadySubscribed={subscribedIds}
       />
     </div>
+  );
+}
+
+function ChannelMobileChip({
+  title,
+  avatar,
+  unread,
+  active,
+  onClick,
+}: {
+  title: string;
+  avatar: string | null;
+  unread: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={[
+        "inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full pl-1 pr-2.5 text-[11px] font-medium transition",
+        active
+          ? "bg-ink-100 text-ink-900"
+          : "border border-ink-700 text-ink-300 hover:text-ink-100",
+      ].join(" ")}
+    >
+      {avatar ? (
+        <img
+          src={avatar}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="h-6 w-6 flex-shrink-0 rounded-full bg-ink-800 object-cover"
+        />
+      ) : (
+        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-ink-800 text-[10px] font-semibold text-ink-300">
+          {title.slice(0, 1).toUpperCase()}
+        </span>
+      )}
+      <span className="max-w-[120px] truncate">{title}</span>
+      {unread > 0 && (
+        <span
+          className={[
+            "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold",
+            active ? "bg-ink-900/15 text-ink-900" : "bg-violet-500 text-white",
+          ].join(" ")}
+        >
+          {unread > 99 ? "99+" : unread}
+        </span>
+      )}
+    </button>
   );
 }
 
