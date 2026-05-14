@@ -41,10 +41,12 @@ from app.services.http_polling import conditional_fetch
 logger = logging.getLogger(__name__)
 
 # Hard cap on how many fresh entries we ingest from a single channel in
-# one poll. Protects against republish storms ("channel deleted 200
-# videos, then re-uploaded them with new timestamps") and bounds the
-# auto-ingest workload.
-MAX_NEW_PER_POLL = 10
+# one poll. YouTube's channel Atom feed carries at most 15 entries, so a
+# cap of 20 effectively means "take everything the feed gives us" while
+# still protecting against bogus feeds that fabricate hundreds of items.
+# It must be ≥ feed size or we silently miss the freshest uploads when a
+# new subscription is initialised.
+MAX_NEW_PER_POLL = 20
 
 # Atom namespaces used by YouTube's channel feeds.
 _NS = {
@@ -131,8 +133,10 @@ def poll_channel(
             except ET.ParseError:
                 pass
 
-        # Walk oldest → newest so the discovered_at order is intuitive.
-        entries.reverse()
+        # YouTube's Atom feed lists entries newest-first. Keep that
+        # order so when the cap below trims the tail it drops the OLDEST
+        # entries, not the freshest. (Inbox sort order is independent —
+        # /videos?tab=latest re-orders by published_at desc.)
 
         existing_ids = {
             r

@@ -419,6 +419,72 @@ def test_library_suggestions_backfills_missing_channel_id(
         assert meta.get("channel_id") == "UCRESOLVED"
 
 
+def test_poll_channel_keeps_newest_when_feed_exceeds_cap(
+    monkeypatch, db: Session, fresh_user: User
+):
+    """Regression guard: when the feed carries more entries than the
+    per-poll cap, we must keep the *newest* ones, not the oldest. The
+    earlier implementation reversed the entry list before applying the
+    cap, which silently dropped the most recent uploads — exactly the
+    'last video is two weeks old' bug we shipped briefly."""
+    # Build a 15-entry feed with the freshest at top (YouTube's natural
+    # order). published_at is decreasing.
+    entries_xml: list[str] = []
+    for i in range(15):
+        # i=0 is freshest (2026-06-01), i=14 oldest (2026-05-18).
+        day = 1 + (14 - i)
+        entries_xml.append(
+            f"""
+  <entry>
+    <id>yt:video:vid{i:02d}AAAAAAA</id>
+    <yt:videoId>vid{i:02d}AAAAAAA</yt:videoId>
+    <title>Video {i}</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=vid{i:02d}AAAAAAA"/>
+    <published>2026-{6 if day > 14 else 5}-{day:02d}T10:00:00+00:00</published>
+    <media:group>
+      <media:thumbnail url="https://i.ytimg.com/vi/vid{i:02d}AAAAAAA/hq.jpg"/>
+    </media:group>
+  </entry>"""
+        )
+    fixture = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"\n'
+        '      xmlns:media="http://search.yahoo.com/mrss/"\n'
+        '      xmlns="http://www.w3.org/2005/Atom">\n'
+        "  <yt:channelId>UCBIG000000000000000001</yt:channelId>\n"
+        "  <title>Big Channel</title>\n"
+        + "".join(entries_xml)
+        + "\n</feed>\n"
+    ).encode()
+
+    sub = _make_sub(db, fresh_user, channel_id="UCBIG000000000000000001")
+
+    from app.services import http_polling as hp
+
+    monkeypatch.setattr(
+        channel_polling,
+        "conditional_fetch",
+        lambda *a, **kw: hp.ConditionalFetchResult(
+            status="ok", body=fixture, etag=None, last_modified=None
+        ),
+    )
+    result = poll_channel(sub.id, allow_auto_ingest=False)
+    assert result["new_videos"] == 15  # full feed fits under the cap
+
+    db.expire_all()
+    rows = (
+        db.query(ChannelVideo)
+        .filter(ChannelVideo.subscription_id == sub.id)
+        .all()
+    )
+    # The freshest video (vid00) — the one the user wants to see — must
+    # be present. If MAX_NEW_PER_POLL ever drops below the feed size AND
+    # the entry list is reversed again, vid00 is the first thing missing.
+    ids = {r.video_id for r in rows}
+    assert "vid00AAAAAAA" in ids, "newest video missing — regression"
+    assert "vid14AAAAAAA" in ids
+
+
 def test_save_all_unread_drains_sequentially_not_per_video_threads(
     monkeypatch, db: Session, fresh_user: User
 ):
