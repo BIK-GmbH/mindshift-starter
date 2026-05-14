@@ -289,10 +289,10 @@ def library_suggestions(db: Session, user_id: UUID) -> list[dict[str, Any]]:
     """Look at the user's existing YouTube cards, group by channel, return
     the top channels they haven't subscribed to yet.
 
-    We pull `channel` out of `sources.metadata_json` (set during ingestion
-    by `process_youtube_card`). Channels without a channel-id stored are
-    skipped — we'd need a YouTube API hop to recover it, not worth the
-    cost on a suggestion list.
+    Cards ingested before 2026-05-13 only stored the channel *title* in
+    `sources.metadata_json`. For those, we batch-resolve `channel_id`
+    via `videos.list?id=v1,v2,…` (1 unit per 50 ids) and write the
+    resolved id back into metadata so subsequent calls are free.
     """
     # Existing subs to filter against.
     existing = {
@@ -304,14 +304,10 @@ def library_suggestions(db: Session, user_id: UUID) -> list[dict[str, Any]]:
         ).all()
     }
 
-    # `metadata_json -> 'channel'` is set by services.youtube.fetch_metadata
-    # but the value is the channel *title* not the id. We also stash the
-    # channel id under `channel_id` when available. We surface both: the
-    # title is what the user reads, the id is what we resolve to.
+    # Pull every YouTube source for this user. We need the source.id so
+    # we can write channel_id back into metadata after a lazy resolve.
     rows = db.execute(
-        select(
-            Source.metadata_json,
-        )
+        select(Source.id, Source.external_id, Source.metadata_json)
         .join(Card, Card.source_id == Source.id)
         .where(
             Card.user_id == user_id,
@@ -319,9 +315,29 @@ def library_suggestions(db: Session, user_id: UUID) -> list[dict[str, Any]]:
         )
     ).all()
 
-    # Bucket by (channel_id or title) — title is the fallback.
+    # Step 1: backfill missing channel_ids via the Data API.
+    missing: list[tuple[UUID, str]] = []
+    for src_id, video_id, meta in rows:
+        if not isinstance(meta, dict):
+            meta = {}
+        if not (meta.get("channel_id") or "").strip() and video_id:
+            missing.append((src_id, video_id))
+    if missing:
+        _backfill_channel_ids(db, missing)
+        # Re-read post-backfill so the bucketing below sees fresh values.
+        rows = db.execute(
+            select(Source.id, Source.external_id, Source.metadata_json)
+            .join(Card, Card.source_id == Source.id)
+            .where(
+                Card.user_id == user_id,
+                Source.source_type == "youtube",
+            )
+        ).all()
+
+    # Step 2: bucket by channel_id (with title as fallback for cards we
+    # still couldn't resolve — e.g. deleted videos or missing key).
     buckets: dict[str, dict[str, Any]] = {}
-    for (meta,) in rows:
+    for _, _video_id, meta in rows:
         if not isinstance(meta, dict):
             continue
         channel_id = (meta.get("channel_id") or "").strip()
@@ -342,13 +358,25 @@ def library_suggestions(db: Session, user_id: UUID) -> list[dict[str, Any]]:
         key=lambda b: (-b["card_count"], (b.get("title") or "").lower()),
     )
 
-    # Resolve channel_id-less candidates lazily? Skip them — we don't want
-    # to burn API units on suggestions. Only return channels we already
-    # have an id for; the ones without an id get filed under
-    # `pending_resolution` in the response for future hydration.
     out: list[dict[str, Any]] = []
     for c in candidates:
         if not c["channel_id"]:
+            # Title-only fallback: surface it anyway. The frontend can
+            # offer a `searchChannels(title)` flow when the user clicks
+            # subscribe; we just don't have an exact id to pass back.
+            out.append(
+                {
+                    "channel_id": "",
+                    "title": c["title"] or "?",
+                    "handle": None,
+                    "thumbnail_url": None,
+                    "subscriber_count": None,
+                    "description": None,
+                    "card_count_in_library": c["card_count"],
+                }
+            )
+            if len(out) >= SUGGEST_LIMIT:
+                break
             continue
         if c["channel_id"] in existing:
             continue
@@ -365,7 +393,86 @@ def library_suggestions(db: Session, user_id: UUID) -> list[dict[str, Any]]:
         )
         if len(out) >= SUGGEST_LIMIT:
             break
+
+    # Step 3: hydrate avatars + subscriber counts in one batched call.
+    ids_to_hydrate = [r["channel_id"] for r in out if r["channel_id"]]
+    if ids_to_hydrate:
+        hydrated = _fetch_channels_by_id(ids_to_hydrate)
+        for row in out:
+            ch = hydrated.get(row["channel_id"])
+            if ch is None:
+                continue
+            row["title"] = ch.title or row["title"]
+            row["handle"] = ch.handle
+            row["thumbnail_url"] = ch.thumbnail_url
+            row["subscriber_count"] = ch.subscriber_count
+            row["description"] = ch.description
     return out
+
+
+def _backfill_channel_ids(
+    db: Session, missing: list[tuple[UUID, str]]
+) -> None:
+    """Look up channel_id for each video_id via `videos.list` (1 unit per
+    50 ids) and write it into the matching `sources.metadata_json` rows.
+
+    Best-effort: failures (no API key, quota, network) leave the rows
+    untouched — the suggestions list still works with title-only entries.
+    """
+    key = _api_key()
+    if not key:
+        return
+
+    # Batch into chunks of 50 (Data API hard limit on `id` param).
+    by_video: dict[str, UUID] = {video_id: src_id for src_id, video_id in missing}
+    video_ids = list(by_video.keys())
+    resolved: dict[str, dict[str, str]] = {}  # video_id → {channel_id, channel_title}
+
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            for start in range(0, len(video_ids), 50):
+                chunk = video_ids[start : start + 50]
+                r = client.get(
+                    f"{YOUTUBE_API_BASE}/videos",
+                    params={
+                        "key": key,
+                        "id": ",".join(chunk),
+                        "part": "snippet",
+                    },
+                )
+                r.raise_for_status()
+                for item in r.json().get("items") or []:
+                    vid = item.get("id")
+                    snip = item.get("snippet") or {}
+                    ch_id = snip.get("channelId")
+                    ch_title = snip.get("channelTitle")
+                    if vid and ch_id:
+                        resolved[vid] = {
+                            "channel_id": ch_id,
+                            "channel_title": ch_title or "",
+                        }
+    except httpx.HTTPError as exc:
+        logger.warning("Channel-id backfill via videos.list failed: %s", exc)
+        return
+
+    if not resolved:
+        return
+
+    # Persist channel_id into source.metadata_json. Touching only the
+    # rows we successfully resolved keeps the change small + reversible.
+    for video_id, data in resolved.items():
+        src_id = by_video.get(video_id)
+        if src_id is None:
+            continue
+        source = db.get(Source, src_id)
+        if source is None:
+            continue
+        meta = dict(source.metadata_json or {})
+        meta["channel_id"] = data["channel_id"]
+        if not (meta.get("channel") or "").strip() and data["channel_title"]:
+            meta["channel"] = data["channel_title"]
+        source.metadata_json = meta
+    db.commit()
 
 
 # ---------------------------------------------------------------------------

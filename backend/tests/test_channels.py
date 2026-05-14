@@ -334,6 +334,80 @@ def test_library_suggestions_groups_by_channel(db: Session, fresh_user: User):
     assert counts == {"UCA": 2, "UCB": 2}
 
 
+def test_library_suggestions_backfills_missing_channel_id(
+    monkeypatch, db: Session, fresh_user: User
+):
+    """Cards ingested before channel_id capture landed have only the
+    channel title. The suggestions endpoint should batch-resolve the
+    missing ids via the Data API and persist them back into metadata."""
+    # Seed two YouTube cards with NO channel_id — only the title.
+    src_ids: list[str] = []
+    for i, vid in enumerate(["videoAAA", "videoBBB"]):
+        src = Source(
+            source_type="youtube",
+            url=f"https://www.youtube.com/watch?v={vid}",
+            canonical_url=f"https://www.youtube.com/watch?v={vid}",
+            external_id=vid,
+            metadata_json={"channel": "Some Channel"},  # no channel_id
+        )
+        db.add(src)
+        db.flush()
+        src_ids.append(src.id)
+        db.add(Card(
+            user_id=fresh_user.id, source_id=src.id, title=f"x{i}",
+            source_type="youtube", status="completed",
+        ))
+    db.commit()
+
+    # Mock the YouTube Data API key + the httpx call.
+    monkeypatch.setattr(channel_search, "_api_key", lambda: "fake-key")
+
+    class FakeResp:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self):
+            return {
+                "items": [
+                    {
+                        "id": "videoAAA",
+                        "snippet": {
+                            "channelId": "UCRESOLVED",
+                            "channelTitle": "Resolved Channel",
+                        },
+                    },
+                    {
+                        "id": "videoBBB",
+                        "snippet": {
+                            "channelId": "UCRESOLVED",
+                            "channelTitle": "Resolved Channel",
+                        },
+                    },
+                ]
+            }
+
+    class FakeClient:
+        def __init__(self, *a, **kw): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, *a, **kw): return FakeResp()
+
+    monkeypatch.setattr(channel_search.httpx, "Client", FakeClient)
+    # Skip the hydration round-trip in this test — we only care about
+    # the backfill + grouping behaviour, not the avatar fetch.
+    monkeypatch.setattr(channel_search, "_fetch_channels_by_id", lambda ids: {})
+
+    out = channel_search.library_suggestions(db, fresh_user.id)
+    assert len(out) == 1
+    assert out[0]["channel_id"] == "UCRESOLVED"
+    assert out[0]["card_count_in_library"] == 2
+
+    # And the source rows now carry channel_id.
+    db.expire_all()
+    for sid in src_ids:
+        meta = db.get(Source, sid).metadata_json
+        assert meta.get("channel_id") == "UCRESOLVED"
+
+
 def test_library_suggestions_filters_existing_subs(db: Session, fresh_user: User):
     for i, ch in enumerate(["UCALPHA", "UCALPHA"]):
         src = Source(
