@@ -5,16 +5,31 @@
  *   - paste     : URL/handle → /api/channels/resolve (1 unit + maybe 100 fallback)
  *   - suggested : /api/channels/suggestions, library-derived (free)
  *
- * After Subscribe, the row appears in the parent Discover sidebar via
- * an onSubscribed callback (parent re-fetches the channels list).
+ * Inline-subscribe flow: clicking "Abonnieren" subscribes the row in
+ * place and the row flips to "✓ Abonniert · <mode>". The modal stays
+ * open so the user can chain several subscribes. Each row has a small
+ * `⚡ Auto` toggle that decides whether the subscription is created in
+ * manual or auto-ingest mode — set BEFORE clicking Abonnieren.
+ *
+ * Suggestions tab additionally shows a "Alle N abonnieren" bulk button
+ * with its own auto toggle, since that list is already curated from
+ * the user's library and bulk-subscribe is the common case.
  */
 
-import { Loader2, Search as SearchIcon, Sparkles, Users, X } from "lucide-react";
+import {
+  Check,
+  Loader2,
+  Search as SearchIcon,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
   api,
+  type ChannelIngestMode,
   type ChannelSearchResult,
   type ChannelSubscription,
   type ChannelSuggestion,
@@ -25,11 +40,29 @@ type Tab = "search" | "paste" | "suggested";
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Called after EACH successful subscribe so the parent can update
+   *  the sidebar in real time. The modal stays open. */
   onSubscribed: (sub: ChannelSubscription) => void;
-  /** Channel ids already subscribed — hidden from the result lists so
-   *  the user can't double-subscribe. */
+  /** Channel ids already subscribed elsewhere (e.g. before opening the
+   *  modal). Used to show "Abonniert" on a row from the start. */
   alreadySubscribed: Set<string>;
 }
+
+/** Per-row state tracked inside the modal. */
+interface RowState {
+  mode: ChannelIngestMode;
+  /** Subscribed state — once true, the row stays as "✓ Abonniert" until
+   *  the modal is reopened. */
+  subscribed: boolean;
+  /** Network in-flight indicator. */
+  busy: boolean;
+}
+
+const DEFAULT_ROW_STATE: RowState = {
+  mode: "manual",
+  subscribed: false,
+  busy: false,
+};
 
 export default function AddChannelModal({
   open,
@@ -58,8 +91,12 @@ export default function AddChannelModal({
   const [suggestions, setSuggestions] = useState<ChannelSuggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
-  // Per-row "subscribing" indicator.
-  const [subscribingId, setSubscribingId] = useState<string | null>(null);
+  // Per-row state across all tabs, keyed by channel_id.
+  const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
+
+  // Bulk action state for the Suggestions tab.
+  const [bulkMode, setBulkMode] = useState<ChannelIngestMode>("manual");
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -68,7 +105,8 @@ export default function AddChannelModal({
     setSearchResults([]);
     setPasteInput("");
     setPasteResult(null);
-    setSubscribingId(null);
+    setRowStates({});
+    setBulkMode("manual");
     // Pre-fetch suggestions in the background so switching to the tab
     // is instant — they are free (no API quota).
     setSuggestionsLoading(true);
@@ -79,11 +117,20 @@ export default function AddChannelModal({
         // Non-fatal — the tab will just show an empty state.
       })
       .finally(() => setSuggestionsLoading(false));
-    // Focus the search input on open.
     setTimeout(() => searchRef.current?.focus(), 50);
   }, [open]);
 
   if (!open) return null;
+
+  const setRowState = (channelId: string, patch: Partial<RowState>) => {
+    setRowStates((prev) => ({
+      ...prev,
+      [channelId]: { ...DEFAULT_ROW_STATE, ...(prev[channelId] ?? {}), ...patch },
+    }));
+  };
+
+  const getRowState = (channelId: string): RowState =>
+    rowStates[channelId] ?? DEFAULT_ROW_STATE;
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,30 +172,69 @@ export default function AddChannelModal({
     }
   };
 
-  const subscribe = async (channelId: string) => {
-    setSubscribingId(channelId);
-    setError(null);
+  /** Subscribe one channel honoring its per-row mode setting. */
+  const subscribeOne = async (channelId: string, mode: ChannelIngestMode) => {
+    if (!channelId) return;
+    setRowState(channelId, { busy: true });
     try {
       const sub = await api.subscribeChannel(channelId);
-      onSubscribed(sub);
-      // Drop the entry from local result/suggestion arrays to give
-      // immediate feedback.
-      setSearchResults((rows) =>
-        rows.filter((r) => r.channel_id !== channelId),
-      );
-      setSuggestions((rows) =>
-        rows.filter((r) => r.channel_id !== channelId),
-      );
-      if (pasteResult?.channel_id === channelId) {
-        setPasteResult(null);
-        setPasteInput("");
+      // If the user chose auto, flip the mode on the freshly-created
+      // subscription. No confirm dialog here — the toggle was an
+      // explicit, deliberate gesture.
+      let final = sub;
+      if (mode === "auto") {
+        try {
+          final = await api.patchChannel(sub.id, { ingest_mode: "auto" });
+        } catch {
+          // Subscribe still succeeded; just couldn't flip the mode.
+          // The user can switch in the channel detail later.
+        }
       }
+      onSubscribed(final);
+      setRowState(channelId, {
+        subscribed: true,
+        busy: false,
+        mode: final.ingest_mode,
+      });
     } catch (err) {
       setError((err as Error).message);
-    } finally {
-      setSubscribingId(null);
+      setRowState(channelId, { busy: false });
     }
   };
+
+  const toggleRowMode = (channelId: string) => {
+    if (!channelId) return;
+    const current = getRowState(channelId);
+    if (current.subscribed) return;
+    setRowState(channelId, {
+      mode: current.mode === "auto" ? "manual" : "auto",
+    });
+  };
+
+  /** "Alle abonnieren" — walk the suggestions, skip the ones already
+   *  subscribed (in this session or before), subscribe sequentially. */
+  const subscribeAll = async () => {
+    setBulkBusy(true);
+    setError(null);
+    try {
+      for (const s of suggestions) {
+        if (!s.channel_id) continue;
+        if (alreadySubscribed.has(s.channel_id)) continue;
+        if (getRowState(s.channel_id).subscribed) continue;
+        await subscribeOne(s.channel_id, bulkMode);
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  // Count remaining unsubscribed suggestions (for the bulk-button label).
+  const remainingBulk = suggestions.filter(
+    (s) =>
+      s.channel_id &&
+      !alreadySubscribed.has(s.channel_id) &&
+      !getRowState(s.channel_id).subscribed,
+  ).length;
 
   return (
     <div
@@ -198,7 +284,7 @@ export default function AddChannelModal({
           <TabButton
             active={tab === "suggested"}
             onClick={() => setTab("suggested")}
-            icon={<Sparkles className="h-3.5 w-3.5" />}
+            icon={<Users className="h-3.5 w-3.5" />}
             label={t("discover.channels.addModal.fromLibrary", {
               defaultValue: "Aus deiner Library",
             })}
@@ -244,8 +330,9 @@ export default function AddChannelModal({
               <ResultList
                 items={searchResults}
                 alreadySubscribed={alreadySubscribed}
-                onSubscribe={subscribe}
-                subscribingId={subscribingId}
+                rowStateFor={getRowState}
+                onToggleMode={toggleRowMode}
+                onSubscribe={subscribeOne}
                 emptyHint={
                   t("discover.channels.addModal.searchHint", {
                     defaultValue:
@@ -288,8 +375,9 @@ export default function AddChannelModal({
                 <ResultList
                   items={[pasteResult]}
                   alreadySubscribed={alreadySubscribed}
-                  onSubscribe={subscribe}
-                  subscribingId={subscribingId}
+                  rowStateFor={getRowState}
+                  onToggleMode={toggleRowMode}
+                  onSubscribe={subscribeOne}
                 />
               ) : (
                 <p className="rounded-md border border-dashed border-ink-700 bg-ink-900/40 px-3 py-6 text-center text-xs text-ink-500">
@@ -317,13 +405,69 @@ export default function AddChannelModal({
                   })}
                 </p>
               ) : (
-                <ResultList
-                  items={suggestions}
-                  alreadySubscribed={alreadySubscribed}
-                  onSubscribe={subscribe}
-                  subscribingId={subscribingId}
-                  showCardCount
-                />
+                <>
+                  <ResultList
+                    items={suggestions}
+                    alreadySubscribed={alreadySubscribed}
+                    rowStateFor={getRowState}
+                    onToggleMode={toggleRowMode}
+                    onSubscribe={subscribeOne}
+                    showCardCount
+                  />
+                  {remainingBulk > 1 && (
+                    <div className="mt-3 flex items-center gap-2 rounded-md border border-ink-700 bg-ink-900/60 px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setBulkMode((m) => (m === "auto" ? "manual" : "auto"))
+                        }
+                        title={
+                          t("discover.channels.bulk.autoTooltip", {
+                            defaultValue:
+                              "Auto-Ingest für die Sammel-Aktion aktivieren",
+                          }) ?? ""
+                        }
+                        className={[
+                          "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] font-medium transition",
+                          bulkMode === "auto"
+                            ? "border-violet-500 bg-violet-500/15 text-violet-200"
+                            : "border-ink-700 text-ink-400 hover:text-ink-100",
+                        ].join(" ")}
+                      >
+                        <Zap className="h-3 w-3" />
+                        {t("discover.channels.autoIngest.short", {
+                          defaultValue: "Auto",
+                        })}
+                      </button>
+                      <span className="text-[11px] text-ink-400">
+                        {bulkMode === "auto"
+                          ? t("discover.channels.bulk.modeAuto", {
+                              defaultValue:
+                                "Neue Uploads automatisch ingesten",
+                            })
+                          : t("discover.channels.bulk.modeManual", {
+                              defaultValue:
+                                "Nur abonnieren — manuell speichern",
+                            })}
+                      </span>
+                      <span className="ml-auto" />
+                      <button
+                        type="button"
+                        onClick={subscribeAll}
+                        disabled={bulkBusy}
+                        className="inline-flex h-7 items-center gap-1 rounded-md bg-violet-500 px-3 text-[11px] font-medium text-white transition hover:bg-violet-400 disabled:opacity-50"
+                      >
+                        {bulkBusy ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : null}
+                        {t("discover.channels.bulk.subscribeAll", {
+                          count: remainingBulk,
+                          defaultValue: "Alle {{count}} abonnieren",
+                        })}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -366,15 +510,17 @@ function ResultList<
 >({
   items,
   alreadySubscribed,
+  rowStateFor,
+  onToggleMode,
   onSubscribe,
-  subscribingId,
   emptyHint,
   showCardCount,
 }: {
   items: T[];
   alreadySubscribed: Set<string>;
-  onSubscribe: (channelId: string) => void;
-  subscribingId: string | null;
+  rowStateFor: (channelId: string) => RowState;
+  onToggleMode: (channelId: string) => void;
+  onSubscribe: (channelId: string, mode: ChannelIngestMode) => Promise<void>;
   emptyHint?: string;
   showCardCount?: boolean;
 }) {
@@ -389,10 +535,11 @@ function ResultList<
   return (
     <ul className="divide-y divide-ink-800 overflow-hidden rounded-md border border-ink-800 bg-ink-900/40">
       {items.map((it) => {
-        const isMine = alreadySubscribed.has(it.channel_id);
-        const isWorking = subscribingId === it.channel_id;
+        const wasAlreadyMine = alreadySubscribed.has(it.channel_id);
+        const rowState = rowStateFor(it.channel_id);
+        const isSubscribed = wasAlreadyMine || rowState.subscribed;
         return (
-          <li key={it.channel_id} className="flex items-center gap-3 px-3 py-2.5">
+          <li key={it.channel_id || it.title} className="flex items-center gap-3 px-3 py-2.5">
             {it.thumbnail_url ? (
               <img
                 src={it.thumbnail_url}
@@ -402,7 +549,7 @@ function ResultList<
               />
             ) : (
               <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-ink-800 text-[11px] font-semibold text-ink-400">
-                {it.title.slice(0, 1).toUpperCase()}
+                {(it.title || "?").slice(0, 1).toUpperCase()}
               </div>
             )}
             <div className="min-w-0 flex-1">
@@ -429,33 +576,92 @@ function ResultList<
                   .join(" · ")}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => onSubscribe(it.channel_id)}
-              disabled={isMine || isWorking}
-              className={[
-                "inline-flex h-7 items-center gap-1 rounded-md px-3 text-[11px] font-medium transition",
-                isMine
-                  ? "cursor-default border border-ink-700 text-ink-500"
-                  : "bg-ink-100 text-ink-900 hover:bg-ink-200",
-                isWorking ? "opacity-60" : "",
-              ].join(" ")}
-            >
-              {isWorking ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : null}
-              {isMine
-                ? t("discover.channels.subscribed", {
-                    defaultValue: "Abonniert",
-                  })
-                : t("discover.channels.subscribe", {
-                    defaultValue: "Abonnieren",
-                  })}
-            </button>
+            <RowActions
+              channelId={it.channel_id}
+              rowState={rowState}
+              isSubscribed={isSubscribed}
+              onToggleMode={onToggleMode}
+              onSubscribe={onSubscribe}
+            />
           </li>
         );
       })}
     </ul>
+  );
+}
+
+function RowActions({
+  channelId,
+  rowState,
+  isSubscribed,
+  onToggleMode,
+  onSubscribe,
+}: {
+  channelId: string;
+  rowState: RowState;
+  isSubscribed: boolean;
+  onToggleMode: (channelId: string) => void;
+  onSubscribe: (channelId: string, mode: ChannelIngestMode) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  // Title-only suggestion rows (no channel_id) can't be subscribed
+  // automatically — the user has to use Search/URL tabs.
+  if (!channelId) {
+    return (
+      <span className="rounded border border-ink-700 px-2 py-0.5 text-[10px] text-ink-500">
+        {t("discover.channels.suggestions.searchToSubscribe", {
+          defaultValue: "Über Suche abonnieren",
+        })}
+      </span>
+    );
+  }
+
+  if (isSubscribed) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+        <Check className="h-3 w-3" />
+        {t("discover.channels.subscribed", { defaultValue: "Abonniert" })}
+        <span className="text-emerald-400/60">
+          ·{" "}
+          {rowState.mode === "auto"
+            ? t("discover.channels.autoIngest.short", { defaultValue: "Auto" })
+            : t("discover.channels.modeManual", { defaultValue: "Manuell" })}
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onToggleMode(channelId)}
+        title={
+          t("discover.channels.autoIngest.tooltip", {
+            defaultValue: "Auto-Ingest beim Abonnieren aktivieren",
+          }) ?? ""
+        }
+        aria-pressed={rowState.mode === "auto"}
+        className={[
+          "inline-flex h-7 items-center gap-1 rounded-full border px-2 text-[10px] font-medium transition",
+          rowState.mode === "auto"
+            ? "border-violet-500 bg-violet-500/15 text-violet-200"
+            : "border-ink-700 text-ink-400 hover:text-ink-100",
+        ].join(" ")}
+      >
+        <Zap className="h-3 w-3" />
+        {t("discover.channels.autoIngest.short", { defaultValue: "Auto" })}
+      </button>
+      <button
+        type="button"
+        onClick={() => onSubscribe(channelId, rowState.mode)}
+        disabled={rowState.busy}
+        className="inline-flex h-7 items-center gap-1 rounded-md bg-ink-100 px-3 text-[11px] font-medium text-ink-900 transition hover:bg-ink-200 disabled:opacity-50"
+      >
+        {rowState.busy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+        {t("discover.channels.subscribe", { defaultValue: "Abonnieren" })}
+      </button>
+    </div>
   );
 }
 

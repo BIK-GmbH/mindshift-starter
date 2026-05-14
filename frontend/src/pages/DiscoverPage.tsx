@@ -626,9 +626,9 @@ export default function DiscoverPage() {
         open={addChannelOpen}
         onClose={() => setAddChannelOpen(false)}
         onSubscribed={(sub) => {
+          // Inline-Subscribe: keep modal open, do NOT auto-jump to
+          // the channel detail. The user picks when to leave.
           handleChannelSubscribed(sub);
-          setAddChannelOpen(false);
-          openChannel(sub.id);
         }}
         alreadySubscribed={subscribedIds}
       />

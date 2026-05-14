@@ -777,7 +777,8 @@
       "autoIngest": {
         "label": "Auto-ingest",
         "short": "Auto",
-        "enableConfirm": "New uploads will now be ingested as cards automatically. Existing unread items still need a manual save. Continue?"
+        "enableConfirm": "New uploads will now be ingested as cards automatically. Existing unread items still need a manual save. Continue?",
+        "tooltip": "Turn on auto-ingest at subscribe time"
       },
       "tabs": {
         "latest": "Latest",
@@ -795,7 +796,16 @@
       "suggestions": {
         "title": "Suggested from your library",
         "cardsInLibrary_one": "{{count}} card in your library",
-        "cardsInLibrary_other": "{{count}} cards in your library"
+        "cardsInLibrary_other": "{{count}} cards in your library",
+        "searchToSubscribe": "Use search to subscribe"
+      },
+      "modeManual": "Manual",
+      "bulk": {
+        "subscribeAll_one": "Subscribe to {{count}}",
+        "subscribeAll_other": "Subscribe to all {{count}}",
+        "autoTooltip": "Enable auto-ingest for the bulk action",
+        "modeAuto": "Auto-ingest new uploads",
+        "modeManual": "Subscribe only — save manually"
       }
     }
   },

@@ -777,7 +777,8 @@
       "autoIngest": {
         "label": "Auto-Ingest",
         "short": "Auto",
-        "enableConfirm": "Neue Uploads werden ab jetzt automatisch zu Karten. Bestehende ungelesene musst du weiter manuell speichern. Fortfahren?"
+        "enableConfirm": "Neue Uploads werden ab jetzt automatisch zu Karten. Bestehende ungelesene musst du weiter manuell speichern. Fortfahren?",
+        "tooltip": "Auto-Ingest beim Abonnieren aktivieren"
       },
       "tabs": {
         "latest": "Neu",
@@ -795,7 +796,16 @@
       "suggestions": {
         "title": "Empfohlen aus deiner Library",
         "cardsInLibrary_one": "{{count}} Karte in deiner Library",
-        "cardsInLibrary_other": "{{count}} Karten in deiner Library"
+        "cardsInLibrary_other": "{{count}} Karten in deiner Library",
+        "searchToSubscribe": "Über Suche abonnieren"
+      },
+      "modeManual": "Manuell",
+      "bulk": {
+        "subscribeAll_one": "Alle {{count}} abonnieren",
+        "subscribeAll_other": "Alle {{count}} abonnieren",
+        "autoTooltip": "Auto-Ingest für die Sammel-Aktion aktivieren",
+        "modeAuto": "Neue Uploads automatisch ingesten",
+        "modeManual": "Nur abonnieren — manuell speichern"
       }
     }
   },
