@@ -103,7 +103,11 @@ export default function DiscoverPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const [visible, setVisible] = useState<Record<string, number>>({});
-  const [playingId, setPlayingId] = useState<string | null>(null);
+  // Composite key `<sectionId>:<videoId>` instead of a bare video_id —
+  // the same video can legitimately appear in multiple theme bundles
+  // AND in the search results, and we MUST only play it in one row at
+  // a time to avoid two iframes echoing each other.
+  const [playingKey, setPlayingKey] = useState<string | null>(null);
   const [freshness, setFreshness] = useState<YouTubeFreshness>(() => readPersistedFreshness());
 
   // Custom-search state.
@@ -179,7 +183,7 @@ export default function DiscoverPage() {
     if (refresh) setRefreshing(true);
     else setLoading(true);
     setError(null);
-    setPlayingId(null);
+    setPlayingKey(null);
     try {
       const res = await api.getYouTubeDiscover(refresh, fresh);
       setData(res);
@@ -205,7 +209,7 @@ export default function DiscoverPage() {
     if (!trimmed) return;
     setSearching(true);
     setSearchError(null);
-    setPlayingId(null);
+    setPlayingKey(null);
     try {
       const res = await api.searchYouTube(trimmed, fresh);
       setSearchActive(res);
@@ -292,8 +296,9 @@ export default function DiscoverPage() {
     );
   };
 
-  const togglePlay = (videoId: string) => {
-    setPlayingId((prev) => (prev === videoId ? null : videoId));
+  const togglePlay = (sectionId: string, videoId: string) => {
+    const key = `${sectionId}:${videoId}`;
+    setPlayingKey((prev) => (prev === key ? null : key));
   };
 
   return (
@@ -580,7 +585,7 @@ export default function DiscoverPage() {
               <SearchResultsSection
                 data={searchActive}
                 onClose={clearSearch}
-                playingId={playingId}
+                playingKey={playingKey}
                 onTogglePlay={togglePlay}
                 onSaved={(vid, cid) => handleSaved("__search__", vid, cid)}
               />
@@ -642,7 +647,7 @@ export default function DiscoverPage() {
                         ),
                       }))
                     }
-                    playingId={playingId}
+                    playingKey={playingKey}
                     onTogglePlay={togglePlay}
                     onSaved={(vid, cid) => handleSaved(th.slug, vid, cid)}
                   />
@@ -767,17 +772,19 @@ function ChannelNavRow({
   );
 }
 
+const SEARCH_SECTION_ID = "__search__";
+
 function SearchResultsSection({
   data,
   onClose,
-  playingId,
+  playingKey,
   onTogglePlay,
   onSaved,
 }: {
   data: YouTubeCustomSearch;
   onClose: () => void;
-  playingId: string | null;
-  onTogglePlay: (videoId: string) => void;
+  playingKey: string | null;
+  onTogglePlay: (sectionId: string, videoId: string) => void;
   onSaved: (videoId: string, cardId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -824,8 +831,8 @@ function SearchResultsSection({
               <DiscoverVideoRow
                 key={r.video_id}
                 item={r}
-                playing={playingId === r.video_id}
-                onTogglePlay={() => onTogglePlay(r.video_id)}
+                playing={playingKey === `${SEARCH_SECTION_ID}:${r.video_id}`}
+                onTogglePlay={() => onTogglePlay(SEARCH_SECTION_ID, r.video_id)}
                 onSaved={(savedCardId, videoId) => onSaved(videoId, savedCardId)}
               />
             ))}
@@ -852,15 +859,15 @@ function ThemeSection({
   theme,
   visible,
   onLoadMore,
-  playingId,
+  playingKey,
   onTogglePlay,
   onSaved,
 }: {
   theme: YouTubeDiscoverTheme;
   visible: number;
   onLoadMore: () => void;
-  playingId: string | null;
-  onTogglePlay: (videoId: string) => void;
+  playingKey: string | null;
+  onTogglePlay: (sectionId: string, videoId: string) => void;
   onSaved: (videoId: string, cardId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -899,8 +906,8 @@ function ThemeSection({
               <DiscoverVideoRow
                 key={r.video_id}
                 item={r}
-                playing={playingId === r.video_id}
-                onTogglePlay={() => onTogglePlay(r.video_id)}
+                playing={playingKey === `${theme.slug}:${r.video_id}`}
+                onTogglePlay={() => onTogglePlay(theme.slug, r.video_id)}
                 onSaved={(savedCardId, videoId) => onSaved(videoId, savedCardId)}
               />
             ))}
