@@ -50,6 +50,8 @@ def process_youtube_card(card_id: UUID, job_id: UUID, video_id: str) -> None:
                     meta["description"] = metadata.description
                 if metadata.channel:
                     meta["channel"] = metadata.channel
+                if metadata.channel_id:
+                    meta["channel_id"] = metadata.channel_id
                 src.metadata_json = meta
                 db.commit()
         db.commit()

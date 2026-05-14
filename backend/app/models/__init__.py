@@ -7,6 +7,9 @@ from app.models.card_social_post import CardSocialPost  # noqa: F401
 from app.models.card_social_post_image_version import CardSocialPostImageVersion  # noqa: F401
 from app.models.image_template import ImageTemplate  # noqa: F401
 from app.models.card_translation import CardTranslation  # noqa: F401
+from app.models.channel_subscription import ChannelSubscription  # noqa: F401
+from app.models.channel_video import ChannelVideo  # noqa: F401
+from app.models.channel_video_pop_cache import ChannelVideoPopCache  # noqa: F401
 from app.models.chat import ChatMessage, ChatSession  # noqa: F401
 from app.models.embedding import Embedding  # noqa: F401
 from app.models.entity import CardEntity, Entity  # noqa: F401

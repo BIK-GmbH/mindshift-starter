@@ -8,6 +8,7 @@ from app.api.ai import router as ai_router
 from app.api.audio import router as audio_router
 from app.api.auth import router as auth_router
 from app.api.cards import router as cards_router
+from app.api.channels import router as channels_router
 from app.api.chat import router as chat_router
 from app.api.export import router as export_router
 from app.api.feeds import router as feeds_router
@@ -36,6 +37,10 @@ from app.api.translations import router as translations_router
 from app.api.wiki import router as wiki_router
 from app.api.youtube import router as youtube_router
 from app.core.config import get_settings
+from app.services.channel_scheduler import (
+    start_scheduler as start_channel_scheduler,
+    stop_scheduler as stop_channel_scheduler,
+)
 from app.services.feed_scheduler import start_scheduler, stop_scheduler
 from app.services.recovery import reap_stuck_processing
 
@@ -56,10 +61,13 @@ async def lifespan(_app: FastAPI):
         )
     # Start the periodic RSS feed poller.
     start_scheduler()
+    # Start the YouTube channel poller (independent job in the same scheduler).
+    start_channel_scheduler()
     try:
         yield
     finally:
         stop_scheduler()
+        stop_channel_scheduler()
 
 
 app = FastAPI(title="Mindshift API", version="0.1.0", lifespan=lifespan)
@@ -110,6 +118,7 @@ app.include_router(paths_router, prefix="/api")
 app.include_router(paths_public_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(feeds_router, prefix="/api")
+app.include_router(channels_router, prefix="/api")
 app.include_router(wiki_router, prefix="/api")
 app.include_router(youtube_router, prefix="/api")
 app.include_router(import_router, prefix="/api")

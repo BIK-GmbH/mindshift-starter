@@ -600,6 +600,30 @@ def _card_response(db: Session, card: Card) -> CardOut:
             out.source_url = s.canonical_url or s.url
             out.external_id = s.external_id
             out.source_metadata = s.metadata_json
+            # Subscribe-context for YouTube cards. Skip cheaply when the
+            # card isn't from YouTube or the ingestion never captured a
+            # channel_id (pre-2026-05-13 rows that still need re-ingest
+            # for the channel_id to surface).
+            if s.source_type == "youtube":
+                meta = s.metadata_json or {}
+                channel_id = (meta.get("channel_id") or "").strip() or None
+                channel_title = (meta.get("channel") or "").strip() or None
+                if channel_id:
+                    from app.models.channel_subscription import ChannelSubscription
+
+                    sub_id = db.execute(
+                        select(ChannelSubscription.id).where(
+                            ChannelSubscription.user_id == card.user_id,
+                            ChannelSubscription.channel_id == channel_id,
+                        )
+                    ).scalar_one_or_none()
+                    if sub_id is not None:
+                        out.channel_subscription_id = sub_id
+                    else:
+                        out.channel_resolvable = {
+                            "channel_id": channel_id,
+                            "title": channel_title or channel_id,
+                        }
     return out
 
 

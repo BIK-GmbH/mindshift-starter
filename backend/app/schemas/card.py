@@ -39,6 +39,13 @@ class CardOut(CardBase):
     # warning in the notes editor so accidental edits don't leak.
     is_public: bool = False
     public_via_tags: list[str] = Field(default_factory=list)
+    # YouTube channel subscribe-context — only populated for YouTube
+    # cards. Either `channel_subscription_id` (user already subscribed)
+    # or `channel_resolvable` (channel_id + title we can subscribe to)
+    # is set, never both. Both null means we couldn't recover a channel
+    # id (older cards ingested before channel_id capture landed).
+    channel_subscription_id: UUID | None = None
+    channel_resolvable: dict | None = None
 
     class Config:
         from_attributes = True

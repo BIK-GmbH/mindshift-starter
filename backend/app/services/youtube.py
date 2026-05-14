@@ -66,6 +66,7 @@ class YouTubeMetadata:
     video_id: str
     title: str
     channel: str | None
+    channel_id: str | None
     thumbnail_url: str | None
     duration_seconds: int | None
     published_at: str | None
@@ -102,6 +103,7 @@ def fetch_metadata(video_id: str) -> YouTubeMetadata:
                         video_id=video_id,
                         title=snip.get("title") or f"YouTube {video_id}",
                         channel=snip.get("channelTitle"),
+                        channel_id=snip.get("channelId"),
                         thumbnail_url=thumb,
                         duration_seconds=None,
                         published_at=snip.get("publishedAt"),
@@ -123,6 +125,7 @@ def fetch_metadata(video_id: str) -> YouTubeMetadata:
         video_id=video_id,
         title=data.get("title") or f"YouTube {video_id}",
         channel=data.get("author_name"),
+        channel_id=None,
         thumbnail_url=data.get("thumbnail_url"),
         duration_seconds=None,
         published_at=None,
