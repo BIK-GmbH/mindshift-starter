@@ -665,6 +665,7 @@ function ChannelNavRow({
         <img
           src={avatar}
           alt=""
+          referrerPolicy="no-referrer"
           className="h-5 w-5 flex-shrink-0 rounded-full bg-ink-800 object-cover"
         />
       ) : (

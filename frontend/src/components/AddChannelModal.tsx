@@ -397,6 +397,7 @@ function ResultList<
               <img
                 src={it.thumbnail_url}
                 alt=""
+                referrerPolicy="no-referrer"
                 className="h-9 w-9 flex-shrink-0 rounded-full bg-ink-800 object-cover"
               />
             ) : (

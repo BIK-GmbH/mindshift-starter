@@ -269,6 +269,7 @@ export default function ChannelDetailView({
             <img
               src={sub.thumbnail_url}
               alt=""
+              referrerPolicy="no-referrer"
               className="h-12 w-12 flex-shrink-0 rounded-full bg-ink-800 object-cover"
             />
           ) : (
@@ -585,6 +586,7 @@ function ChannelVideoRow({
         <img
           src={video.thumbnail_url}
           alt=""
+          referrerPolicy="no-referrer"
           className="h-12 w-20 flex-shrink-0 rounded bg-ink-800 object-cover"
         />
       ) : (
