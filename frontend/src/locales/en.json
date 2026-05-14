@@ -754,7 +754,7 @@
       "subscribe": "Subscribe",
       "subscribed": "Subscribed",
       "unsubscribe": "Unsubscribe",
-      "unsubscribeConfirm": "Remove this channel subscription? Your saved cards stay.",
+      "unsubscribeConfirm": "Your saved cards from this channel stay in the library.",
       "excludeShorts": "Exclude Shorts",
       "noSearchResults": "No channels found.",
       "savedEmpty": "You haven't saved anything from this channel yet.",
@@ -778,7 +778,9 @@
         "label": "Auto-ingest",
         "short": "Auto",
         "enableConfirm": "New uploads will now be ingested as cards automatically. Existing unread items still need a manual save. Continue?",
-        "tooltip": "Turn on auto-ingest at subscribe time"
+        "tooltip": "Turn on auto-ingest at subscribe time",
+        "enableTitle": "Turn on auto-ingest?",
+        "enableCta": "Enable auto-ingest"
       },
       "tabs": {
         "latest": "Latest",
@@ -806,7 +808,8 @@
         "autoTooltip": "Enable auto-ingest for the bulk action",
         "modeAuto": "Auto-ingest new uploads",
         "modeManual": "Subscribe only — save manually"
-      }
+      },
+      "unsubscribeTitle": "Unsubscribe from channel?"
     }
   },
   "discoverRow": {

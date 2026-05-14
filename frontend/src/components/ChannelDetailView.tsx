@@ -27,6 +27,7 @@ import {
   type ChannelTab,
   type ChannelVideo,
 } from "../lib/api";
+import { useDialog } from "../lib/DialogContext";
 
 interface Props {
   subscription: ChannelSubscription;
@@ -44,6 +45,7 @@ export default function ChannelDetailView({
   onMutated,
 }: Props) {
   const { t } = useTranslation();
+  const dialog = useDialog();
   const [sub, setSub] = useState(subscription);
   const [tab, setTab] = useState<ChannelTab>("latest");
   const [videos, setVideos] = useState<ChannelVideo[]>([]);
@@ -99,16 +101,21 @@ export default function ChannelDetailView({
 
   const toggleAutoIngest = async () => {
     const nextMode = sub.ingest_mode === "auto" ? "manual" : "auto";
-    if (
-      nextMode === "auto" &&
-      !confirm(
-        t("discover.channels.autoIngest.enableConfirm", {
-          defaultValue:
-            "Neue Uploads werden ab jetzt automatisch zu Karten. Bestehende ungelesene musst du weiter manuell speichern. Fortfahren?",
+    if (nextMode === "auto") {
+      const ok = await dialog.confirm({
+        title: t("discover.channels.autoIngest.enableTitle", {
+          defaultValue: "Auto-Ingest aktivieren?",
         }),
-      )
-    ) {
-      return;
+        body: t("discover.channels.autoIngest.enableConfirm", {
+          defaultValue:
+            "Neue Uploads werden ab jetzt automatisch zu Karten. Bestehende ungelesene musst du weiter manuell speichern.",
+        }),
+        confirmLabel: t("discover.channels.autoIngest.enableCta", {
+          defaultValue: "Auto-Ingest einschalten",
+        }),
+        cancelLabel: t("common.cancel", { defaultValue: "Abbrechen" }),
+      });
+      if (!ok) return;
     }
     try {
       const updated = await api.patchChannel(sub.id, {
@@ -134,16 +141,21 @@ export default function ChannelDetailView({
   };
 
   const unsubscribe = async () => {
-    if (
-      !confirm(
-        t("discover.channels.unsubscribeConfirm", {
-          defaultValue:
-            "Channel-Abo wirklich entfernen? Deine gespeicherten Karten bleiben.",
-        }),
-      )
-    ) {
-      return;
-    }
+    const ok = await dialog.confirm({
+      title: t("discover.channels.unsubscribeTitle", {
+        defaultValue: "Channel-Abo entfernen?",
+      }),
+      body: t("discover.channels.unsubscribeConfirm", {
+        defaultValue:
+          "Deine gespeicherten Karten aus diesem Channel bleiben in der Library.",
+      }),
+      confirmLabel: t("discover.channels.unsubscribe", {
+        defaultValue: "Abo entfernen",
+      }),
+      cancelLabel: t("common.cancel", { defaultValue: "Abbrechen" }),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.unsubscribeChannel(sub.id);
       onMutated(null);

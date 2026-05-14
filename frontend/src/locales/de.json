@@ -754,7 +754,7 @@
       "subscribe": "Abonnieren",
       "subscribed": "Abonniert",
       "unsubscribe": "Abo entfernen",
-      "unsubscribeConfirm": "Channel-Abo wirklich entfernen? Deine gespeicherten Karten bleiben.",
+      "unsubscribeConfirm": "Deine gespeicherten Karten aus diesem Channel bleiben in der Library.",
       "excludeShorts": "Shorts ausschließen",
       "noSearchResults": "Keine Channels gefunden.",
       "savedEmpty": "Du hast aus diesem Channel noch nichts gespeichert.",
@@ -778,7 +778,9 @@
         "label": "Auto-Ingest",
         "short": "Auto",
         "enableConfirm": "Neue Uploads werden ab jetzt automatisch zu Karten. Bestehende ungelesene musst du weiter manuell speichern. Fortfahren?",
-        "tooltip": "Auto-Ingest beim Abonnieren aktivieren"
+        "tooltip": "Auto-Ingest beim Abonnieren aktivieren",
+        "enableTitle": "Auto-Ingest aktivieren?",
+        "enableCta": "Auto-Ingest einschalten"
       },
       "tabs": {
         "latest": "Neu",
@@ -806,7 +808,8 @@
         "autoTooltip": "Auto-Ingest für die Sammel-Aktion aktivieren",
         "modeAuto": "Neue Uploads automatisch ingesten",
         "modeManual": "Nur abonnieren — manuell speichern"
-      }
+      },
+      "unsubscribeTitle": "Channel-Abo entfernen?"
     }
   },
   "discoverRow": {
