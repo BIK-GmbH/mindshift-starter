@@ -52,7 +52,7 @@ import SummaryTab from "./cardTabs/SummaryTab";
 import TranscriptTab from "./cardTabs/TranscriptTab";
 import { useDialog } from "../lib/DialogContext";
 import { api, type Card, type CardTranslationOut, type QuizQuestion, type TranscriptOut } from "../lib/api";
-import { emit } from "../lib/events";
+import { emit, on } from "../lib/events";
 
 export type CardDetailTab =
   | "summary"
@@ -143,6 +143,19 @@ export default function CardDetailContent({
   useEffect(() => {
     void fetchCard();
   }, [fetchCard]);
+
+  // Live-sync notes when something *outside* this component just wrote
+  // them on the server — currently the right-pane chat panel in
+  // LibraryPage, which exports chat messages to notes via the
+  // ExportChatModal. Without this the NotesTab would show stale state
+  // until the user reloaded the page.
+  useEffect(() => {
+    return on("card-notes-updated", ({ cardId: targetId, notesMd }) => {
+      if (targetId !== cardId) return;
+      setNotes(notesMd);
+      setCard((prev) => (prev ? { ...prev, notes_md: notesMd } : prev));
+    });
+  }, [cardId]);
 
   // Reset transient per-card state when cardId changes (so switching cards in
   // an embedded view doesn't leak the previous card's transcript or notes).
@@ -796,6 +809,13 @@ export default function CardDetailContent({
                 onNotesExported={(nextNotes) => {
                   setCard((prev) => (prev ? { ...prev, notes_md: nextNotes } : prev));
                   setNotes(nextNotes);
+                  // Broadcast so any outer listeners (Library list,
+                  // 'has-notes' indicators, the right-pane wrapper)
+                  // see the update without a reload.
+                  emit("card-notes-updated", {
+                    cardId: card.id,
+                    notesMd: nextNotes,
+                  });
                 }}
               />
             )}

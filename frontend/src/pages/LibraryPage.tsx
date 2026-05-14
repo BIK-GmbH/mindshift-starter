@@ -35,7 +35,7 @@ import TagsTree, { type TagsTreeHandle } from "../components/TagsTree";
 import { playHover, playSound } from "../lib/sounds";
 import { useSearchModal } from "../lib/SearchModalContext";
 import { api, type Card, type CardListItem } from "../lib/api";
-import { on } from "../lib/events";
+import { emit, on } from "../lib/events";
 
 interface SourceMeta {
   Icon: FC<{ className?: string; strokeWidth?: number | string }>;
@@ -443,11 +443,25 @@ export default function LibraryPage() {
                         ? {
                             cardId: selectedCard.id,
                             cardTitle: selectedCard.title,
-                            // Re-fetch the library list so the row's
-                            // "has notes" indicator updates if we ever
-                            // grow one. For now this just keeps the
-                            // selected card's in-memory notes_md fresh.
-                            onSaved: () => void fetchCards(),
+                            onSaved: (newNotesMd) => {
+                              // Keep the in-memory selectedCard fresh
+                              // so anything else binding to it sees the
+                              // updated notes.
+                              setSelectedCard((prev) =>
+                                prev ? { ...prev, notes_md: newNotesMd } : prev,
+                              );
+                              // Tell the CardDetailContent NotesTab to
+                              // refresh — it owns its own notes state
+                              // and doesn't otherwise know we updated
+                              // the server. Without this the user has
+                              // to reload the page to see the appended
+                              // chat content.
+                              emit("card-notes-updated", {
+                                cardId: selectedCard.id,
+                                notesMd: newNotesMd,
+                              });
+                              void fetchCards();
+                            },
                           }
                         : undefined
                     }

@@ -17,6 +17,7 @@
 export type DataEventName =
   | "card-deleted"
   | "card-created"
+  | "card-notes-updated"
   | "tag-changed"
   | "feed-changed"
   | "path-changed";
@@ -24,6 +25,11 @@ export type DataEventName =
 export interface DataEventDetail {
   "card-deleted": { cardId: string };
   "card-created": { cardId: string };
+  /** Server-side notes_md was just rewritten — typically because the
+   *  user exported chat messages into the notes via ExportChatModal.
+   *  Anyone showing this card's notes (the CardDetailContent NotesTab,
+   *  or a list with a 'has notes' indicator) should refresh. */
+  "card-notes-updated": { cardId: string; notesMd: string };
   "tag-changed": { tagId?: string };
   "feed-changed": { feedId?: string };
   "path-changed": { pathId?: string };
