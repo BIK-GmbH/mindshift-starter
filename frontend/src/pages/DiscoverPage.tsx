@@ -23,20 +23,26 @@
 
 import {
   Loader2,
+  Plus,
   RefreshCw,
   Search as SearchIcon,
   Sparkles,
+  Users,
   X,
   Youtube,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 
+import AddChannelModal from "../components/AddChannelModal";
+import ChannelDetailView from "../components/ChannelDetailView";
 import DiscoverVideoRow from "../components/DiscoverVideoRow";
 import PageHeader from "../components/PageHeader";
 import VoiceRecordButton from "../components/VoiceRecordButton";
 import {
   api,
+  type ChannelSubscription,
   type YouTubeCustomSearch,
   type YouTubeDiscover,
   type YouTubeDiscoverTheme,
@@ -107,6 +113,67 @@ export default function DiscoverPage() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>(() => readRecentSearches());
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Channel subscriptions state ──────────────────────────────────
+  const [channels, setChannels] = useState<ChannelSubscription[]>([]);
+  const [channelsLoaded, setChannelsLoaded] = useState(false);
+  const [addChannelOpen, setAddChannelOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeChannelId = searchParams.get("channel");
+  const activeChannel = useMemo(
+    () => channels.find((c) => c.id === activeChannelId) ?? null,
+    [channels, activeChannelId],
+  );
+
+  const reloadChannels = async () => {
+    try {
+      const list = await api.listChannels();
+      setChannels(list);
+    } catch {
+      // non-fatal
+    } finally {
+      setChannelsLoaded(true);
+    }
+  };
+  useEffect(() => {
+    void reloadChannels();
+  }, []);
+
+  const openChannel = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("channel", id);
+    setSearchParams(next, { replace: false });
+  };
+
+  const closeChannel = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("channel");
+    setSearchParams(next, { replace: false });
+  };
+
+  const handleChannelMutated = (updated: ChannelSubscription | null) => {
+    setChannels((prev) => {
+      if (!updated) {
+        return prev.filter((c) => c.id !== activeChannelId);
+      }
+      const i = prev.findIndex((c) => c.id === updated.id);
+      if (i < 0) return [...prev, updated];
+      const next = prev.slice();
+      next[i] = updated;
+      return next;
+    });
+  };
+
+  const handleChannelSubscribed = (sub: ChannelSubscription) => {
+    setChannels((prev) =>
+      prev.some((c) => c.id === sub.id) ? prev : [...prev, sub],
+    );
+  };
+
+  const subscribedIds = useMemo(
+    () => new Set(channels.map((c) => c.channel_id)),
+    [channels],
+  );
 
   const load = async (refresh: boolean, fresh: YouTubeFreshness = freshness) => {
     if (refresh) setRefreshing(true);
@@ -258,6 +325,46 @@ export default function DiscoverPage() {
             ))}
           </nav>
 
+          {/* Channels section */}
+          <div className="border-t border-ink-800 pt-2 pb-2">
+            <div className="flex items-center justify-between px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
+              <span className="inline-flex items-center gap-1.5">
+                <Users className="h-3 w-3" />
+                {t("discover.channels.title", { defaultValue: "Channels" })}
+              </span>
+              <button
+                type="button"
+                onClick={() => setAddChannelOpen(true)}
+                aria-label={t("discover.channels.add", {
+                  defaultValue: "Channel hinzufügen",
+                }) ?? ""}
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            </div>
+            {channelsLoaded && channels.length === 0 && (
+              <p className="px-4 py-2 text-[11px] text-ink-500">
+                {t("discover.channels.empty", {
+                  defaultValue: "Noch keine Channels abonniert.",
+                })}
+              </p>
+            )}
+            <ul>
+              {channels.map((c) => (
+                <li key={c.id}>
+                  <ChannelNavRow
+                    label={c.title || c.channel_id}
+                    avatar={c.thumbnail_url}
+                    unread={c.unread_count}
+                    active={activeChannelId === c.id}
+                    onClick={() => openChannel(c.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+
           {recentSearches.length > 0 && (
             <div className="border-t border-ink-800 pt-2 pb-3">
               <div className="px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-300">
@@ -284,7 +391,14 @@ export default function DiscoverPage() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <PageHeader
+        {activeChannel ? (
+          <ChannelDetailView
+            subscription={activeChannel}
+            onBack={closeChannel}
+            onMutated={handleChannelMutated}
+          />
+        ) : (
+        <><PageHeader
           icon={Sparkles}
           tone="violet"
           title={t("discover.title", { defaultValue: "Für dich auf YouTube" })}
@@ -505,8 +619,66 @@ export default function DiscoverPage() {
             )}
           </div>
         </div>
+        </>
+        )}
       </div>
+      <AddChannelModal
+        open={addChannelOpen}
+        onClose={() => setAddChannelOpen(false)}
+        onSubscribed={(sub) => {
+          handleChannelSubscribed(sub);
+          setAddChannelOpen(false);
+          openChannel(sub.id);
+        }}
+        alreadySubscribed={subscribedIds}
+      />
     </div>
+  );
+}
+
+function ChannelNavRow({
+  label,
+  avatar,
+  unread,
+  active,
+  onClick,
+}: {
+  label: string;
+  avatar: string | null;
+  unread: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className={[
+        "flex w-full items-center gap-2 px-4 py-1.5 text-left text-xs transition",
+        active
+          ? "bg-ink-800/70 text-ink-100"
+          : "text-ink-300 hover:bg-ink-800/40 hover:text-ink-100",
+      ].join(" ")}
+    >
+      {avatar ? (
+        <img
+          src={avatar}
+          alt=""
+          className="h-5 w-5 flex-shrink-0 rounded-full bg-ink-800 object-cover"
+        />
+      ) : (
+        <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-ink-800 text-[9px] font-semibold text-ink-400">
+          {label.slice(0, 1).toUpperCase()}
+        </div>
+      )}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {unread > 0 && (
+        <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-semibold text-white">
+          {unread > 99 ? "99+" : unread}
+        </span>
+      )}
+    </button>
   );
 }
 

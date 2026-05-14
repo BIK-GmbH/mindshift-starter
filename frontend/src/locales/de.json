@@ -310,7 +310,10 @@
     },
     "processNow": "Jetzt verarbeiten",
     "readLaterFilter": "Read-Later",
-    "processAllPaused": "Alle verarbeiten ({{count}})"
+    "processAllPaused": "Alle verarbeiten ({{count}})",
+    "subscribeToChannel": "Channel abonnieren",
+    "subscribedToChannel": "Channel ist abonniert — öffnen",
+    "subscribed": "Abonniert"
   },
   "auth": {
     "signIn": "Anmelden",
@@ -624,7 +627,8 @@
     "loading": "Wird geladen…",
     "error": "Etwas ist schiefgelaufen.",
     "retry": "Erneut versuchen",
-    "undo": "Rückgängig"
+    "undo": "Rückgängig",
+    "settings": "Einstellungen"
   },
   "podcast": {
     "heading": "Podcast",
@@ -741,7 +745,59 @@
     "searchResultsFor": "Suchergebnisse für „{{query}}“",
     "closeSearch": "Schließen",
     "searchEmpty": "Keine Treffer — anderes Stichwort?",
-    "recent": "Zuletzt gesucht"
+    "recent": "Zuletzt gesucht",
+    "channels": {
+      "title": "Channels",
+      "add": "Channel hinzufügen",
+      "empty": "Noch keine Channels abonniert.",
+      "subscribers": "Abos",
+      "subscribe": "Abonnieren",
+      "subscribed": "Abonniert",
+      "unsubscribe": "Abo entfernen",
+      "unsubscribeConfirm": "Channel-Abo wirklich entfernen? Deine gespeicherten Karten bleiben.",
+      "excludeShorts": "Shorts ausschließen",
+      "noSearchResults": "Keine Channels gefunden.",
+      "savedEmpty": "Du hast aus diesem Channel noch nichts gespeichert.",
+      "latestEmpty": "Keine Videos gefunden. Versuche „Aktualisieren“.",
+      "shortLabel": "Short",
+      "views": "Aufrufe",
+      "openSaved": "Öffnen",
+      "addModal": {
+        "title": "Channel abonnieren",
+        "search": "Suchen",
+        "paste": "URL einfügen",
+        "fromLibrary": "Aus deiner Library",
+        "searchPlaceholder": "Channel-Name, z. B. Lex Fridman",
+        "searchHint": "Tippe den Namen eines Creators ein. Wir nutzen die YouTube-Datenbank.",
+        "pastePlaceholder": "youtube.com/@handle, /channel/UC…, oder ein Video-Link",
+        "pasteHint": "Füge eine YouTube-URL oder @handle ein. Wir lösen sie automatisch zu einem Channel auf.",
+        "resolve": "Auflösen",
+        "suggestionsEmpty": "Wir empfehlen Channels, sobald du ein paar YouTube-Karten gespeichert hast."
+      },
+      "autoIngest": {
+        "label": "Auto-Ingest",
+        "short": "Auto",
+        "enableConfirm": "Neue Uploads werden ab jetzt automatisch zu Karten. Bestehende ungelesene musst du weiter manuell speichern. Fortfahren?"
+      },
+      "tabs": {
+        "latest": "Neu",
+        "popular": "Beliebt",
+        "saved": "Gespeichert"
+      },
+      "unread": {
+        "count_one": "{{count}} ungelesen",
+        "count_other": "{{count}} ungelesen",
+        "saveAll": "Alle speichern",
+        "markAllRead": "Alle als gelesen",
+        "savedQueued_one": "{{count}} Karte in die Pipeline geschickt.",
+        "savedQueued_other": "{{count}} Karten in die Pipeline geschickt."
+      },
+      "suggestions": {
+        "title": "Empfohlen aus deiner Library",
+        "cardsInLibrary_one": "{{count}} Karte in deiner Library",
+        "cardsInLibrary_other": "{{count}} Karten in deiner Library"
+      }
+    }
   },
   "discoverRow": {
     "play": "Vorschau abspielen",

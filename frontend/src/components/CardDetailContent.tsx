@@ -25,6 +25,7 @@ import {
   StickyNote,
   Trash2,
   Type,
+  Users,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FC } from "react";
@@ -499,6 +500,23 @@ export default function CardDetailContent({
                   <span className="rounded-md bg-ink-800 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-300">
                     {card.source_type}
                   </span>
+                  {card.source_type === "youtube" && (
+                    <CardChannelSubscribeBadge
+                      subscriptionId={card.channel_subscription_id ?? null}
+                      resolvable={card.channel_resolvable ?? null}
+                      onSubscribed={(subId) =>
+                        setCard((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                channel_subscription_id: subId,
+                                channel_resolvable: null,
+                              }
+                            : prev,
+                        )
+                      }
+                    />
+                  )}
                   {card.status === "completed" && (
                     <CardLanguagePicker
                       cardId={card.id}
@@ -1110,6 +1128,72 @@ function TabScrollChevron({
       ) : (
         <ChevronRight className="h-4 w-4" />
       )}
+    </button>
+  );
+}
+
+/** Channel subscribe chip for the card header.
+ *
+ * Three states:
+ *   - already subscribed → linkable chip → /discover?channel=<sub_id>
+ *   - resolvable (we know the channel id from ingestion metadata) → button
+ *     that POSTs /api/channels and flips to subscribed
+ *   - neither → renders nothing (older card without channel_id captured)
+ */
+function CardChannelSubscribeBadge({
+  subscriptionId,
+  resolvable,
+  onSubscribed,
+}: {
+  subscriptionId: string | null;
+  resolvable: { channel_id: string; title: string } | null;
+  onSubscribed: (subId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+
+  if (subscriptionId) {
+    return (
+      <button
+        type="button"
+        onClick={() => navigate(`/discover?channel=${subscriptionId}`)}
+        title={t("card.subscribedToChannel", {
+          defaultValue: "Channel ist abonniert — öffnen",
+        }) ?? ""}
+        className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300 hover:bg-emerald-500/15"
+      >
+        <Check className="h-3 w-3" />
+        {t("card.subscribed", { defaultValue: "Abonniert" })}
+      </button>
+    );
+  }
+
+  if (!resolvable) return null;
+
+  const handle = async () => {
+    setBusy(true);
+    try {
+      const sub = await api.subscribeChannel(resolvable.channel_id);
+      onSubscribed(sub.id);
+    } catch {
+      // Silent — card meta strip isn't the right place for error toasts;
+      // the user can retry from Discover.
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handle}
+      disabled={busy}
+      title={resolvable.title}
+      className="inline-flex items-center gap-1 rounded-md border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-[10px] font-medium text-violet-300 hover:bg-violet-500/10 disabled:opacity-50"
+    >
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Users className="h-3 w-3" />}
+      {t("card.subscribeToChannel", { defaultValue: "Channel abonnieren" })}
     </button>
   );
 }

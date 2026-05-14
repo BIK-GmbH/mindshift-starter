@@ -139,6 +139,11 @@ export interface Card extends CardListItem {
   source_metadata?: Record<string, unknown> | null;
   is_public?: boolean;
   public_via_tags?: string[];
+  /** Set when this YouTube card's channel is already subscribed. */
+  channel_subscription_id?: string | null;
+  /** Set when the channel is known but not yet subscribed — render the
+   *  inline "Subscribe to channel" button on the card detail header. */
+  channel_resolvable?: { channel_id: string; title: string } | null;
 }
 
 /**
@@ -981,7 +986,123 @@ export const api = {
     if (refresh) params.set("refresh", "1");
     return request<YouTubeCustomSearch>(`/api/youtube/search?${params.toString()}`);
   },
+
+  // ── YouTube channel subscriptions ──────────────────────────────────
+  listChannels: () => request<ChannelSubscription[]>("/api/channels"),
+  searchChannels: (q: string) => {
+    const params = new URLSearchParams({ q });
+    return request<ChannelSearchResult[]>(
+      `/api/channels/search?${params.toString()}`,
+    );
+  },
+  resolveChannel: (urlOrHandle: string) =>
+    request<ChannelSearchResult>("/api/channels/resolve", {
+      method: "POST",
+      body: JSON.stringify({ url_or_handle: urlOrHandle }),
+    }),
+  getChannelSuggestions: () =>
+    request<ChannelSuggestion[]>("/api/channels/suggestions"),
+  subscribeChannel: (channelId: string) =>
+    request<ChannelSubscription>("/api/channels", {
+      method: "POST",
+      body: JSON.stringify({ channel_id: channelId }),
+    }),
+  patchChannel: (
+    id: string,
+    body: { ingest_mode?: "manual" | "auto"; exclude_shorts?: boolean },
+  ) =>
+    request<ChannelSubscription>(`/api/channels/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  unsubscribeChannel: (id: string) =>
+    request<void>(`/api/channels/${id}`, { method: "DELETE" }),
+  getChannelVideos: (id: string, tab: ChannelTab, offset = 0, limit = 20) => {
+    const params = new URLSearchParams({
+      tab,
+      offset: String(offset),
+      limit: String(limit),
+    });
+    return request<ChannelVideoListOut>(
+      `/api/channels/${id}/videos?${params.toString()}`,
+    );
+  },
+  saveChannelVideo: (id: string, videoId: string) =>
+    request<{ card_id: string }>(
+      `/api/channels/${id}/videos/${videoId}/save`,
+      { method: "POST" },
+    ),
+  saveAllUnread: (id: string) =>
+    request<{ queued: number }>(`/api/channels/${id}/save-all-unread`, {
+      method: "POST",
+    }),
+  markChannelRead: (id: string) =>
+    request<void>(`/api/channels/${id}/mark-read`, { method: "POST" }),
+  refreshChannel: (id: string) =>
+    request<ChannelRefreshResult>(`/api/channels/${id}/refresh`, {
+      method: "POST",
+    }),
 };
+
+// ── YouTube channel subscription types ────────────────────────────────
+
+export type ChannelIngestMode = "manual" | "auto";
+export type ChannelTab = "latest" | "popular" | "saved";
+
+export interface ChannelSearchResult {
+  channel_id: string;
+  title: string;
+  handle: string | null;
+  thumbnail_url: string | null;
+  subscriber_count: number | null;
+  description: string | null;
+}
+
+export interface ChannelSuggestion extends ChannelSearchResult {
+  card_count_in_library: number;
+}
+
+export interface ChannelSubscription {
+  id: string;
+  channel_id: string;
+  handle: string | null;
+  title: string;
+  thumbnail_url: string | null;
+  description: string | null;
+  subscriber_count: number | null;
+  ingest_mode: ChannelIngestMode;
+  exclude_shorts: boolean;
+  unread_count: number;
+  items_ingested: number;
+  last_polled_at: string | null;
+  last_success_at: string | null;
+  last_error: string | null;
+  created_at: string;
+}
+
+export interface ChannelVideo {
+  video_id: string;
+  title: string;
+  thumbnail_url: string | null;
+  duration_seconds: number | null;
+  published_at: string | null;
+  is_short: boolean;
+  read_at: string | null;
+  saved_card_id: string | null;
+  view_count: number | null;
+}
+
+export interface ChannelVideoListOut {
+  tab: ChannelTab;
+  items: ChannelVideo[];
+  total: number;
+}
+
+export interface ChannelRefreshResult {
+  new_videos: number;
+  queued_ingestion: number;
+  error: string | null;
+}
 
 export type YouTubeFreshness = "week" | "month" | "quarter" | "year" | "all";
 

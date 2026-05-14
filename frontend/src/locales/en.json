@@ -310,7 +310,10 @@
     },
     "processNow": "Process now",
     "readLaterFilter": "Read Later",
-    "processAllPaused": "Process all ({{count}})"
+    "processAllPaused": "Process all ({{count}})",
+    "subscribeToChannel": "Subscribe to channel",
+    "subscribedToChannel": "Channel subscribed — open",
+    "subscribed": "Subscribed"
   },
   "auth": {
     "signIn": "Sign in",
@@ -624,7 +627,8 @@
     "loading": "Loading…",
     "error": "Something went wrong.",
     "retry": "Retry",
-    "undo": "Undo"
+    "undo": "Undo",
+    "settings": "Settings"
   },
   "podcast": {
     "heading": "Podcast",
@@ -741,7 +745,59 @@
     "searchResultsFor": "Search results for \"{{query}}\"",
     "closeSearch": "Close",
     "searchEmpty": "No hits — try a different term?",
-    "recent": "Recent searches"
+    "recent": "Recent searches",
+    "channels": {
+      "title": "Channels",
+      "add": "Add channel",
+      "empty": "No channels subscribed yet.",
+      "subscribers": "subs",
+      "subscribe": "Subscribe",
+      "subscribed": "Subscribed",
+      "unsubscribe": "Unsubscribe",
+      "unsubscribeConfirm": "Remove this channel subscription? Your saved cards stay.",
+      "excludeShorts": "Exclude Shorts",
+      "noSearchResults": "No channels found.",
+      "savedEmpty": "You haven't saved anything from this channel yet.",
+      "latestEmpty": "No videos found. Try “Refresh”.",
+      "shortLabel": "Short",
+      "views": "views",
+      "openSaved": "Open",
+      "addModal": {
+        "title": "Subscribe to a channel",
+        "search": "Search",
+        "paste": "Paste URL",
+        "fromLibrary": "From your library",
+        "searchPlaceholder": "Channel name, e.g. Lex Fridman",
+        "searchHint": "Type a creator name. We use the YouTube directory.",
+        "pastePlaceholder": "youtube.com/@handle, /channel/UC…, or a video URL",
+        "pasteHint": "Paste any YouTube URL or @handle. We resolve it to a channel automatically.",
+        "resolve": "Resolve",
+        "suggestionsEmpty": "Channel suggestions show up once you have a few YouTube cards in your library."
+      },
+      "autoIngest": {
+        "label": "Auto-ingest",
+        "short": "Auto",
+        "enableConfirm": "New uploads will now be ingested as cards automatically. Existing unread items still need a manual save. Continue?"
+      },
+      "tabs": {
+        "latest": "Latest",
+        "popular": "Popular",
+        "saved": "Saved"
+      },
+      "unread": {
+        "count_one": "{{count}} unread",
+        "count_other": "{{count}} unread",
+        "saveAll": "Save all",
+        "markAllRead": "Mark all read",
+        "savedQueued_one": "{{count}} card queued.",
+        "savedQueued_other": "{{count}} cards queued."
+      },
+      "suggestions": {
+        "title": "Suggested from your library",
+        "cardsInLibrary_one": "{{count}} card in your library",
+        "cardsInLibrary_other": "{{count}} cards in your library"
+      }
+    }
   },
   "discoverRow": {
     "play": "Play preview",
