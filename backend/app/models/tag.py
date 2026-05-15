@@ -24,6 +24,9 @@ class Tag(Base, TimestampMixin):
         index=True,
     )
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    # 'ai' = suggested during ingestion (auto-cleanable when orphaned),
+    # 'manual' = explicitly created by the user (never auto-deleted).
+    source: Mapped[str] = mapped_column(String(8), nullable=False, default="ai")
 
 
 class CardTag(Base):

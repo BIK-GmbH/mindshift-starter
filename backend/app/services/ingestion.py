@@ -406,7 +406,7 @@ def _attach_tags(db: Session, card: Card, tag_names: list[str]) -> None:
                 select(Tag).where(Tag.user_id == card.user_id, Tag.name == part)
             ).scalar_one_or_none()
             if existing is None:
-                tag = Tag(user_id=card.user_id, name=part, parent_id=parent_id)
+                tag = Tag(user_id=card.user_id, name=part, parent_id=parent_id, source="ai")
                 db.add(tag)
                 db.flush()
                 leaf_tag = tag

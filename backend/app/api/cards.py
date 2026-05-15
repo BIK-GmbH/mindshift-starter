@@ -11,6 +11,7 @@ from app.models.card import Card
 from app.models.job import Job
 from app.models.quiz import QuizQuestion
 from app.models.source import Source
+from app.models.tag import CardTag, Tag
 from app.models.transcript import Transcript
 from app.models.user import User
 from app.schemas.card import (
@@ -815,6 +816,17 @@ def delete_card(
 ) -> None:
     card = _get_owned_card(db, card_id, current_user.id)
 
+    # Capture the tag IDs that *were* attached to this card before we
+    # cascade-delete the card_tags rows. Any of these tags may now be
+    # orphaned (no cards, no children) — we sweep them below if their
+    # source is 'ai'. Manually-created tags survive empty as drawers.
+    affected_tag_ids: set[UUID] = {
+        row[0]
+        for row in db.execute(
+            select(CardTag.tag_id).where(CardTag.card_id == card.id)
+        ).all()
+    }
+
     # If this card owned an original upload that nothing else references,
     # drop the bytes from storage too. Other rows can still reference the
     # same File via dedupe — we only delete when no card points at it.
@@ -832,7 +844,46 @@ def delete_card(
             file_record = db.get(FileModel, file_id)
             if file_record is not None:
                 get_storage().delete(db, file_record)
+
+    _cleanup_orphan_ai_tags(db, current_user.id, affected_tag_ids)
     db.commit()
+
+
+def _cleanup_orphan_ai_tags(
+    db: Session, user_id: UUID, seed_ids: set[UUID]
+) -> None:
+    """Remove AI-suggested tags that no longer reference anything.
+
+    A tag is removable when:
+      - source = 'ai' (manual tags survive as empty "drawers")
+      - no card_tags rows point at it
+      - no other tag has it as parent_id
+
+    Removal propagates upward: when a leaf is gone its parent may itself
+    become an empty branch. The frontier is seeded with the deleted
+    card's tags and each removed tag's parent is folded back in.
+    """
+    frontier = {tid for tid in seed_ids if tid is not None}
+    while frontier:
+        tid = frontier.pop()
+        tag = db.get(Tag, tid)
+        if tag is None or tag.user_id != user_id or tag.source != "ai":
+            continue
+        has_card = db.execute(
+            select(CardTag.card_id).where(CardTag.tag_id == tid).limit(1)
+        ).first()
+        if has_card is not None:
+            continue
+        has_child = db.execute(
+            select(Tag.id).where(Tag.parent_id == tid).limit(1)
+        ).first()
+        if has_child is not None:
+            continue
+        parent_id = tag.parent_id
+        db.delete(tag)
+        db.flush()
+        if parent_id is not None:
+            frontier.add(parent_id)
 
 
 @router.post("/{card_id}/regenerate", response_model=IngestionResponse)

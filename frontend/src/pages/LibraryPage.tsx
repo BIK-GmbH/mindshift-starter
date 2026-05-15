@@ -269,6 +269,12 @@ export default function LibraryPage() {
     const timer = window.setTimeout(() => {
       void api
         .deleteCard(card.id)
+        .then(() => {
+          // The backend may have garbage-collected orphan AI tags as a
+          // side effect — broadcast so the TagsTree refreshes its
+          // counts and prunes any branches that just disappeared.
+          emit("card-deleted", { cardId: card.id });
+        })
         .catch((err) => {
           setError((err as Error).message);
           setCards((prev) => [card, ...prev]);

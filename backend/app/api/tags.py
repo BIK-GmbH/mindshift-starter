@@ -190,7 +190,7 @@ def create_tag(
         if parent is None or parent.user_id != current_user.id:
             raise HTTPException(status_code=400, detail="Invalid parent tag")
 
-    tag = Tag(user_id=current_user.id, name=name, parent_id=parent_id)
+    tag = Tag(user_id=current_user.id, name=name, parent_id=parent_id, source="manual")
     db.add(tag)
     db.commit()
     db.refresh(tag)
