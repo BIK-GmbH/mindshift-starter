@@ -33,7 +33,13 @@ export default function PublicShell({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-ink-800 bg-ink-900/95 px-3 py-2 backdrop-blur md:hidden">
+        <div
+          className="sticky top-0 z-10 flex items-center justify-between border-b border-ink-800 bg-ink-900/95 px-3 backdrop-blur md:hidden"
+          style={{
+            paddingTop: "calc(0.5rem + env(safe-area-inset-top))",
+            paddingBottom: "0.5rem",
+          }}
+        >
           <Link
             to="/"
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-100 text-ink-900 transition active:opacity-80"

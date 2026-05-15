@@ -57,7 +57,17 @@ export default function MobileTopBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-12 flex-shrink-0 items-center justify-between border-b border-ink-800 bg-ink-900/95 px-3 backdrop-blur md:hidden">
+      <header
+        className="sticky top-0 z-30 flex flex-shrink-0 items-center justify-between border-b border-ink-800 bg-ink-900/95 px-3 backdrop-blur md:hidden"
+        style={{
+          // On iOS PWA the status bar overlays the viewport — without
+          // this padding the brand row hugs the clock. Expressed inline
+          // so the height grows by exactly the inset rather than using
+          // a magic Tailwind value.
+          paddingTop: "env(safe-area-inset-top)",
+          minHeight: "calc(3rem + env(safe-area-inset-top))",
+        }}
+      >
         <div className="flex items-center gap-2">
           <span
             className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink-100 text-ink-900"
