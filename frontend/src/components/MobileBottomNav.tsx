@@ -52,7 +52,11 @@ export default function MobileBottomNav() {
           onClick={() => playSound("tick")}
           className={({ isActive }) =>
             [
-              "group relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium tracking-wide transition-colors",
+              // Tighter vertical rhythm so icons + label sit closer to
+              // the home-indicator strip (the OS-reserved area below).
+              // `pt-2 pb-1` keeps a comfortable tap target but kills
+              // the visual "floating" feel on iPhone Pro models.
+              "group relative flex flex-1 flex-col items-center justify-center gap-0.5 pt-2 pb-1 text-[10px] font-medium tracking-wide transition-colors",
               isActive ? "text-ink-100" : "text-ink-400 active:text-ink-200",
             ].join(" ")
           }
@@ -78,7 +82,7 @@ export default function MobileBottomNav() {
           playSound("tick");
           openSearch();
         }}
-        className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium tracking-wide text-ink-400 transition-colors active:text-ink-200"
+        className="flex flex-1 flex-col items-center justify-center gap-0.5 pt-2 pb-1 text-[10px] font-medium tracking-wide text-ink-400 transition-colors active:text-ink-200"
         aria-label={t("nav.search") ?? "Search"}
       >
         <Search className="h-5 w-5" strokeWidth={1.75} />
