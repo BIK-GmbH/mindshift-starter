@@ -16,6 +16,18 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://mindshift:mindshift@localhost:5433/mindshift",
         alias="DATABASE_URL",
     )
+
+    def model_post_init(self, __context) -> None:
+        # Railway's managed Postgres injects DATABASE_URL with the bare
+        # `postgresql://` scheme. SQLAlchemy then tries psycopg2 (not
+        # installed) and fails. Normalize to psycopg3 so the same code
+        # works locally and on Railway without an env-specific URL.
+        if self.database_url.startswith("postgresql://") and "+" not in self.database_url.split("://", 1)[0]:
+            object.__setattr__(
+                self,
+                "database_url",
+                self.database_url.replace("postgresql://", "postgresql+psycopg://", 1),
+            )
     frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
     # Externally reachable base URL of this backend, used to mint image
     # URLs we hand to third-party services that need to fetch our assets
