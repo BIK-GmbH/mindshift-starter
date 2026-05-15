@@ -42,7 +42,17 @@ export default function MobileBottomNav() {
   return (
     <nav
       aria-label="primary"
-      className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-ink-800 bg-ink-900/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-ink-800 bg-ink-900/95 backdrop-blur md:hidden"
+      style={{
+        // Apple's HIG asks for the full safe-area inset, but native
+        // apps like Instagram and Twitter use roughly half — the
+        // home-indicator strip itself is only ~5 px tall, the rest
+        // of the 34 px inset is a buffer. Halving it makes the bar
+        // feel anchored to the bottom instead of floating, while
+        // still clearing the indicator.
+        paddingBottom:
+          "max(0.25rem, calc(env(safe-area-inset-bottom) * 0.5))",
+      }}
     >
       {items.map(({ to, labelKey, Icon, end }) => (
         <NavLink

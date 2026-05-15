@@ -117,7 +117,10 @@ export default function AppLayout() {
           saturated localhost sockets and made the UI feel stuck.
           React-Router still mounts/unmounts the matched route via
           <Outlet/>, so each page resets its own state cleanly. */}
-      <main className="flex-1 overflow-hidden pb-[calc(56px+env(safe-area-inset-bottom))] page-enter md:pb-0">
+      {/* Bottom padding matches MobileBottomNav's reduced safe-area
+          (half of the 34 px inset on iPhone). Underscores stand in for
+          spaces inside the Tailwind arbitrary value. */}
+      <main className="flex-1 overflow-hidden pb-[calc(56px+max(0.25rem,env(safe-area-inset-bottom)*0.5))] page-enter md:pb-0">
         <Outlet />
       </main>
 

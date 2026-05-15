@@ -797,7 +797,7 @@ export default function LibraryPage() {
 
         {deleteToast && (
           <div
-            className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4 bottom-[calc(56px+env(safe-area-inset-bottom)+0.75rem)] md:bottom-6"
+            className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4 bottom-[calc(56px+max(0.25rem,env(safe-area-inset-bottom)*0.5)+0.75rem)] md:bottom-6"
           >
             <div className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-ink-700 bg-ink-900/95 px-4 py-3 shadow-2xl backdrop-blur">
               <span className="flex-1 truncate text-sm text-ink-100">
