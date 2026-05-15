@@ -214,6 +214,16 @@ cd backend
   often don't trigger D3/dnd events. Visually verify in the browser; don't
   rely on synthetic `MouseEvent`s for E2E.
 
+- **Railway GitHub auto-deploy needs *two* GitHub permission layers** —
+  not one. Symptom: `serviceInstanceAutoDeployUpdate` returns *"No
+  workspace member has their GitHub account connected with access to
+  this repository"* even after installing the Railway App on the org.
+  Fix: the user-side App authorisation at
+  `https://github.com/settings/apps/authorizations` must list *Railway*
+  — if it's there but stale (installed before the org-app install),
+  revoke it and trigger a fresh OAuth flow from Railway. Full
+  walkthrough in `docs/DEPLOYMENT.md` → *GitHub auto-deploy*.
+
 - **The "loads forever after a few clicks" bug** — bit us at least three
   times. **Always rule out the dev TCP path first** before touching app
   code. Symptoms:

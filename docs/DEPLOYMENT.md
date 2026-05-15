@@ -95,8 +95,55 @@ your.host {
   to one instance. If you scale to multiple replicas of the backend
   service, switch `STORAGE_BACKEND` to `s3` (not implemented yet — a
   drop-in replacement of `services/storage.py:LocalStorage`).
-- **Migrations**: add a release/start hook that runs
-  `python -m alembic upgrade head` before uvicorn boots.
+- **Migrations**: handled by the `startCommand` in `backend/railway.toml`:
+  ```toml
+  startCommand = "sh -c 'set -e; alembic upgrade head; exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'"
+  ```
+  The `${PORT:-8000}` default matters — uvicorn crashes silently if
+  Railway hasn't injected `PORT`, so we fall back to the value the
+  domain-binding expects.
+- **`DATABASE_URL` scheme**: Railway injects the bare `postgresql://`
+  scheme, but SQLAlchemy needs `postgresql+psycopg://` (psycopg3).
+  Normalised in `backend/app/core/config.py::Settings.model_post_init`
+  so the same code works locally and on Railway without an
+  environment-specific URL.
+
+### GitHub auto-deploy
+
+Configured services point at `BIK-GmbH/mindshift-starter#main` with
+`rootDirectory` set to `backend` (for the backend service) and
+`frontend` (for the frontend service). A `git push` to `main` triggers
+a build of both services. To set this up from scratch you need **three**
+pieces in place — missing any one of them gets you the error
+> *No workspace member has their GitHub account connected with access
+> to this repository.*
+
+1. **GitHub App installed on the org with repo access.**
+   `https://github.com/organizations/BIK-GmbH/settings/installations`
+   → `railway-app` → *Repository access* → either *All repositories*
+   or *Only select repositories* with `mindshift-starter` ticked. An
+   org owner has to install it; a member can only request it.
+
+2. **GitHub App user-authorization for the Railway-connected user.**
+   This is a *separate* permission layer from the OAuth login.
+   `https://github.com/settings/apps/authorizations` must list
+   *Railway* under *Authorized GitHub Apps*. If it does and auto-deploy
+   still fails, **revoke** the authorisation there, then trigger a
+   fresh OAuth flow from Railway (e.g. via *Settings → Source →
+   Reconnect*) and click *Authorize Railway* on the resulting GitHub
+   page — this time with the new org installation in scope.
+
+3. **Railway service source pointing at the repo.** In each service:
+   *Settings → Source → Connect repository*, pick the repo + branch,
+   set the right `rootDirectory`. `backend/railway.toml` and
+   `frontend/railway.toml` are auto-discovered.
+
+Verification: pushing an empty commit (`git commit --allow-empty -m
+"…" && git push`) should produce new deployments within ~30 seconds.
+If not, check the GraphQL mutation
+`serviceInstanceAutoDeployUpdate(input: { …, enabled: true })`
+— if it returns the "No workspace member" error, you're missing
+piece (2), not (1) or (3).
 
 ## Publish-via-MCP image attachments
 
