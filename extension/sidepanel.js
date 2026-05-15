@@ -138,7 +138,13 @@ function embedCard(cardId) {
   // `sp=1` lets the embed know it's running inside the side panel so
   // it can hide UI that won't work there (e.g. the chat mic button —
   // Chrome blocks getUserMedia in side-panel iframes).
-  els.cardFrame.src = `${webBase}/embed/cards/${cardId}?sp=1`;
+  const nextSrc = `${webBase}/embed/cards/${cardId}?sp=1`;
+  // Tab switches re-enter through refresh(); skipping the src reassign
+  // when it would be a no-op keeps the iframe alive instead of forcing
+  // a full reload (imperceptible on localhost, very visible on Prod).
+  if (els.cardFrame.src !== nextSrc) {
+    els.cardFrame.src = nextSrc;
+  }
   show("card");
 }
 
@@ -212,7 +218,11 @@ async function autoAddAndEmbed(url) {
 }
 
 async function refresh() {
-  show("loading");
+  // If a card is already on screen, keep it visible while we resolve
+  // the new tab in the background — otherwise every tab switch flashes
+  // the loading pane before settling back on the card pane.
+  const cardAlreadyShown = !els.card.classList.contains("hidden");
+  if (!cardAlreadyShown) show("loading");
   await loadState();
   if (!state.apiUrl || !state.token) {
     // Skip the legacy notConnectedPane entirely — go straight to the
