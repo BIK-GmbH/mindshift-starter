@@ -37,7 +37,15 @@
   html,
   body,
   #root {
-    height: 100%;
+    /* On iOS standalone PWAs with `viewport-fit=cover` +
+       `apple-mobile-web-app-status-bar-style: black-translucent`,
+       `height: 100%` resolves against the *small viewport* — i.e. the
+       inner viewport that excludes the home-indicator safe area.
+       Anything `position: fixed; bottom: 0` then anchors to the top
+       of the safe area, not the device edge, leaving a visible
+       gap below the bar. `100dvh` uses the dynamic large viewport
+       so the body actually reaches the display bottom. */
+    height: 100dvh;
   }
 
   /* Reserve space for the scrollbar on actual scroll containers
