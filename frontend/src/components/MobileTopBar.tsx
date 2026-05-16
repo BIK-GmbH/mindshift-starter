@@ -1,6 +1,7 @@
 import {
   Brain,
   GraduationCap,
+  HelpCircle,
   Languages,
   MessageSquare,
   Menu,
@@ -15,6 +16,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router-dom";
 
+import { useOnboardingModal } from "../lib/OnboardingModalContext";
 import { useSettingsModal } from "../lib/SettingsModalContext";
 import { useTheme } from "../lib/ThemeContext";
 import { playSound } from "../lib/sounds";
@@ -39,6 +41,7 @@ export default function MobileTopBar() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { openModal: openSettings } = useSettingsModal();
+  const { openModal: openOnboarding } = useOnboardingModal();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Close drawer on Escape — common a11y expectation.
@@ -190,6 +193,17 @@ export default function MobileTopBar() {
               >
                 <SettingsIcon className="h-4 w-4 text-ink-400" />
                 {t("nav.settings")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  openOnboarding();
+                }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink-200 transition active:bg-ink-800/40"
+              >
+                <HelpCircle className="h-4 w-4 text-ink-400" />
+                {t("onboarding.menuLabel", { defaultValue: "Setup guide" })}
               </button>
             </div>
           </aside>

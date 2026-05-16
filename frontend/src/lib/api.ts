@@ -453,6 +453,8 @@ export const api = {
     request<{ access_token: string; token_type: string }>("/api/auth/extension-token", {
       method: "POST",
     }),
+  dismissOnboarding: () =>
+    request<UserOut>("/api/auth/onboarding-dismiss", { method: "POST" }),
   reviewQueue: (limit = 20) => request<ReviewQueueItem[]>(`/api/review/queue?limit=${limit}`),
   reviewStats: () => request<ReviewStats>("/api/review/stats"),
   submitReviewAnswer: (questionId: string, rating: ReviewRating) =>
@@ -1491,6 +1493,9 @@ export interface UserOut {
   avatar_file_id: string | null;
   public_profile: boolean;
   is_admin: boolean;
+  /** ISO timestamp when the user clicked "don't show again" on the
+   *  onboarding modal. NULL → modal still auto-opens at session start. */
+  onboarding_dismissed_at: string | null;
 }
 
 export interface ImageTemplateOut {

@@ -29,6 +29,7 @@ class UserOut(BaseModel):
     avatar_file_id: UUID | None = None
     public_profile: bool = False
     is_admin: bool = False
+    onboarding_dismissed_at: datetime | None = None
 
     class Config:
         from_attributes = True

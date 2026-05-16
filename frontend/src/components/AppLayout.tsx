@@ -1,4 +1,5 @@
 import { Brain, Compass, GraduationCap, Headphones, Library, MessageSquare, Network, Rss, Search, Shield, Sparkles } from "lucide-react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, Outlet } from "react-router-dom";
 
@@ -6,10 +7,15 @@ import AdminModal from "./AdminModal";
 import GlobalSearchModal from "./GlobalSearchModal";
 import MobileBottomNav from "./MobileBottomNav";
 import MobileTopBar from "./MobileTopBar";
+import OnboardingModal from "./OnboardingModal";
 import RailFooterButtons from "./RailFooterButtons";
 import SettingsModal from "./SettingsModal";
 import { useAdminModal } from "../lib/AdminModalContext";
 import { useAuth } from "../lib/AuthContext";
+import {
+  OnboardingModalProvider,
+  useOnboardingModal,
+} from "../lib/OnboardingModalContext";
 import { useSearchModal } from "../lib/SearchModalContext";
 import { playSound } from "../lib/sounds";
 
@@ -25,11 +31,34 @@ const railItems = [
 ];
 
 export default function AppLayout() {
+  return (
+    <OnboardingModalProvider>
+      <AppLayoutInner />
+    </OnboardingModalProvider>
+  );
+}
+
+function AppLayoutInner() {
   const { t } = useTranslation();
   const { openModal: openSearch } = useSearchModal();
   const { openModal: openAdmin } = useAdminModal();
   const { user } = useAuth();
   const isAdmin = Boolean(user?.is_admin);
+  const onboarding = useOnboardingModal();
+
+  // Auto-open the welcome / extension-install walkthrough the first
+  // time a user lands in the app. The server-side `onboarding_dismissed_at`
+  // gate makes this idempotent across devices — once they close it
+  // with "don't show again", the next session-start passes silently.
+  useEffect(() => {
+    if (!user) return;
+    if (user.onboarding_dismissed_at != null) return;
+    onboarding.openModal();
+    // We intentionally depend only on `user.id` so opening doesn't fire
+    // on every `refreshUser` call inside the modal (which would
+    // re-trigger after the user dismisses).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   return (
     <div className="flex h-full flex-col bg-ink-900 md:flex-row">
@@ -132,6 +161,7 @@ export default function AppLayout() {
       <SettingsModal />
       <GlobalSearchModal />
       {isAdmin && <AdminModal />}
+      <OnboardingModal open={onboarding.open} onClose={onboarding.closeModal} />
     </div>
   );
 }

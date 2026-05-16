@@ -3,6 +3,34 @@
     "name": "Mindshift",
     "tagline": "Deine persönliche AI Knowledge Base"
   },
+  "onboarding": {
+    "title": "Willkommen bei Mindshift",
+    "subtitle": "Richte die Browser-Extension in drei kurzen Schritten ein.",
+    "menuLabel": "Einrichtung",
+    "dontShowAgain": "Nicht mehr anzeigen",
+    "close": "Verstanden",
+    "step1": {
+      "title": "Access-Token erzeugen",
+      "body": "Die Extension braucht einen langlebigen Token, um mit deinem Mindshift-Backend zu sprechen. Klicke unten, um einen zu erstellen.",
+      "button": "Token erzeugen",
+      "generating": "Erzeuge…",
+      "copy": "Kopieren",
+      "copied": "Kopiert"
+    },
+    "step2": {
+      "title": "Browser-Extension herunterladen",
+      "body": "ZIP entpacken, dann unter chrome://extensions als entpackte Erweiterung laden (Entwicklermodus → Entpackte Erweiterung laden).",
+      "button": ".zip herunterladen",
+      "version": "Version"
+    },
+    "step3": {
+      "title": "Extension verbinden",
+      "body": "Öffne im Browser das Mindshift-Seitenpanel → Einstellungen (Zahnrad). Trage diese beiden Werte ein und klicke auf Speichern.",
+      "apiUrlLabel": "API-URL",
+      "tokenLabel": "Token",
+      "tokenPlaceholder": "(in Schritt 1 generieren)"
+    }
+  },
   "paths": {
     "title": "Paths",
     "subtitle": "Stelle aus deinen Cards geordnete Lernpfade zusammen. Teile sie unter deinem öffentlichen Profil.",

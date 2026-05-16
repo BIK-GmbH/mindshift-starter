@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -140,6 +142,24 @@ def delete_avatar(
     current_user.avatar_file_id = None
     db.commit()
     db.refresh(current_user)
+    return current_user
+
+
+@router.post("/onboarding-dismiss", response_model=UserOut)
+def dismiss_onboarding(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserOut:
+    """Mark the welcome / extension-install modal as dismissed.
+
+    Idempotent: subsequent calls keep the original timestamp instead of
+    overwriting it, so the field stays meaningful if we ever want to
+    surface "you finished onboarding on …".
+    """
+    if current_user.onboarding_dismissed_at is None:
+        current_user.onboarding_dismissed_at = datetime.now(tz=timezone.utc)
+        db.commit()
+        db.refresh(current_user)
     return current_user
 
 

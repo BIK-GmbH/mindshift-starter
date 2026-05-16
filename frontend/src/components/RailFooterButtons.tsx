@@ -1,6 +1,7 @@
-import { Languages, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
+import { HelpCircle, Languages, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { useOptionalOnboardingModal } from "../lib/OnboardingModalContext";
 import { useSettingsModal } from "../lib/SettingsModalContext";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -24,6 +25,7 @@ export default function RailFooterButtons({
 }) {
   const { theme, toggleTheme } = useTheme();
   const { openModal } = useSettingsModal();
+  const onboarding = useOptionalOnboardingModal();
   const { i18n, t } = useTranslation();
   const current = i18n.resolvedLanguage ?? "en";
   const nextLang = current.startsWith("de") ? "en" : "de";
@@ -58,6 +60,18 @@ export default function RailFooterButtons({
           <span className="text-[8px] font-semibold tracking-wider">{langLabel}</span>
         </span>
       </button>
+
+      {showSettings && onboarding && (
+        <button
+          type="button"
+          onClick={onboarding.openModal}
+          title={t("onboarding.menuLabel", { defaultValue: "Setup guide" })}
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-400 transition hover:bg-ink-800/60 hover:text-ink-100"
+          aria-label="Open setup guide"
+        >
+          <HelpCircle className="h-4 w-4" />
+        </button>
+      )}
 
       {showSettings && (
         <button

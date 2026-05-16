@@ -11,6 +11,9 @@ interface User {
   avatar_file_id?: string | null;
   public_profile?: boolean;
   is_admin?: boolean;
+  /** Set once the user clicks "don't show again" on the onboarding
+   *  modal. NULL → modal auto-opens at session start. */
+  onboarding_dismissed_at?: string | null;
 }
 
 interface AuthState {

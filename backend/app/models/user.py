@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,4 +37,11 @@ class User(Base, TimestampMixin):
     # doesn't drift into a free-for-all.
     preferences_json: Mapped[dict] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+
+    # Welcome / extension-install tour. NULL = the modal auto-opens on
+    # the user's next session; once they click "don't show again" we
+    # write NOW() and the modal stays quiet unless explicitly reopened.
+    onboarding_dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )

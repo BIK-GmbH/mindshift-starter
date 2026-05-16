@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "test -f ../scripts/build-extension-zip.sh && ../scripts/build-extension-zip.sh || echo 'extension build script not present (Railway build context) — skipping'",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint ."

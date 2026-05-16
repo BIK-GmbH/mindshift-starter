@@ -3,6 +3,34 @@
     "name": "Mindshift",
     "tagline": "Your personal AI knowledge base"
   },
+  "onboarding": {
+    "title": "Welcome to Mindshift",
+    "subtitle": "Set up the browser extension in three quick steps.",
+    "menuLabel": "Setup guide",
+    "dontShowAgain": "Don't show this again",
+    "close": "Got it",
+    "step1": {
+      "title": "Generate your access token",
+      "body": "The extension needs a long-lived token to talk to your Mindshift backend. Click below to mint one.",
+      "button": "Generate token",
+      "generating": "Generating…",
+      "copy": "Copy",
+      "copied": "Copied"
+    },
+    "step2": {
+      "title": "Download the browser extension",
+      "body": "Unpack the ZIP, then load it as an unpacked extension at chrome://extensions (Developer mode → Load unpacked).",
+      "button": "Download .zip",
+      "version": "Version"
+    },
+    "step3": {
+      "title": "Connect the extension",
+      "body": "Open the extension's side panel → Settings (gear icon). Paste these two values, then click Save.",
+      "apiUrlLabel": "API URL",
+      "tokenLabel": "Token",
+      "tokenPlaceholder": "(generate in step 1)"
+    }
+  },
   "paths": {
     "title": "Paths",
     "subtitle": "Curate ordered learning paths from your cards. Share them publicly under your profile.",
