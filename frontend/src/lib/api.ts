@@ -1363,6 +1363,7 @@ export interface ReviewQueueItem {
   card_title: string;
   card_thumbnail_url: string | null;
   card_source_type: string;
+  card_external_id: string | null;
   question: string;
   answer: string;
   question_type: string;

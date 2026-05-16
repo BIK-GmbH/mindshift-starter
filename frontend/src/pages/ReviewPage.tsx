@@ -13,6 +13,7 @@ import {
   type SessionDetail,
 } from "../lib/api";
 import { playSound } from "../lib/sounds";
+import MiniPlayer from "../components/MiniPlayer";
 import PageHeader from "../components/PageHeader";
 
 const RATINGS: { id: ReviewRating; classes: string; hint: string }[] = [
@@ -60,6 +61,15 @@ export default function ReviewPage() {
   const [submitting, setSubmitting] = useState<ReviewRating | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionStart] = useState(0);
+  // Mini-player state — null = closed. Stores the last opened video id +
+  // title so the player can keep rendering them while the user pages
+  // through non-YouTube cards (instead of disappearing on every cell
+  // type mismatch). The player is auto-unmounted when the user leaves
+  // the page (component unmount).
+  const [miniPlayer, setMiniPlayer] = useState<{
+    videoId: string;
+    title: string;
+  } | null>(null);
   const [mode, setMode] = useState<ReviewMode>(() => {
     try {
       return (localStorage.getItem(MODE_KEY) as ReviewMode) || "recall";
@@ -143,6 +153,22 @@ export default function ReviewPage() {
   }, [refresh]);
 
   const current = queue[pos];
+
+  // When the queue advances to a different YouTube card and the mini
+  // player is open, swap the loaded video. Non-YouTube cards leave the
+  // player at whatever was last shown — explicit Close is the only way
+  // to dismiss it, per design.
+  useEffect(() => {
+    if (!miniPlayer || !current) return;
+    if (current.card_source_type !== "youtube") return;
+    if (!current.card_external_id) return;
+    if (current.card_external_id === miniPlayer.videoId) return;
+    setMiniPlayer({
+      videoId: current.card_external_id,
+      title: current.card_title,
+    });
+  }, [current, miniPlayer]);
+
   const sessionTotal = queue.length - sessionStart;
   const sessionDone = pos - sessionStart;
   const progressPct =
@@ -182,6 +208,13 @@ export default function ReviewPage() {
 
   return (
     <div className="flex h-full">
+      {miniPlayer && (
+        <MiniPlayer
+          videoId={miniPlayer.videoId}
+          title={miniPlayer.title}
+          onClose={() => setMiniPlayer(null)}
+        />
+      )}
       {/* Session sidebar — same width as chat history / tags */}
       <ReviewSidebar
         stats={stats}
@@ -236,6 +269,16 @@ export default function ReviewPage() {
                   onReveal={() => setRevealed(true)}
                   onRate={onRating}
                   onOpenCard={() => navigate(`/cards/${current.card_id}`)}
+                  onOpenMiniPlayer={
+                    current.card_source_type === "youtube" &&
+                    current.card_external_id
+                      ? () =>
+                          setMiniPlayer({
+                            videoId: current.card_external_id!,
+                            title: current.card_title,
+                          })
+                      : undefined
+                  }
                   progress={{ current: pos + 1, total: queue.length }}
                 />
               </>
@@ -676,22 +719,45 @@ function TallyTile({
 
 // Small 40×40 thumbnail/icon shown left of the card title in the
 // review header. Recall-style visual anchor — "ah, this question is
-// about that video / article" — without spoiling the answer.
+// about that video / article" — without spoiling the answer. When
+// `onOpenMiniPlayer` is provided (YouTube cards only), the visual
+// becomes a button that pops the floating player.
 function SourceVisual({
   thumbnailUrl,
   sourceType,
+  onOpenMiniPlayer,
 }: {
   thumbnailUrl: string | null;
   sourceType: string;
+  onOpenMiniPlayer?: () => void;
 }) {
   if (thumbnailUrl) {
-    return (
+    const img = (
       <img
         src={thumbnailUrl}
         alt=""
         className="h-10 w-10 flex-shrink-0 rounded-md object-cover ring-1 ring-ink-700"
         loading="lazy"
       />
+    );
+    if (!onOpenMiniPlayer) return img;
+    return (
+      <button
+        type="button"
+        data-no-drag
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenMiniPlayer();
+        }}
+        className="group relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-md ring-1 ring-ink-700 transition hover:ring-ink-400"
+        aria-label="Open mini-player"
+        title="Open mini-player"
+      >
+        <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+        <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition group-hover:opacity-100">
+          <Youtube className="h-4 w-4 text-white" />
+        </span>
+      </button>
     );
   }
   const Icon =
@@ -721,6 +787,7 @@ function ReviewCard({
   onReveal,
   onRate,
   onOpenCard,
+  onOpenMiniPlayer,
   progress,
 }: {
   item: ReviewQueueItem;
@@ -730,6 +797,7 @@ function ReviewCard({
   onReveal: () => void;
   onRate: (rating: ReviewRating) => void;
   onOpenCard: () => void;
+  onOpenMiniPlayer?: () => void;
   progress: { current: number; total: number };
 }) {
   const { t } = useTranslation();
@@ -742,19 +810,22 @@ function ReviewCard({
   return (
     <div className="overflow-hidden rounded-2xl border border-ink-700 bg-gradient-to-b from-ink-800/60 to-ink-800/30 surface-elevated">
       <div className="flex items-center justify-between gap-3 border-b border-ink-800 bg-ink-800/40 px-3 py-2">
-        <button
-          type="button"
-          onClick={onOpenCard}
-          className="group inline-flex min-w-0 flex-1 items-center gap-2.5 text-left text-xs text-ink-400 transition hover:text-ink-100"
-          title={item.card_title}
-        >
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <SourceVisual
             thumbnailUrl={item.card_thumbnail_url}
             sourceType={item.card_source_type}
+            onOpenMiniPlayer={onOpenMiniPlayer}
           />
-          <span className="min-w-0 flex-1 truncate">{item.card_title}</span>
-          <ArrowRight className="h-3 w-3 flex-shrink-0 transition group-hover:translate-x-0.5" />
-        </button>
+          <button
+            type="button"
+            onClick={onOpenCard}
+            className="group inline-flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-ink-400 transition hover:text-ink-100"
+            title={item.card_title}
+          >
+            <span className="min-w-0 flex-1 truncate">{item.card_title}</span>
+            <ArrowRight className="h-3 w-3 flex-shrink-0 transition group-hover:translate-x-0.5" />
+          </button>
+        </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${stageBadge}`}>
             {t(`review.stage.${item.stage}`)}

@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.card import Card
 from app.models.learning_session import SESSION_GAP_MINUTES, LearningSession
 from app.models.quiz import QuizQuestion, ReviewEvent
+from app.models.source import Source
 from app.models.user import User
 from app.schemas.review import (
     ActivityDay,
@@ -65,8 +66,9 @@ def review_queue(
 ) -> list[ReviewQueueItem]:
     now = datetime.now(tz=timezone.utc)
     stmt = (
-        select(QuizQuestion, Card)
+        select(QuizQuestion, Card, Source.external_id)
         .join(Card, Card.id == QuizQuestion.card_id)
+        .outerjoin(Source, Source.id == Card.source_id)
         .where(Card.user_id == current_user.id)
         .where(or_(QuizQuestion.next_due_at.is_(None), QuizQuestion.next_due_at <= now))
         .order_by(
@@ -84,6 +86,7 @@ def review_queue(
             card_title=card.title,
             card_thumbnail_url=card.thumbnail_url,
             card_source_type=card.source_type,
+            card_external_id=external_id,
             question=q.question,
             answer=q.answer,
             question_type=q.question_type,
@@ -96,7 +99,7 @@ def review_queue(
             next_due_at=q.next_due_at,
             created_at=q.created_at,
         )
-        for q, card in rows
+        for q, card, external_id in rows
     ]
 
 

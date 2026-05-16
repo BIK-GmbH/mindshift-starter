@@ -13,6 +13,10 @@ class ReviewQueueItem(BaseModel):
     # the question is about. Recall-style.
     card_thumbnail_url: str | None = None
     card_source_type: str
+    # External id of the underlying source (YouTube video id for
+    # source_type='youtube'). Lets the review screen embed a mini
+    # player inline without an extra round-trip to fetch the card.
+    card_external_id: str | None = None
     question: str
     answer: str
     question_type: str
