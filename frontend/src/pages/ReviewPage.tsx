@@ -1,4 +1,4 @@
-import { ArrowRight, Brain, Calendar, Check, CheckCheck, Eye, Flame, GraduationCap, History, Loader2, RefreshCw, Target, X } from "lucide-react";
+import { ArrowRight, Brain, Calendar, Check, CheckCheck, Eye, FileText, Flame, Globe, GraduationCap, Headphones, History, Loader2, Newspaper, RefreshCw, StickyNote, Target, X, Youtube } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -674,6 +674,45 @@ function TallyTile({
   );
 }
 
+// Small 40×40 thumbnail/icon shown left of the card title in the
+// review header. Recall-style visual anchor — "ah, this question is
+// about that video / article" — without spoiling the answer.
+function SourceVisual({
+  thumbnailUrl,
+  sourceType,
+}: {
+  thumbnailUrl: string | null;
+  sourceType: string;
+}) {
+  if (thumbnailUrl) {
+    return (
+      <img
+        src={thumbnailUrl}
+        alt=""
+        className="h-10 w-10 flex-shrink-0 rounded-md object-cover ring-1 ring-ink-700"
+        loading="lazy"
+      />
+    );
+  }
+  const Icon =
+    sourceType === "youtube"
+      ? Youtube
+      : sourceType === "pdf"
+        ? FileText
+        : sourceType === "audio"
+          ? Headphones
+          : sourceType === "note"
+            ? StickyNote
+            : sourceType === "rss" || sourceType === "feed"
+              ? Newspaper
+              : Globe;
+  return (
+    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-ink-900/60 ring-1 ring-ink-700">
+      <Icon className="h-4 w-4 text-ink-400" />
+    </span>
+  );
+}
+
 function ReviewCard({
   item,
   revealed,
@@ -702,17 +741,21 @@ function ReviewCard({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-ink-700 bg-gradient-to-b from-ink-800/60 to-ink-800/30 surface-elevated">
-      <div className="flex items-center justify-between border-b border-ink-800 bg-ink-800/40 px-5 py-2.5">
+      <div className="flex items-center justify-between gap-3 border-b border-ink-800 bg-ink-800/40 px-3 py-2">
         <button
           type="button"
           onClick={onOpenCard}
-          className="group inline-flex items-center gap-1.5 text-xs text-ink-400 transition hover:text-ink-100"
+          className="group inline-flex min-w-0 flex-1 items-center gap-2.5 text-left text-xs text-ink-400 transition hover:text-ink-100"
           title={item.card_title}
         >
-          <span className="max-w-[280px] truncate">{item.card_title}</span>
-          <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
+          <SourceVisual
+            thumbnailUrl={item.card_thumbnail_url}
+            sourceType={item.card_source_type}
+          />
+          <span className="min-w-0 flex-1 truncate">{item.card_title}</span>
+          <ArrowRight className="h-3 w-3 flex-shrink-0 transition group-hover:translate-x-0.5" />
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-shrink-0 items-center gap-2">
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${stageBadge}`}>
             {t(`review.stage.${item.stage}`)}
           </span>

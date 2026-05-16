@@ -82,6 +82,8 @@ def review_queue(
             id=q.id,
             card_id=q.card_id,
             card_title=card.title,
+            card_thumbnail_url=card.thumbnail_url,
+            card_source_type=card.source_type,
             question=q.question,
             answer=q.answer,
             question_type=q.question_type,

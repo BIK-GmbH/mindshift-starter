@@ -8,6 +8,11 @@ class ReviewQueueItem(BaseModel):
     id: UUID
     card_id: UUID
     card_title: str
+    # Optional cover image + source type so the review UI can show a
+    # small thumbnail next to the title — visual anchor for which card
+    # the question is about. Recall-style.
+    card_thumbnail_url: str | None = None
+    card_source_type: str
     question: str
     answer: str
     question_type: str
